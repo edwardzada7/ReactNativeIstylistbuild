@@ -101,3 +101,134 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: "Test the Supabase-backed auth flow in the iStylist app"
+
+frontend:
+  - task: "Onboarding to Login Navigation"
+    implemented: true
+    working: true
+    file: "/app/frontend/app/(onboarding)/index.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Successfully navigated from onboarding screen to login screen by clicking 'Skip' button. Login screen with 'Welcome Back!' text displayed correctly."
+
+  - task: "Login to Signup Navigation"
+    implemented: true
+    working: true
+    file: "/app/frontend/app/(auth)/login.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "testing"
+        comment: "Successfully navigated from login screen to signup screen by clicking 'Sign Up' link. Signup screen with 'Create Account' text displayed correctly."
+
+  - task: "Signup Form - Input Handling"
+    implemented: true
+    working: false
+    file: "/app/frontend/app/(auth)/signup.tsx"
+    stuck_count: 1
+    priority: "critical"
+    needs_retesting: true
+    status_history:
+      - working: false
+        agent: "testing"
+        comment: "CRITICAL BUG: Signup form inputs are not properly wired to React state. Automated testing cannot fill form fields because React Native Web TextInput components do not respond to programmatic input (DOM events, React Fiber manipulation, or direct onChangeText calls). DOM values are set correctly but React state remains empty, causing form submission to fail. Fields affected: Full Name (partially works), Email (FAILS - critical), Phone (partially works), Password (partially works), Confirm Password (partially works). This suggests potential issues with real user interaction in certain browsers. The email field specifically never updates its visual display even when DOM value is set."
+
+  - task: "Signup Form Submission"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/app/(auth)/signup.tsx"
+    stuck_count: 1
+    priority: "critical"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "testing"
+        comment: "Cannot test due to input handling bug. Form submission was attempted multiple times but failed because React state for form fields (especially email) remains empty despite DOM values being set. No navigation to Home or OTP screen occurred. No error messages or alerts were displayed to indicate validation failure."
+
+  - task: "OTP Verification Screen"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/app/(auth)/verify-otp.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "testing"
+        comment: "Cannot test - unable to reach OTP screen due to signup form input bug. Screen implementation appears correct based on code review: has 6 OTP input boxes, Verify button, Resend link, and email display."
+
+  - task: "Home Screen After Signup"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/app/(tabs)/index.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "testing"
+        comment: "Cannot test - unable to reach home screen due to signup form input bug. Screen implementation appears correct based on code review: displays 'Hello {user?.full_name}! 👋' greeting."
+
+  - task: "Profile Screen Display"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/app/(tabs)/profile.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "testing"
+        comment: "Cannot test - unable to complete signup due to form input bug."
+
+  - task: "Logout Functionality"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/app/(tabs)/profile.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "testing"
+        comment: "Cannot test - unable to complete signup and login due to form input bug."
+
+  - task: "Re-login After Logout"
+    implemented: true
+    working: "NA"
+    file: "/app/frontend/app/(auth)/login.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "testing"
+        comment: "Cannot test - unable to complete initial signup due to form input bug."
+
+metadata:
+  created_by: "testing_agent"
+  version: "1.0"
+  test_sequence: 1
+  run_ui: true
+  last_updated: "2025-07-03"
+
+test_plan:
+  current_focus:
+    - "Signup Form - Input Handling"
+    - "Signup Form Submission"
+  stuck_tasks:
+    - "Signup Form - Input Handling"
+  test_all: false
+  test_priority: "critical_first"
+
+agent_communication:
+  - agent: "testing"
+    message: "CRITICAL ISSUE FOUND: The signup form has a fundamental bug where React Native Web TextInput components do not properly sync with React state when filled programmatically. Multiple approaches were attempted: (1) Standard Playwright fill/type methods, (2) DOM event dispatching, (3) React Fiber manipulation, (4) Direct onChangeText calls. All methods successfully set DOM values but failed to update React state, causing the visual display to show placeholders and form submission to fail with empty data. The email field is particularly problematic - it never updates visually even when its DOM value is confirmed to be set. This blocks all downstream auth flow testing (OTP verification, home screen, profile, logout, re-login). RECOMMENDATION: Fix the Input component in /app/frontend/src/components/common/Input.tsx to properly handle controlled input state, or investigate React Native Web configuration issues. The form works for some fields (name, phone, passwords show filled values) but not for email, suggesting an inconsistency in how different input types are handled."
