@@ -1,14 +1,27 @@
 // User Types
+// `id` is the numeric profile id from the production business API (table `users`).
+// `auth_id` is the Supabase Auth user UUID - the canonical cross-service identifier.
+// `role` is normalized to the UI-facing 'customer' | 'provider' | 'admin' even though
+// the production backend stores 'customer' | 'stylist' | 'user' | 'admin'.
 export interface User {
   id: string;
+  auth_id: string;
   email: string;
   full_name: string;
+  name?: string;
   phone?: string;
   avatar?: string;
   role: 'customer' | 'provider' | 'admin';
+  role_raw?: string;
   is_verified: boolean;
-  created_at: string;
-  updated_at: string;
+  phone_verified?: boolean;
+  profile_completed?: boolean;
+  country?: string | null;
+  city?: string | null;
+  gender?: string | null;
+  account_type?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 // Auth Types

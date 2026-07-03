@@ -1,14 +1,22 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
+import type { Session } from '@supabase/supabase-js';
+import { supabase } from '../lib/supabase';
 import { authService } from '../services/auth.service';
-import { apiService } from '../services/api';
-import { User, LoginRequest, SignupRequest, AuthResponse } from '../types';
+import { User } from '../types';
 
 interface AuthContextType {
   user: User | null;
+  session: Session | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (credentials: LoginRequest) => Promise<AuthResponse>;
-  signup: (data: SignupRequest) => Promise<AuthResponse>;
+  login: (credentials: { email: string; password: string }) => Promise<void>;
+  signup: (data: {
+    email: string;
+    password: string;
+    full_name: string;
+    phone?: string;
+    role: string;
+  }) => Promise<{ needsVerification: boolean }>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -28,40 +36,75 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+  const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  // Prevents overlapping ensureProfile calls (e.g. INITIAL_SESSION + a
+  // near-simultaneous TOKEN_REFRESHED event) from racing each other.
+  const hydratingRef = useRef<Promise<void> | null>(null);
 
-  useEffect(() => {
-    checkAuthStatus();
-  }, []);
-
-  const checkAuthStatus = async () => {
+  const hydrateFromSession = async (nextSession: Session | null) => {
+    setSession(nextSession);
+    if (!nextSession?.user) {
+      setUser(null);
+      return;
+    }
     try {
-      const token = await apiService.getAuthToken();
-      if (token) {
-        const currentUser = await authService.getCurrentUser();
-        setUser(currentUser);
-      }
+      const profile = await authService.ensureProfile(nextSession.user);
+      setUser(profile);
     } catch (error) {
-      console.error('Auth check failed:', error);
-      await apiService.clearTokens();
-    } finally {
-      setIsLoading(false);
+      console.error('[auth] failed to load/create profile:', error);
+      setUser(null);
     }
   };
 
-  const login = async (credentials: LoginRequest): Promise<AuthResponse> => {
-    const response = await authService.login(credentials);
-    await apiService.setAuthToken(response.access_token, response.refresh_token);
-    setUser(response.user);
-    return response;
+  useEffect(() => {
+    let mounted = true;
+
+    (async () => {
+      const { data } = await supabase.auth.getSession();
+      if (!mounted) return;
+      await hydrateFromSession(data.session);
+      if (mounted) setIsLoading(false);
+    })();
+
+    const { data: sub } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      // Fire-and-forget: keep the listener callback itself synchronous.
+      const run = async () => {
+        if (event === 'SIGNED_OUT') {
+          setSession(null);
+          setUser(null);
+          return;
+        }
+        await hydrateFromSession(nextSession);
+      };
+      hydratingRef.current = run();
+    });
+
+    return () => {
+      mounted = false;
+      sub.subscription.unsubscribe();
+    };
+  }, []);
+
+  const login = async (credentials: { email: string; password: string }) => {
+    const data = await authService.login(credentials);
+    await hydrateFromSession(data.session);
   };
 
-  const signup = async (data: SignupRequest): Promise<AuthResponse> => {
-    const response = await authService.signup(data);
-    await apiService.setAuthToken(response.access_token, response.refresh_token);
-    setUser(response.user);
-    return response;
+  const signup = async (data: {
+    email: string;
+    password: string;
+    full_name: string;
+    phone?: string;
+    role: string;
+  }) => {
+    const result = await authService.signup(data);
+    if (result.session) {
+      await hydrateFromSession(result.session);
+      return { needsVerification: false };
+    }
+    return { needsVerification: true };
   };
 
   const logout = async () => {
@@ -70,24 +113,21 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
-      await apiService.clearTokens();
+      setSession(null);
       setUser(null);
     }
   };
 
   const refreshUser = async () => {
-    try {
-      const currentUser = await authService.getCurrentUser();
-      setUser(currentUser);
-    } catch (error) {
-      console.error('Refresh user failed:', error);
-    }
+    const { data } = await supabase.auth.getSession();
+    await hydrateFromSession(data.session);
   };
 
   return (
     <AuthContext.Provider
       value={{
         user,
+        session,
         isLoading,
         isAuthenticated: !!user,
         login,

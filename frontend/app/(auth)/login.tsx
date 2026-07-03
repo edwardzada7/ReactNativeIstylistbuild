@@ -50,7 +50,7 @@ export default function Login() {
       await login({ email, password });
       router.replace('/(tabs)');
     } catch (error: any) {
-      Alert.alert('Login Failed', error.response?.data?.message || 'Invalid credentials');
+      Alert.alert('Login Failed', error.message || error.response?.data?.detail || 'Invalid credentials');
     } finally {
       setLoading(false);
     }

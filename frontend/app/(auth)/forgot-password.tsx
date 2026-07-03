@@ -46,7 +46,7 @@ export default function ForgotPassword() {
         ]
       );
     } catch (error: any) {
-      Alert.alert('Error', error.response?.data?.message || 'Something went wrong');
+      Alert.alert('Error', error.message || 'Something went wrong');
     } finally {
       setLoading(false);
     }

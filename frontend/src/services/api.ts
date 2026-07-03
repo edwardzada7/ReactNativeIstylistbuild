@@ -1,40 +1,16 @@
-import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from 'axios';
-import * as SecureStore from 'expo-secure-store';
-import { Platform } from 'react-native';
+import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
+import { supabase } from '../lib/supabase';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8001/api';
 
-const TOKEN_KEY = 'auth_token';
-const REFRESH_TOKEN_KEY = 'refresh_token';
-
-// Token storage helper for web compatibility
-const tokenStorage = {
-  async getItem(key: string): Promise<string | null> {
-    if (Platform.OS === 'web') {
-      return localStorage.getItem(key);
-    }
-    return await SecureStore.getItemAsync(key);
-  },
-  async setItem(key: string, value: string): Promise<void> {
-    if (Platform.OS === 'web') {
-      localStorage.setItem(key, value);
-    } else {
-      await SecureStore.setItemAsync(key, value);
-    }
-  },
-  async removeItem(key: string): Promise<void> {
-    if (Platform.OS === 'web') {
-      localStorage.removeItem(key);
-    } else {
-      await SecureStore.deleteItemAsync(key);
-    }
-  },
-};
-
+// The production business-logic API (mongo-supabase-api.emergent.host) is a
+// separate service from Supabase Auth. Authentication (signup/login/session/
+// refresh) is handled entirely by Supabase (see src/lib/supabase.ts and
+// src/services/auth.service.ts). This client's only job is to attach the
+// current Supabase access token to every request so the backend can identify
+// the caller, and to surface network/API errors consistently.
 class ApiService {
   private client: AxiosInstance;
-  private isRefreshing = false;
-  private refreshSubscribers: ((token: string) => void)[] = [];
 
   constructor() {
     this.client = axios.create({
@@ -49,81 +25,48 @@ class ApiService {
   }
 
   private setupInterceptors() {
-    // Request interceptor - Add auth token
     this.client.interceptors.request.use(
       async (config) => {
-        const token = await tokenStorage.getItem(TOKEN_KEY);
-        if (token) {
-          config.headers.Authorization = `Bearer ${token}`;
+        try {
+          const { data } = await supabase.auth.getSession();
+          const token = data.session?.access_token;
+          if (token) {
+            config.headers.Authorization = `Bearer ${token}`;
+          }
+        } catch (err) {
+          console.warn('[api] failed to attach auth token', err);
         }
         return config;
       },
       (error) => Promise.reject(error)
     );
 
-    // Response interceptor - Handle errors and token refresh
     this.client.interceptors.response.use(
       (response) => response,
-      async (error: AxiosError) => {
-        const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean };
-
-        if (error.response?.status === 401 && !originalRequest._retry) {
-          if (this.isRefreshing) {
-            return new Promise((resolve) => {
-              this.refreshSubscribers.push((token: string) => {
-                if (originalRequest.headers) {
-                  originalRequest.headers.Authorization = `Bearer ${token}`;
-                }
-                resolve(this.client(originalRequest));
-              });
-            });
-          }
-
-          originalRequest._retry = true;
-          this.isRefreshing = true;
-
-          try {
-            const refreshToken = await tokenStorage.getItem(REFRESH_TOKEN_KEY);
-            if (refreshToken) {
-              const response = await this.client.post('/auth/refresh', {
-                refresh_token: refreshToken,
-              });
-              const { access_token } = response.data;
-              await tokenStorage.setItem(TOKEN_KEY, access_token);
-              this.refreshSubscribers.forEach((callback) => callback(access_token));
-              this.refreshSubscribers = [];
-              if (originalRequest.headers) {
-                originalRequest.headers.Authorization = `Bearer ${access_token}`;
-              }
-              return this.client(originalRequest);
-            }
-          } catch (refreshError) {
-            await this.clearTokens();
-            return Promise.reject(refreshError);
-          } finally {
-            this.isRefreshing = false;
-          }
+      async (error) => {
+        // Surface a friendlier, consistent error shape for offline/timeout cases.
+        if (!error.response) {
+          error.friendlyMessage = 'Network error. Please check your connection and try again.';
+        } else if (error.response.status >= 500) {
+          error.friendlyMessage = 'Something went wrong on our end. Please try again shortly.';
+        } else {
+          error.friendlyMessage =
+            error.response.data?.detail || error.response.data?.message || 'Request failed.';
         }
-
         return Promise.reject(error);
       }
     );
   }
 
-  async setAuthToken(token: string, refreshToken?: string) {
-    await tokenStorage.setItem(TOKEN_KEY, token);
-    if (refreshToken) {
-      await tokenStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
-    }
+  /** Returns the current Supabase auth user id (used as `auth_id` by the business API). */
+  async getAuthId(): Promise<string | null> {
+    const { data } = await supabase.auth.getSession();
+    return data.session?.user?.id ?? null;
   }
 
-  async getAuthToken(): Promise<string | null> {
-    return await tokenStorage.getItem(TOKEN_KEY);
-  }
-
-  async clearTokens() {
-    await tokenStorage.removeItem(TOKEN_KEY);
-    await tokenStorage.removeItem(REFRESH_TOKEN_KEY);
+  async getAccessToken(): Promise<string | null> {
+    const { data } = await supabase.auth.getSession();
+    return data.session?.access_token ?? null;
   }
 
   // Generic HTTP methods

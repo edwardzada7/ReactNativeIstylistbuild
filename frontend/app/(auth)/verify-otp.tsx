@@ -57,7 +57,7 @@ export default function VerifyOTP() {
         },
       ]);
     } catch (error: any) {
-      Alert.alert('Error', error.response?.data?.message || 'Invalid OTP');
+      Alert.alert('Error', error.message || 'Invalid OTP');
     } finally {
       setLoading(false);
     }
@@ -68,7 +68,7 @@ export default function VerifyOTP() {
       await authService.resendOTP(params.email);
       Alert.alert('Success', 'OTP has been resent to your email');
     } catch (error: any) {
-      Alert.alert('Error', error.response?.data?.message || 'Failed to resend OTP');
+      Alert.alert('Error', error.message || 'Failed to resend OTP');
     }
   };
 

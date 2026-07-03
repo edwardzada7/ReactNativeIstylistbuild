@@ -62,17 +62,27 @@ export default function Signup() {
 
     setLoading(true);
     try {
-      await signup({
+      const { needsVerification } = await signup({
         email: formData.email,
         password: formData.password,
         full_name: formData.full_name,
         phone: formData.phone,
         role,
       });
-      // Navigate to OTP verification if needed
-      router.replace('/(tabs)');
+
+      if (needsVerification) {
+        router.push({
+          pathname: '/(auth)/verify-otp',
+          params: { email: formData.email },
+        });
+      } else {
+        router.replace('/(tabs)');
+      }
     } catch (error: any) {
-      Alert.alert('Signup Failed', error.response?.data?.message || 'Something went wrong');
+      Alert.alert(
+        'Signup Failed',
+        error.message || error.response?.data?.detail || 'Something went wrong'
+      );
     } finally {
       setLoading(false);
     }
