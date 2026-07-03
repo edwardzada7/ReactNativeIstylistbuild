@@ -150,7 +150,7 @@ export default function Signup() {
               label="Full Name"
               placeholder="Enter your full name"
               value={formData.full_name}
-              onChangeText={(text) => setFormData({ ...formData, full_name: text })}
+              onChangeText={(text) => setFormData((prev) => ({ ...prev, full_name: text }))}
               icon="person-outline"
               error={errors.full_name}
             />
@@ -159,7 +159,7 @@ export default function Signup() {
               label="Email"
               placeholder="Enter your email"
               value={formData.email}
-              onChangeText={(text) => setFormData({ ...formData, email: text })}
+              onChangeText={(text) => setFormData((prev) => ({ ...prev, email: text }))}
               keyboardType="email-address"
               autoCapitalize="none"
               icon="mail-outline"
@@ -170,7 +170,7 @@ export default function Signup() {
               label="Phone (Optional)"
               placeholder="Enter your phone number"
               value={formData.phone}
-              onChangeText={(text) => setFormData({ ...formData, phone: text })}
+              onChangeText={(text) => setFormData((prev) => ({ ...prev, phone: text }))}
               keyboardType="phone-pad"
               icon="call-outline"
             />
@@ -179,7 +179,7 @@ export default function Signup() {
               label="Password"
               placeholder="Create a password"
               value={formData.password}
-              onChangeText={(text) => setFormData({ ...formData, password: text })}
+              onChangeText={(text) => setFormData((prev) => ({ ...prev, password: text }))}
               secureTextEntry
               icon="lock-closed-outline"
               error={errors.password}
@@ -189,7 +189,7 @@ export default function Signup() {
               label="Confirm Password"
               placeholder="Confirm your password"
               value={formData.confirmPassword}
-              onChangeText={(text) => setFormData({ ...formData, confirmPassword: text })}
+              onChangeText={(text) => setFormData((prev) => ({ ...prev, confirmPassword: text }))}
               secureTextEntry
               icon="lock-closed-outline"
               error={errors.confirmPassword}
