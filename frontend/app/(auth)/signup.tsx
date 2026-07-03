@@ -101,6 +101,8 @@ export default function Signup() {
           <TouchableOpacity
             style={styles.backButton}
             onPress={() => router.back()}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
           >
             <Ionicons name="arrow-back" size={24} color={Colors.text} />
           </TouchableOpacity>
@@ -117,6 +119,8 @@ export default function Signup() {
                 role === 'customer' && styles.roleButtonActive,
               ]}
               onPress={() => setRole('customer')}
+              accessibilityRole="button"
+              accessibilityLabel="Customer"
             >
               <Text
                 style={[
@@ -133,6 +137,8 @@ export default function Signup() {
                 role === 'provider' && styles.roleButtonActive,
               ]}
               onPress={() => setRole('provider')}
+              accessibilityRole="button"
+              accessibilityLabel="Service Provider"
             >
               <Text
                 style={[
@@ -206,7 +212,11 @@ export default function Signup() {
 
           <View style={styles.footer}>
             <Text style={styles.footerText}>Already have an account? </Text>
-            <TouchableOpacity onPress={() => router.back()}>
+            <TouchableOpacity
+              onPress={() => router.back()}
+              accessibilityRole="button"
+              accessibilityLabel="Sign In"
+            >
               <Text style={styles.footerLink}>Sign In</Text>
             </TouchableOpacity>
           </View>

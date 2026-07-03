@@ -96,6 +96,8 @@ export default function Login() {
             <TouchableOpacity
               style={styles.forgotPassword}
               onPress={() => router.push('/(auth)/forgot-password')}
+              accessibilityRole="button"
+              accessibilityLabel="Forgot Password?"
             >
               <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
             </TouchableOpacity>
@@ -111,7 +113,11 @@ export default function Login() {
 
           <View style={styles.footer}>
             <Text style={styles.footerText}>Don't have an account? </Text>
-            <TouchableOpacity onPress={() => router.push('/(auth)/signup')}>
+            <TouchableOpacity
+              onPress={() => router.push('/(auth)/signup')}
+              accessibilityRole="button"
+              accessibilityLabel="Sign Up"
+            >
               <Text style={styles.footerLink}>Sign Up</Text>
             </TouchableOpacity>
           </View>

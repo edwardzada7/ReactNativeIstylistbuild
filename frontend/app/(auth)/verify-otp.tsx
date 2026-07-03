@@ -77,6 +77,8 @@ export default function VerifyOTP() {
       <TouchableOpacity
         style={styles.backButton}
         onPress={() => router.back()}
+        accessibilityRole="button"
+        accessibilityLabel="Go back"
       >
         <Ionicons name="arrow-back" size={24} color={Colors.text} />
       </TouchableOpacity>
@@ -119,7 +121,11 @@ export default function VerifyOTP() {
 
         <View style={styles.resend}>
           <Text style={styles.resendText}>Didn't receive the code? </Text>
-          <TouchableOpacity onPress={handleResend}>
+          <TouchableOpacity
+            onPress={handleResend}
+            accessibilityRole="button"
+            accessibilityLabel="Resend code"
+          >
             <Text style={styles.resendLink}>Resend</Text>
           </TouchableOpacity>
         </View>
