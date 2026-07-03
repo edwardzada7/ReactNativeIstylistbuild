@@ -133,25 +133,31 @@ frontend:
     implemented: true
     working: false
     file: "/app/frontend/app/(auth)/signup.tsx"
-    stuck_count: 1
+    stuck_count: 2
     priority: "critical"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: false
         agent: "testing"
         comment: "CRITICAL BUG: Signup form inputs are not properly wired to React state. Automated testing cannot fill form fields because React Native Web TextInput components do not respond to programmatic input (DOM events, React Fiber manipulation, or direct onChangeText calls). DOM values are set correctly but React state remains empty, causing form submission to fail. Fields affected: Full Name (partially works), Email (FAILS - critical), Phone (partially works), Password (partially works), Confirm Password (partially works). This suggests potential issues with real user interaction in certain browsers. The email field specifically never updates its visual display even when DOM value is set."
+      - working: false
+        agent: "testing"
+        comment: "RE-TEST COMPLETED: Used keyboard.type() method with delay=50ms as recommended. FINDINGS: (1) Email field selector issue resolved - used .last selector to target signup form email input instead of login form email input. (2) All form fields successfully filled in DOM with visible text: Full Name='QA Test User', Email='qa.test.669133@mailinator.com', Phone='+2348011122233', Password='TestPass123!', Confirm Password='TestPass123!'. (3) CRITICAL ISSUE CONFIRMED: keyboard.type() updates DOM values but does NOT trigger React Native Web's onChangeText handlers. React component state remains empty despite visible DOM values. (4) Form submission fails silently - no validation errors shown to user, no API calls made, stays on signup screen. (5) This is a fundamental React Native Web + Playwright incompatibility - neither .fill() nor keyboard.type() trigger the synthetic events that React Native Web relies on. RECOMMENDATION: This requires manual testing with real user interaction OR fixing the Input component to work with standard DOM events instead of relying solely on React Native Web's synthetic event system."
 
   - task: "Signup Form Submission"
     implemented: true
-    working: "NA"
+    working: false
     file: "/app/frontend/app/(auth)/signup.tsx"
-    stuck_count: 1
+    stuck_count: 2
     priority: "critical"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: "NA"
         agent: "testing"
         comment: "Cannot test due to input handling bug. Form submission was attempted multiple times but failed because React state for form fields (especially email) remains empty despite DOM values being set. No navigation to Home or OTP screen occurred. No error messages or alerts were displayed to indicate validation failure."
+      - working: false
+        agent: "testing"
+        comment: "RE-TEST COMPLETED: Form submission tested with keyboard.type() method. Button click works correctly (confirmed via multiple methods including JavaScript click and Enter key). However, form does NOT submit because React state is empty. Validation function (validate()) fails silently - no error messages displayed to user, no API calls made to Supabase. The handleSignup function is never executed because validation returns false. Root cause: React Native Web TextInput onChangeText handlers are not triggered by Playwright's keyboard simulation, so formData state remains at initial empty values even though DOM shows filled fields. This is a React Native Web limitation, not a form submission bug."
 
   - task: "OTP Verification Screen"
     implemented: true
@@ -226,9 +232,12 @@ test_plan:
     - "Signup Form Submission"
   stuck_tasks:
     - "Signup Form - Input Handling"
+    - "Signup Form Submission"
   test_all: false
   test_priority: "critical_first"
 
 agent_communication:
   - agent: "testing"
     message: "CRITICAL ISSUE FOUND: The signup form has a fundamental bug where React Native Web TextInput components do not properly sync with React state when filled programmatically. Multiple approaches were attempted: (1) Standard Playwright fill/type methods, (2) DOM event dispatching, (3) React Fiber manipulation, (4) Direct onChangeText calls. All methods successfully set DOM values but failed to update React state, causing the visual display to show placeholders and form submission to fail with empty data. The email field is particularly problematic - it never updates visually even when its DOM value is confirmed to be set. This blocks all downstream auth flow testing (OTP verification, home screen, profile, logout, re-login). RECOMMENDATION: Fix the Input component in /app/frontend/src/components/common/Input.tsx to properly handle controlled input state, or investigate React Native Web configuration issues. The form works for some fields (name, phone, passwords show filled values) but not for email, suggesting an inconsistency in how different input types are handled."
+  - agent: "testing"
+    message: "RE-TEST COMPLETED with keyboard.type() method. KEY FINDINGS: (1) Successfully filled all form fields visually - DOM values confirmed correct for all inputs including email. (2) Email field selector issue was resolved by using .last instead of .first to target the correct input. (3) CRITICAL CONFIRMATION: The issue is NOT with visual display or DOM manipulation - it's a React Native Web + Playwright fundamental incompatibility. Neither .fill() nor keyboard.type() trigger React Native Web's synthetic events (onChangeText). (4) Form validation fails silently because React state (formData) remains empty even though DOM shows filled values. No error messages shown to user. (5) Button click works correctly - tested via multiple methods. (6) RECOMMENDATION: This cannot be fixed with different Playwright approaches. Options: (A) Manual testing with real user input, (B) Modify Input component to listen to standard DOM 'input' events in addition to React Native Web's onChangeText, (C) Use a different testing approach that can trigger React Native Web events, (D) Consider if this indicates a real-world browser compatibility issue that affects actual users."
