@@ -304,27 +304,28 @@ agent_communication:
     message: "RE-TEST COMPLETED with keyboard.type() method. KEY FINDINGS: (1) Successfully filled all form fields visually - DOM values confirmed correct for all inputs including email. (2) Email field selector issue was resolved by using .last instead of .first to target the correct input. (3) CRITICAL CONFIRMATION: The issue is NOT with visual display or DOM manipulation - it's a React Native Web + Playwright fundamental incompatibility. Neither .fill() nor keyboard.type() trigger React Native Web's synthetic events (onChangeText). (4) Form validation fails silently because React state (formData) remains empty even though DOM shows filled values. No error messages shown to user. (5) Button click works correctly - tested via multiple methods. (6) RECOMMENDATION: This cannot be fixed with different Playwright approaches. Options: (A) Manual testing with real user input, (B) Modify Input component to listen to standard DOM 'input' events in addition to React Native Web's onChangeText, (C) Use a different testing approach that can trigger React Native Web events, (D) Consider if this indicates a real-world browser compatibility issue that affects actual users."
   - agent: "main"
     message: >
-      STEP 1 (Auth) COMPLETE. Implemented: src/lib/supabase.ts (Supabase client with
-      encrypted LargeSecureStore session persistence per official playbook), src/lib/secureStore.ts
-      (AES-256 encrypted AsyncStorage adapter, key in expo-secure-store), src/services/api.ts
-      (rewritten to attach Supabase access_token to every production-API request instead of
-      custom JWT), src/services/auth.service.ts (Supabase signUp/signInWithPassword/signOut/
-      verifyOtp/resend/resetPasswordForEmail/updateUser + ensureProfile() that GETs
-      /api/users/by-auth/{auth_id} and POSTs /api/users on first login), src/contexts/AuthContext.tsx
-      (global onAuthStateChange listener drives session/user state app-wide). Fixed a
-      pre-existing stale-closure bug in signup.tsx's setFormData calls (now functional
-      updates) that was dropping fast/automated keystrokes. frontend/.env now has
-      EXPO_PUBLIC_SUPABASE_URL, EXPO_PUBLIC_SUPABASE_ANON_KEY, EXPO_PUBLIC_API_BASE_URL
-      (production), EXPO_PUBLIC_FLW_PUBLIC_KEY (for the wallet phase). NO backend code
-      (local or production) was modified - only read-only curl probing was used to reverse
-      engineer the production API's exact contracts. BLOCKER for full auto-test: this
-      Supabase project has "Confirm email" enabled and no sandboxed inbox is available to
-      this agent, so the OTP-entry step of signup needs a manual test with a real email
-      address. Also: there is no in-app "enter code + set new password" screen -
-      forgot-password.tsx currently only triggers supabase.auth.resetPasswordForEmail()
-      (sends Supabase's default recovery email); completing a reset currently depends on
-      Supabase's web-based recovery link since no deep-linking is configured yet - flagging
-      this as a decision point for the user before Steps 2-10.
+      BUILD-ONLY ROUND (Phase 2 Steps 2-3, per explicit user request to skip automated
+      testing this round - user tested manually): Implemented Home Screen (real
+      /api/providers/with-services + client-derived categories from /api/catalog/services,
+      pull-to-refresh, loading/error states), Search Screen (real search/category/service
+      filtering over the same provider list, FlashList-based client-side pagination via
+      onEndReached, loading/empty/error states), and a new Provider Profile screen at
+      app/provider/[id].tsx (GET /api/providers/{id}/full-profile, /reviews,
+      /available-slots - shows bio, services, portfolio images, availability chips,
+      reviews, and ratings; "Book Now" is a placeholder alert since booking/payment is a
+      later phase). New files: src/utils/normalize.ts (defensive field-name normalization
+      since exact production API shapes weren't independently curl-verified this round per
+      user's no-testing constraint), src/types/aes-js.d.ts. Rewrote
+      src/services/provider.service.ts to call the documented production endpoints only
+      (no invented endpoints). Also fixed a few small accessibility/TypeScript issues
+      (Button.tsx style array typing, secureStore.ts null-safety) discovered via `tsc
+      --noEmit`. Validation performed: ESLint (clean on all new/changed files) + `tsc
+      --noEmit` (clean on all new/changed files; 2 pre-existing unrelated errors remain in
+      untouched bookings.tsx/verify-otp.tsx). Per explicit user instruction, NO
+      Playwright/browser/curl runtime testing was performed this round - metro bundled
+      successfully (web + iOS bundles, 0 errors) which is the only runtime signal checked.
+      Production backend was NOT modified. Awaiting user's manual test results, or their
+      go-ahead to run the testing_agent now that credits are recharged.
   - agent: "testing"
     message: >
       FINAL TEST RESULTS (2025-07-03): Comprehensive validation completed with accessibilityRole="button" and accessibilityLabel props added to all auth screen buttons. SUMMARY: ✓ Steps 1-5 PASS (Login screen loads, buttons detectable, wrong credentials handled, signup navigation works, form fields fill correctly in DOM). ✗ Step 6 CRITICAL FAIL: Signup form submission fails silently - no navigation to OTP/Home, no error alerts, no API calls. DOM inspection confirms all fields have correct values (Full Name, Email, Phone, Password, Confirm Password all filled). Used both Playwright .fill() and keyboard.type() methods - same result. This is NOT a Playwright/React Native Web incompatibility issue as previously suspected - the DOM values are correct and visible in the UI. ROOT CAUSE: Real bug in signup flow where form submission fails even with properly filled fields. The functional state updates are in place but something in the validation or submission logic is preventing the form from submitting. RECOMMENDATION: Main agent should add debug logging to handleSignup() and validate() functions to identify why submission is blocked. Cannot test downstream flows (OTP, Home, Profile, Logout, Re-login) until this is fixed. BLOCKER: Signup form submission.

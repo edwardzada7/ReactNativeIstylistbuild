@@ -10,7 +10,8 @@ import 'react-native-get-random-values';
 const ENCRYPTION_KEY_ID = 'istylist_supabase_encryption_key';
 
 async function getOrCreateEncryptionKey(): Promise<Uint8Array> {
-  let keyHex = await SecureStore.getItemAsync(ENCRYPTION_KEY_ID);
+  const existing = await SecureStore.getItemAsync(ENCRYPTION_KEY_ID);
+  let keyHex: string = existing ?? '';
   if (!keyHex) {
     const keyBytes = new Uint8Array(32);
     crypto.getRandomValues(keyBytes);

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -6,44 +6,86 @@ import {
   TextInput,
   ScrollView,
   TouchableOpacity,
-  FlatList,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { FlashList } from '@shopify/flash-list';
+import { useRouter, useLocalSearchParams } from 'expo-router';
+import { Image } from 'expo-image';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
+import { providerService } from '../../src/services/provider.service';
+import { Provider, Category } from '../../src/types';
 
-const filters = ['All', 'Hair', 'Makeup', 'Nails', 'Spa', 'Massage'];
-
-const searchResults = [
-  {
-    id: '1',
-    name: 'Luxe Hair Studio',
-    category: 'Hair Styling',
-    rating: 4.8,
-    distance: '1.2 km',
-    price: '$$',
-  },
-  {
-    id: '2',
-    name: 'Beauty Haven',
-    category: 'Full Service Salon',
-    rating: 4.9,
-    distance: '2.5 km',
-    price: '$$$',
-  },
-  {
-    id: '3',
-    name: 'Nail Art Paradise',
-    category: 'Nail Art & Spa',
-    rating: 4.7,
-    distance: '0.8 km',
-    price: '$',
-  },
-];
+const PAGE_SIZE = 10;
 
 export default function Search() {
+  const router = useRouter();
+  const params = useLocalSearchParams<{ category?: string }>();
+
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [allProviders, setAllProviders] = useState<Provider[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  useEffect(() => {
+    if (params.category) setSelectedFilter(params.category);
+  }, [params.category]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        setError(null);
+        const [providerList, categoryList] = await Promise.all([
+          providerService.getProvidersWithServices(),
+          providerService.getCategories(),
+        ]);
+        setAllProviders(providerList);
+        setCategories(categoryList);
+      } catch (err: any) {
+        console.error('[search] failed to load providers', err);
+        setError(err?.friendlyMessage || 'Could not load providers.');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const filters = useMemo(() => ['All', ...categories.map((c) => c.name)], [categories]);
+
+  const filteredProviders = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    return allProviders.filter((p) => {
+      const matchesFilter =
+        selectedFilter === 'All' ||
+        (typeof p.category === 'string' &&
+          p.category.toLowerCase() === selectedFilter.toLowerCase()) ||
+        p.services.some(
+          (s) => (s.category || '').toLowerCase() === selectedFilter.toLowerCase()
+        );
+      if (!matchesFilter) return false;
+      if (!query) return true;
+      const haystack = [
+        p.business_name,
+        typeof p.category === 'string' ? p.category : '',
+        p.location,
+        ...p.services.map((s) => s.name),
+      ]
+        .join(' ')
+        .toLowerCase();
+      return haystack.includes(query);
+    });
+  }, [allProviders, selectedFilter, searchQuery]);
+
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [selectedFilter, searchQuery]);
+
+  const visibleProviders = filteredProviders.slice(0, visibleCount);
+  const hasMore = visibleCount < filteredProviders.length;
 
   const renderFilterChip = (filter: string) => (
     <TouchableOpacity
@@ -53,6 +95,8 @@ export default function Search() {
         selectedFilter === filter && styles.filterChipActive,
       ]}
       onPress={() => setSelectedFilter(filter)}
+      accessibilityRole="button"
+      accessibilityLabel={filter}
     >
       <Text
         style={[
@@ -65,24 +109,39 @@ export default function Search() {
     </TouchableOpacity>
   );
 
-  const renderResultCard = ({ item }: { item: typeof searchResults[0] }) => (
-    <TouchableOpacity style={styles.resultCard}>
+  const renderResultCard = ({ item }: { item: Provider }) => (
+    <TouchableOpacity
+      style={styles.resultCard}
+      onPress={() => router.push(`/provider/${item.id}`)}
+      accessibilityRole="button"
+      accessibilityLabel={item.business_name}
+    >
       <View style={styles.resultIcon}>
-        <Ionicons name="storefront" size={32} color={Colors.primary} />
+        {item.avatar ? (
+          <Image source={{ uri: item.avatar }} style={styles.resultPhoto} contentFit="cover" />
+        ) : (
+          <Ionicons name="storefront" size={32} color={Colors.primary} />
+        )}
       </View>
       <View style={styles.resultInfo}>
-        <Text style={styles.resultName}>{item.name}</Text>
-        <Text style={styles.resultCategory}>{item.category}</Text>
+        <Text style={styles.resultName} numberOfLines={1}>
+          {item.business_name}
+        </Text>
+        <Text style={styles.resultCategory} numberOfLines={1}>
+          {typeof item.category === 'string' ? item.category : item.location}
+        </Text>
         <View style={styles.resultMeta}>
           <View style={styles.metaItem}>
             <Ionicons name="star" size={14} color={Colors.warning} />
-            <Text style={styles.metaText}>{item.rating}</Text>
+            <Text style={styles.metaText}>{item.rating ? item.rating.toFixed(1) : 'New'}</Text>
           </View>
           <View style={styles.metaItem}>
             <Ionicons name="location" size={14} color={Colors.textSecondary} />
-            <Text style={styles.metaText}>{item.distance}</Text>
+            <Text style={styles.metaText} numberOfLines={1}>
+              {item.location}
+            </Text>
           </View>
-          <Text style={styles.priceText}>{item.price}</Text>
+          <Text style={styles.priceText}>{item.price_range}</Text>
         </View>
       </View>
     </TouchableOpacity>
@@ -106,14 +165,15 @@ export default function Search() {
             onChangeText={setSearchQuery}
           />
           {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={() => setSearchQuery('')}>
+            <TouchableOpacity
+              onPress={() => setSearchQuery('')}
+              accessibilityRole="button"
+              accessibilityLabel="Clear search"
+            >
               <Ionicons name="close-circle" size={20} color={Colors.textMuted} />
             </TouchableOpacity>
           )}
         </View>
-        <TouchableOpacity style={styles.filterButton}>
-          <Ionicons name="options-outline" size={24} color={Colors.text} />
-        </TouchableOpacity>
       </View>
 
       {/* Filters */}
@@ -126,13 +186,38 @@ export default function Search() {
       </ScrollView>
 
       {/* Results */}
-      <FlatList
-        data={searchResults}
-        renderItem={renderResultCard}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.resultsList}
-        showsVerticalScrollIndicator={false}
-      />
+      {loading ? (
+        <View style={styles.centerState}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+        </View>
+      ) : error ? (
+        <View style={styles.centerState}>
+          <Ionicons name="alert-circle-outline" size={32} color={Colors.error} />
+          <Text style={styles.emptyText}>{error}</Text>
+        </View>
+      ) : visibleProviders.length === 0 ? (
+        <View style={styles.centerState}>
+          <Ionicons name="search-outline" size={32} color={Colors.textMuted} />
+          <Text style={styles.emptyText}>No providers found. Try a different search.</Text>
+        </View>
+      ) : (
+        <FlashList
+          data={visibleProviders}
+          renderItem={renderResultCard}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.resultsList}
+          showsVerticalScrollIndicator={false}
+          onEndReachedThreshold={0.4}
+          onEndReached={() => {
+            if (hasMore) setVisibleCount((c) => c + PAGE_SIZE);
+          }}
+          ListFooterComponent={
+            hasMore ? (
+              <ActivityIndicator style={{ marginVertical: Spacing.md }} color={Colors.primary} />
+            ) : null
+          }
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -173,14 +258,6 @@ const styles = StyleSheet.create({
     color: Colors.text,
     paddingVertical: Spacing.sm,
   },
-  filterButton: {
-    width: 48,
-    height: 48,
-    backgroundColor: Colors.surface,
-    borderRadius: BorderRadius.md,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
   filtersContainer: {
     paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing.md,
@@ -206,6 +283,18 @@ const styles = StyleSheet.create({
   filterTextActive: {
     color: Colors.text,
   },
+  centerState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.xl,
+    gap: Spacing.md,
+  },
+  emptyText: {
+    fontSize: FontSizes.sm,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+  },
   resultsList: {
     paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing.xl,
@@ -225,6 +314,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: Spacing.md,
+    overflow: 'hidden',
+  },
+  resultPhoto: {
+    width: '100%',
+    height: '100%',
   },
   resultInfo: {
     flex: 1,
@@ -250,6 +344,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+    flexShrink: 1,
   },
   metaText: {
     fontSize: FontSizes.xs,

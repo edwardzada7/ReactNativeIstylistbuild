@@ -1,62 +1,58 @@
 import apiService from './api';
-import { Provider, Category, Service, PaginatedResponse } from '../types';
+import { Provider, Category, Service, Review } from '../types';
+import {
+  normalizeProvider,
+  normalizeService,
+  normalizeReview,
+  deriveCategories,
+} from '../utils/normalize';
+
+const asList = (raw: any): any[] => {
+  if (Array.isArray(raw)) return raw;
+  return raw?.data || raw?.providers || raw?.services || raw?.results || [];
+};
 
 export const providerService = {
-  // Get all providers with filters
-  async getProviders(params?: {
-    category_id?: string;
-    search?: string;
-    location?: string;
-    page?: number;
-    per_page?: number;
-  }): Promise<PaginatedResponse<Provider>> {
-    return await apiService.get<PaginatedResponse<Provider>>('/providers', { params });
+  // Browse providers with their services embedded (Home + Search use this).
+  async getProvidersWithServices(): Promise<Provider[]> {
+    const raw = await apiService.get<any>('/providers/with-services');
+    return asList(raw).map(normalizeProvider);
   },
 
-  // Get provider by ID
-  async getProvider(id: string): Promise<Provider> {
-    return await apiService.get<Provider>(`/providers/${id}`);
+  // Full provider profile: bio, services, ratings, portfolio.
+  async getProviderFullProfile(providerId: string): Promise<Provider> {
+    const raw = await apiService.get<any>(`/providers/${providerId}/full-profile`);
+    return normalizeProvider(raw);
   },
 
-  // Get provider services
+  // Services offered by one specific provider.
   async getProviderServices(providerId: string): Promise<Service[]> {
-    return await apiService.get<Service[]>(`/providers/${providerId}/services`);
+    const raw = await apiService.get<any>(`/provider-services/${providerId}`);
+    return asList(raw).map(normalizeService);
   },
 
-  // Get featured providers
-  async getFeaturedProviders(): Promise<Provider[]> {
-    return await apiService.get<Provider[]>('/providers/featured');
+  // Full services catalog (used to derive categories client-side, since the
+  // production API has no dedicated /categories endpoint).
+  async getCatalogServices(): Promise<Service[]> {
+    const raw = await apiService.get<any>('/catalog/services');
+    return asList(raw).map(normalizeService);
   },
 
-  // Save/unsave provider
-  async toggleSaveProvider(providerId: string): Promise<void> {
-    return await apiService.post(`/providers/${providerId}/save`);
-  },
-
-  // Get saved providers
-  async getSavedProviders(): Promise<Provider[]> {
-    return await apiService.get<Provider[]>('/providers/saved');
-  },
-
-  // Become a provider
-  async becomeProvider(data: {
-    business_name: string;
-    bio: string;
-    category_id: string;
-    location: string;
-    latitude?: number;
-    longitude?: number;
-  }): Promise<Provider> {
-    return await apiService.post<Provider>('/providers', data);
-  },
-
-  // Update provider profile
-  async updateProvider(id: string, data: Partial<Provider>): Promise<Provider> {
-    return await apiService.put<Provider>(`/providers/${id}`, data);
-  },
-
-  // Get categories
   async getCategories(): Promise<Category[]> {
-    return await apiService.get<Category[]>('/categories');
+    const services = await this.getCatalogServices();
+    return deriveCategories(services);
+  },
+
+  async getProviderReviews(providerId: string): Promise<Review[]> {
+    const raw = await apiService.get<any>(`/providers/${providerId}/reviews`);
+    return asList(raw).map(normalizeReview);
+  },
+
+  async getAvailableSlots(providerId: string, date?: string): Promise<string[]> {
+    const raw = await apiService.get<any>(`/providers/${providerId}/available-slots`, {
+      params: date ? { date } : undefined,
+    });
+    if (Array.isArray(raw)) return raw;
+    return raw?.slots || raw?.data || [];
   },
 };

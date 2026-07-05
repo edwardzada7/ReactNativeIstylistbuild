@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -6,86 +6,143 @@ import {
   ScrollView,
   TouchableOpacity,
   FlatList,
-  Dimensions,
+  RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { Image } from 'expo-image';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
-import { Card } from '../../src/components/common';
 import { useAuth } from '../../src/contexts/AuthContext';
-
-const { width } = Dimensions.get('window');
-
-const categories = [
-  { id: '1', name: 'Hair Styling', icon: 'cut' },
-  { id: '2', name: 'Makeup', icon: 'color-palette' },
-  { id: '3', name: 'Nails', icon: 'hand-left' },
-  { id: '4', name: 'Spa', icon: 'water' },
-  { id: '5', name: 'Massage', icon: 'fitness' },
-  { id: '6', name: 'Skin Care', icon: 'sparkles' },
-];
-
-const featuredProviders = [
-  {
-    id: '1',
-    name: 'Glamour Studio',
-    category: 'Hair & Makeup',
-    rating: 4.9,
-    reviews: 234,
-    price: '$$',
-    image: '💇',
-  },
-  {
-    id: '2',
-    name: 'Elegance Spa',
-    category: 'Spa & Wellness',
-    rating: 4.8,
-    reviews: 189,
-    price: '$$$',
-    image: '💆',
-  },
-];
+import { providerService } from '../../src/services/provider.service';
+import { Category, Provider } from '../../src/types';
 
 export default function Home() {
   const router = useRouter();
   const { user } = useAuth();
 
-  const renderCategoryCard = ({ item }: { item: typeof categories[0] }) => (
-    <TouchableOpacity style={styles.categoryCard}>
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [providers, setProviders] = useState<Provider[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadData = useCallback(async () => {
+    try {
+      setError(null);
+      const [providerList, categoryList] = await Promise.all([
+        providerService.getProvidersWithServices(),
+        providerService.getCategories(),
+      ]);
+      setProviders(providerList);
+      setCategories(categoryList);
+    } catch (err: any) {
+      console.error('[home] failed to load data', err);
+      setError(err?.friendlyMessage || 'Could not load providers. Pull down to retry.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    loadData();
+  };
+
+  const featuredProviders = providers.slice(0, 5);
+  const popularProviders = [...providers]
+    .sort((a, b) => b.rating - a.rating)
+    .slice(0, 8);
+
+  const goToProvider = (id: string) => router.push(`/provider/${id}`);
+  const goToCategory = (categoryName: string) =>
+    router.push({ pathname: '/(tabs)/search', params: { category: categoryName } });
+
+  const renderCategoryCard = ({ item }: { item: Category }) => (
+    <TouchableOpacity
+      style={styles.categoryCard}
+      onPress={() => goToCategory(item.name)}
+      accessibilityRole="button"
+      accessibilityLabel={item.name}
+    >
       <View style={styles.categoryIcon}>
         <Ionicons name={item.icon as any} size={28} color={Colors.primary} />
       </View>
-      <Text style={styles.categoryName}>{item.name}</Text>
+      <Text style={styles.categoryName} numberOfLines={1}>
+        {item.name}
+      </Text>
     </TouchableOpacity>
   );
 
-  const renderProviderCard = ({ item }: { item: typeof featuredProviders[0] }) => (
-    <TouchableOpacity style={styles.providerCard}>
+  const renderProviderCard = (item: Provider) => (
+    <TouchableOpacity
+      key={item.id}
+      style={styles.providerCard}
+      onPress={() => goToProvider(item.id)}
+      accessibilityRole="button"
+      accessibilityLabel={item.business_name}
+    >
       <View style={styles.providerImage}>
-        <Text style={styles.providerEmoji}>{item.image}</Text>
+        {item.avatar ? (
+          <Image
+            source={{ uri: item.avatar }}
+            style={styles.providerImagePhoto}
+            contentFit="cover"
+            transition={150}
+          />
+        ) : (
+          <Ionicons name="person" size={32} color={Colors.primary} />
+        )}
       </View>
       <View style={styles.providerInfo}>
-        <Text style={styles.providerName}>{item.name}</Text>
-        <Text style={styles.providerCategory}>{item.category}</Text>
+        <Text style={styles.providerName} numberOfLines={1}>
+          {item.business_name}
+        </Text>
+        <Text style={styles.providerCategory} numberOfLines={1}>
+          {typeof item.category === 'string' ? item.category : item.location}
+        </Text>
         <View style={styles.providerMeta}>
           <View style={styles.rating}>
             <Ionicons name="star" size={14} color={Colors.warning} />
-            <Text style={styles.ratingText}>{item.rating}</Text>
-            <Text style={styles.reviewsText}>({item.reviews})</Text>
+            <Text style={styles.ratingText}>{item.rating ? item.rating.toFixed(1) : 'New'}</Text>
+            <Text style={styles.reviewsText}>({item.review_count})</Text>
           </View>
-          <Text style={styles.price}>{item.price}</Text>
+          <Text style={styles.price}>{item.price_range}</Text>
         </View>
       </View>
     </TouchableOpacity>
   );
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container} edges={['top']}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={styles.loadingText}>Finding great stylists for you...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={Colors.primary}
+          />
+        }
       >
         {/* Header */}
         <View style={styles.header}>
@@ -93,7 +150,12 @@ export default function Home() {
             <Text style={styles.greeting}>Hello {user?.full_name || 'there'}! 👋</Text>
             <Text style={styles.subGreeting}>Find your perfect style today</Text>
           </View>
-          <TouchableOpacity style={styles.notificationButton}>
+          <TouchableOpacity
+            style={styles.notificationButton}
+            onPress={() => router.push('/(tabs)/profile')}
+            accessibilityRole="button"
+            accessibilityLabel="Notifications"
+          >
             <Ionicons name="notifications-outline" size={24} color={Colors.text} />
             <View style={styles.badge} />
           </TouchableOpacity>
@@ -103,6 +165,8 @@ export default function Home() {
         <TouchableOpacity
           style={styles.searchBar}
           onPress={() => router.push('/(tabs)/search')}
+          accessibilityRole="button"
+          accessibilityLabel="Search services or providers"
         >
           <Ionicons name="search" size={20} color={Colors.textMuted} />
           <Text style={styles.searchPlaceholder}>Search services or providers...</Text>
@@ -120,43 +184,84 @@ export default function Home() {
             <Text style={styles.bannerSubtitle}>
               Get 20% off on your first booking
             </Text>
-            <TouchableOpacity style={styles.bannerButton}>
+            <TouchableOpacity
+              style={styles.bannerButton}
+              onPress={() => router.push('/(tabs)/search')}
+              accessibilityRole="button"
+              accessibilityLabel="Book Now"
+            >
               <Text style={styles.bannerButtonText}>Book Now</Text>
             </TouchableOpacity>
           </View>
           <Text style={styles.bannerEmoji}>🎉</Text>
         </LinearGradient>
 
-        {/* Categories */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Categories</Text>
-            <TouchableOpacity>
-              <Text style={styles.seeAll}>See All</Text>
-            </TouchableOpacity>
+        {error && (
+          <View style={styles.errorBanner}>
+            <Ionicons name="alert-circle-outline" size={18} color={Colors.error} />
+            <Text style={styles.errorText}>{error}</Text>
           </View>
-          <FlatList
-            data={categories}
-            renderItem={renderCategoryCard}
-            keyExtractor={(item) => item.id}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.categoriesList}
-          />
-        </View>
+        )}
+
+        {/* Categories */}
+        {categories.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Categories</Text>
+              <TouchableOpacity
+                onPress={() => router.push('/(tabs)/search')}
+                accessibilityRole="button"
+                accessibilityLabel="See all categories"
+              >
+                <Text style={styles.seeAll}>See All</Text>
+              </TouchableOpacity>
+            </View>
+            <FlatList
+              data={categories}
+              renderItem={renderCategoryCard}
+              keyExtractor={(item) => item.id}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.categoriesList}
+            />
+          </View>
+        )}
 
         {/* Featured Providers */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Featured Providers</Text>
-            <TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => router.push('/(tabs)/search')}
+              accessibilityRole="button"
+              accessibilityLabel="See all featured providers"
+            >
               <Text style={styles.seeAll}>See All</Text>
             </TouchableOpacity>
           </View>
-          {featuredProviders.map((provider) => (
-            <View key={provider.id}>{renderProviderCard({ item: provider })}</View>
-          ))}
+          {featuredProviders.length > 0 ? (
+            featuredProviders.map(renderProviderCard)
+          ) : (
+            <Text style={styles.emptyText}>No providers available right now.</Text>
+          )}
         </View>
+
+        {/* Popular Providers */}
+        {popularProviders.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Popular Near You</Text>
+              <TouchableOpacity
+                onPress={() => router.push('/(tabs)/search')}
+                accessibilityRole="button"
+                accessibilityLabel="See all popular providers"
+              >
+                <Text style={styles.seeAll}>See All</Text>
+              </TouchableOpacity>
+            </View>
+            {popularProviders.map(renderProviderCard)}
+          </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -166,6 +271,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: Colors.background,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: Spacing.md,
+  },
+  loadingText: {
+    fontSize: FontSizes.sm,
+    color: Colors.textSecondary,
   },
   scrollContent: {
     paddingBottom: Spacing.xl,
@@ -259,6 +374,26 @@ const styles = StyleSheet.create({
   bannerEmoji: {
     fontSize: 64,
   },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    backgroundColor: Colors.surface,
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.lg,
+    padding: Spacing.md,
+    borderRadius: BorderRadius.md,
+  },
+  errorText: {
+    flex: 1,
+    fontSize: FontSizes.sm,
+    color: Colors.error,
+  },
+  emptyText: {
+    fontSize: FontSizes.sm,
+    color: Colors.textSecondary,
+    paddingHorizontal: Spacing.lg,
+  },
   section: {
     marginBottom: Spacing.lg,
   },
@@ -317,9 +452,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: Spacing.md,
+    overflow: 'hidden',
   },
-  providerEmoji: {
-    fontSize: 40,
+  providerImagePhoto: {
+    width: '100%',
+    height: '100%',
   },
   providerInfo: {
     flex: 1,

@@ -30,14 +30,14 @@ export const Button: React.FC<ButtonProps> = ({
   style,
   ...props
 }) => {
-  const buttonStyle: ViewStyle[] = [
+  const buttonStyle = [
     styles.base,
     styles[variant],
     styles[`size_${size}`],
     fullWidth && styles.fullWidth,
     disabled && styles.disabled,
-    style as ViewStyle,
-  ];
+    style,
+  ] as ViewStyle[];
 
   const textStyle: TextStyle[] = [
     styles.text,

@@ -57,7 +57,7 @@ export interface Provider {
   business_name: string;
   bio: string;
   category_id: string;
-  category?: Category;
+  category?: Category | string;
   rating: number;
   review_count: number;
   price_range: string;
@@ -71,6 +71,7 @@ export interface Provider {
   response_time?: string;
   completion_rate?: number;
   created_at: string;
+  avatar?: string;
 }
 
 // Category Types
@@ -92,6 +93,8 @@ export interface Service {
   duration: number; // in minutes
   category?: string;
   is_active: boolean;
+  in_store?: boolean;
+  home_service?: boolean;
 }
 
 // Booking Types
@@ -179,6 +182,7 @@ export interface Review {
   provider_id: string;
   customer_id: string;
   customer?: User;
+  customer_name?: string;
   rating: number;
   comment: string;
   images?: string[];
