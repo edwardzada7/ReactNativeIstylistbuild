@@ -17,6 +17,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { providerService } from '../../src/services/provider.service';
+import { formatPriceRange } from '../../src/utils/currency';
 import { Category, Provider } from '../../src/types';
 
 export default function Home() {
@@ -114,7 +115,7 @@ export default function Home() {
             <Text style={styles.ratingText}>{item.rating ? item.rating.toFixed(1) : 'New'}</Text>
             <Text style={styles.reviewsText}>({item.review_count})</Text>
           </View>
-          <Text style={styles.price}>{item.price_range}</Text>
+          <Text style={styles.price}>{formatPriceRange(item.price_range)}</Text>
         </View>
       </View>
     </TouchableOpacity>

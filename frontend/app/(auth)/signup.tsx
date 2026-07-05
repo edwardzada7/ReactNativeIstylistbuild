@@ -62,7 +62,7 @@ export default function Signup() {
 
     setLoading(true);
     try {
-      const { needsVerification } = await signup({
+      const { needsVerification, user: newUser } = await signup({
         email: formData.email,
         password: formData.password,
         full_name: formData.full_name,
@@ -76,7 +76,7 @@ export default function Signup() {
           params: { email: formData.email },
         });
       } else {
-        router.replace('/(tabs)');
+        router.replace(newUser?.role === 'provider' ? '/(provider)/dashboard' : '/(tabs)');
       }
     } catch (error: any) {
       Alert.alert(

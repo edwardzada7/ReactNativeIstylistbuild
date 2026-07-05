@@ -9,13 +9,19 @@ import { Loading } from '../src/components/common';
 
 export default function Index() {
   const router = useRouter();
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
 
   useEffect(() => {
     if (!isLoading) {
       const timer = setTimeout(() => {
         if (isAuthenticated) {
-          router.replace('/(tabs)');
+          // Route each role to its own dashboard. Admin has no dedicated
+          // mobile UI yet, so it falls back to the customer tabs.
+          if (user?.role === 'provider') {
+            router.replace('/(provider)/dashboard');
+          } else {
+            router.replace('/(tabs)');
+          }
         } else {
           router.replace('/(onboarding)');
         }
@@ -23,7 +29,7 @@ export default function Index() {
 
       return () => clearTimeout(timer);
     }
-  }, [isLoading, isAuthenticated]);
+  }, [isLoading, isAuthenticated, user?.role]);
 
   if (isLoading) {
     return <Loading />;

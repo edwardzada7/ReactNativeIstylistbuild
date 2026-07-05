@@ -101,27 +101,32 @@ export interface Service {
 export interface Booking {
   id: string;
   customer_id: string;
+  customer_auth_id?: string;
   provider_id: string;
+  provider_auth_id?: string;
   service_id: string;
+  service_name: string;
+  provider_name: string;
+  provider_avatar?: string;
   service?: Service;
   provider?: Provider;
   customer?: User;
-  date: string;
-  time: string;
-  status: 'pending' | 'confirmed' | 'in_progress' | 'completed' | 'cancelled' | 'no_show';
+  scheduled_at: string; // ISO datetime
+  date: string; // derived, YYYY-MM-DD
+  time: string; // derived, e.g. "10:00 AM"
+  status: string; // pending | confirmed | arrived | completed | cancelled | rejected | no_show (backend-driven, kept loose)
   total_amount: number;
-  payment_status: 'pending' | 'paid' | 'refunded' | 'escrowed';
+  payment_status?: string;
   location?: string;
   notes?: string;
   created_at: string;
-  updated_at: string;
+  updated_at?: string;
 }
 
 export interface CreateBookingRequest {
   provider_id: string;
   service_id: string;
-  date: string;
-  time: string;
+  scheduled_at: string;
   notes?: string;
 }
 
@@ -191,9 +196,23 @@ export interface Review {
 
 export interface CreateReviewRequest {
   booking_id: string;
+  provider_id?: string;
   rating: number;
   comment: string;
   images?: string[];
+}
+
+// Availability Types
+export interface DayAvailability {
+  day: 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
+  is_open: boolean;
+  open_time: string; // "09:00"
+  close_time: string; // "18:00"
+}
+
+export interface ProviderAvailability {
+  days: DayAvailability[];
+  blocked_dates: string[]; // ["2025-08-25"]
 }
 
 // Message Types

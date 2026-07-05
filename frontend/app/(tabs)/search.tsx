@@ -15,6 +15,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Image } from 'expo-image';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { providerService } from '../../src/services/provider.service';
+import { formatPriceRange } from '../../src/utils/currency';
 import { Provider, Category } from '../../src/types';
 
 const PAGE_SIZE = 10;
@@ -141,7 +142,7 @@ export default function Search() {
               {item.location}
             </Text>
           </View>
-          <Text style={styles.priceText}>{item.price_range}</Text>
+          <Text style={styles.priceText}>{formatPriceRange(item.price_range)}</Text>
         </View>
       </View>
     </TouchableOpacity>

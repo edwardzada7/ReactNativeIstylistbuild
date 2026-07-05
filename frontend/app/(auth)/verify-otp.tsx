@@ -13,9 +13,11 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { Button } from '../../src/components/common';
 import { authService } from '../../src/services/auth.service';
+import { useAuth } from '../../src/contexts/AuthContext';
 
 export default function VerifyOTP() {
   const router = useRouter();
+  const { refreshUser } = useAuth();
   const params = useLocalSearchParams<{ email: string }>();
   const [otp, setOtp] = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
@@ -50,10 +52,12 @@ export default function VerifyOTP() {
     setLoading(true);
     try {
       await authService.verifyOTP({ email: params.email, code });
+      const profile = await refreshUser();
       Alert.alert('Success', 'Your account has been verified!', [
         {
           text: 'OK',
-          onPress: () => router.replace('/(tabs)'),
+          onPress: () =>
+            router.replace(profile?.role === 'provider' ? '/(provider)/dashboard' : '/(tabs)'),
         },
       ]);
     } catch (error: any) {

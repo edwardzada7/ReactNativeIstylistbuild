@@ -1,129 +1,136 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
-  FlatList,
+  ScrollView,
   TouchableOpacity,
+  ActivityIndicator,
+  RefreshControl,
+  Alert,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
+import { Button } from '../../src/components/common';
+import { bookingService } from '../../src/services/booking.service';
+import { reviewService } from '../../src/services/review.service';
+import { formatCurrency } from '../../src/utils/currency';
+import { Booking } from '../../src/types';
 
-const tabs = ['Upcoming', 'Past', 'Cancelled'];
+const tabs = ['Upcoming', 'Completed', 'Cancelled'];
 
-const bookings = [
-  {
-    id: '1',
-    providerName: 'Glamour Studio',
-    service: 'Hair Coloring',
-    date: '2025-07-25',
-    time: '10:00 AM',
-    status: 'confirmed',
-    price: 120,
-  },
-  {
-    id: '2',
-    providerName: 'Elegance Spa',
-    service: 'Full Body Massage',
-    date: '2025-07-20',
-    time: '2:00 PM',
-    status: 'completed',
-    price: 80,
-  },
-];
-
-const statusColors = {
+const statusColors: Record<string, string> = {
   pending: Colors.warning,
   confirmed: Colors.info,
+  arrived: Colors.info,
   completed: Colors.success,
   cancelled: Colors.error,
+  rejected: Colors.error,
 };
 
 export default function Bookings() {
+  const router = useRouter();
   const [selectedTab, setSelectedTab] = useState('Upcoming');
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [reviewedBookingIds, setReviewedBookingIds] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [busyId, setBusyId] = useState<string | null>(null);
 
-  const renderTabButton = (tab: string) => (
-    <TouchableOpacity
-      key={tab}
-      style={[
-        styles.tabButton,
-        selectedTab === tab && styles.tabButtonActive,
-      ]}
-      onPress={() => setSelectedTab(tab)}
-    >
-      <Text
-        style={[
-          styles.tabText,
-          selectedTab === tab && styles.tabTextActive,
-        ]}
-      >
-        {tab}
-      </Text>
-    </TouchableOpacity>
-  );
+  const [reviewModal, setReviewModal] = useState<Booking | null>(null);
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState('');
+  const [submittingReview, setSubmittingReview] = useState(false);
 
-  const renderBookingCard = ({ item }: { item: typeof bookings[0] }) => (
-    <TouchableOpacity style={styles.bookingCard}>
-      <View style={styles.bookingHeader}>
-        <View style={styles.providerIcon}>
-          <Ionicons name="storefront" size={24} color={Colors.primary} />
-        </View>
-        <View style={styles.bookingInfo}>
-          <Text style={styles.providerName}>{item.providerName}</Text>
-          <Text style={styles.serviceName}>{item.service}</Text>
-        </View>
-        <View
-          style={[
-            styles.statusBadge,
-            { backgroundColor: `${statusColors[item.status]}20` },
-          ]}
-        >
-          <Text
-            style={[
-              styles.statusText,
-              { color: statusColors[item.status] },
-            ]}
-          >
-            {item.status}
-          </Text>
-        </View>
-      </View>
+  const loadData = useCallback(async () => {
+    try {
+      setError(null);
+      const [bookingList, myReviews] = await Promise.all([
+        bookingService.getBookings({ role: 'customer' }),
+        reviewService.getMyReviews().catch(() => []),
+      ]);
+      setBookings(bookingList);
+      setReviewedBookingIds(new Set(myReviews.map((r) => r.booking_id)));
+    } catch (err: any) {
+      console.error('[bookings] failed to load', err);
+      setError(err?.friendlyMessage || 'Could not load your bookings.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, []);
 
-      <View style={styles.bookingDetails}>
-        <View style={styles.detailItem}>
-          <Ionicons name="calendar-outline" size={16} color={Colors.textSecondary} />
-          <Text style={styles.detailText}>{item.date}</Text>
-        </View>
-        <View style={styles.detailItem}>
-          <Ionicons name="time-outline" size={16} color={Colors.textSecondary} />
-          <Text style={styles.detailText}>{item.time}</Text>
-        </View>
-        <View style={styles.detailItem}>
-          <Ionicons name="cash-outline" size={16} color={Colors.textSecondary} />
-          <Text style={styles.detailText}>${item.price}</Text>
-        </View>
-      </View>
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
-      {item.status === 'confirmed' && (
-        <View style={styles.bookingActions}>
-          <TouchableOpacity style={styles.actionButtonSecondary}>
-            <Text style={styles.actionButtonTextSecondary}>Reschedule</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.actionButtonPrimary}>
-            <Text style={styles.actionButtonTextPrimary}>View Details</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+  const handleRefresh = () => {
+    setRefreshing(true);
+    loadData();
+  };
 
-      {item.status === 'completed' && (
-        <TouchableOpacity style={styles.reviewButton}>
-          <Ionicons name="star-outline" size={16} color={Colors.primary} />
-          <Text style={styles.reviewButtonText}>Leave a Review</Text>
-        </TouchableOpacity>
-      )}
-    </TouchableOpacity>
-  );
+  const filteredBookings = useMemo(() => {
+    return bookings.filter((b) => {
+      if (selectedTab === 'Upcoming') return ['pending', 'confirmed', 'arrived'].includes(b.status);
+      if (selectedTab === 'Completed') return b.status === 'completed';
+      if (selectedTab === 'Cancelled') return ['cancelled', 'rejected'].includes(b.status);
+      return true;
+    });
+  }, [bookings, selectedTab]);
+
+  const handleCancel = (booking: Booking) => {
+    Alert.alert('Cancel booking?', 'This cannot be undone.', [
+      { text: 'No', style: 'cancel' },
+      {
+        text: 'Yes, cancel',
+        style: 'destructive',
+        onPress: async () => {
+          setBusyId(booking.id);
+          try {
+            const updated = await bookingService.cancelBooking(booking.id);
+            setBookings((prev) => prev.map((b) => (b.id === booking.id ? updated : b)));
+          } catch (err: any) {
+            Alert.alert('Error', err?.friendlyMessage || 'Could not cancel this booking.');
+          } finally {
+            setBusyId(null);
+          }
+        },
+      },
+    ]);
+  };
+
+  const openReviewModal = (booking: Booking) => {
+    setReviewRating(5);
+    setReviewComment('');
+    setReviewModal(booking);
+  };
+
+  const submitReview = async () => {
+    if (!reviewModal) return;
+    setSubmittingReview(true);
+    try {
+      await reviewService.createReview({
+        booking_id: reviewModal.id,
+        provider_id: reviewModal.provider_id,
+        rating: reviewRating,
+        comment: reviewComment.trim(),
+      });
+      setReviewedBookingIds((prev) => new Set(prev).add(reviewModal.id));
+      setReviewModal(null);
+      Alert.alert('Thank you!', 'Your review has been submitted.');
+    } catch (err: any) {
+      Alert.alert('Error', err?.friendlyMessage || 'Could not submit your review.');
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -131,30 +138,187 @@ export default function Bookings() {
         <Text style={styles.title}>My Bookings</Text>
       </View>
 
-      {/* Tabs */}
       <View style={styles.tabs}>
-        {tabs.map(renderTabButton)}
+        {tabs.map((tab) => (
+          <TouchableOpacity
+            key={tab}
+            style={[styles.tabButton, selectedTab === tab && styles.tabButtonActive]}
+            onPress={() => setSelectedTab(tab)}
+            accessibilityRole="button"
+            accessibilityLabel={tab}
+          >
+            <Text style={[styles.tabText, selectedTab === tab && styles.tabTextActive]}>{tab}</Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
-      {/* Bookings List */}
-      <FlatList
-        data={bookings.filter((b) => {
-          if (selectedTab === 'Upcoming') return b.status === 'confirmed' || b.status === 'pending';
-          if (selectedTab === 'Past') return b.status === 'completed';
-          if (selectedTab === 'Cancelled') return b.status === 'cancelled';
-          return true;
-        })}
-        renderItem={renderBookingCard}
-        keyExtractor={(item) => item.id}
-        contentContainerStyle={styles.bookingsList}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <View style={styles.emptyState}>
-            <Ionicons name="calendar-outline" size={64} color={Colors.textMuted} />
-            <Text style={styles.emptyText}>No bookings found</Text>
+      {loading ? (
+        <View style={styles.emptyState}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+        </View>
+      ) : (
+        <ScrollView
+          contentContainerStyle={styles.bookingsList}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={Colors.primary} />
+          }
+        >
+          {error ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="alert-circle-outline" size={48} color={Colors.error} />
+              <Text style={styles.emptyText}>{error}</Text>
+            </View>
+          ) : filteredBookings.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons name="calendar-outline" size={64} color={Colors.textMuted} />
+              <Text style={styles.emptyText}>No bookings found</Text>
+            </View>
+          ) : (
+            filteredBookings.map((item) => (
+              <View key={item.id} style={styles.bookingCard}>
+                <View style={styles.bookingHeader}>
+                  <TouchableOpacity
+                    style={styles.providerIcon}
+                    onPress={() => router.push(`/provider/${item.provider_id}`)}
+                    accessibilityRole="button"
+                    accessibilityLabel={item.provider_name}
+                  >
+                    <Ionicons name="storefront" size={24} color={Colors.primary} />
+                  </TouchableOpacity>
+                  <View style={styles.bookingInfo}>
+                    <Text style={styles.providerName}>{item.provider_name}</Text>
+                    <Text style={styles.serviceName}>{item.service_name}</Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.statusBadge,
+                      { backgroundColor: `${statusColors[item.status] || Colors.textMuted}20` },
+                    ]}
+                  >
+                    <Text
+                      style={[styles.statusText, { color: statusColors[item.status] || Colors.textMuted }]}
+                    >
+                      {item.status}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.bookingDetails}>
+                  <View style={styles.detailItem}>
+                    <Ionicons name="calendar-outline" size={16} color={Colors.textSecondary} />
+                    <Text style={styles.detailText}>{item.date}</Text>
+                  </View>
+                  <View style={styles.detailItem}>
+                    <Ionicons name="time-outline" size={16} color={Colors.textSecondary} />
+                    <Text style={styles.detailText}>{item.time}</Text>
+                  </View>
+                  <View style={styles.detailItem}>
+                    <Ionicons name="cash-outline" size={16} color={Colors.textSecondary} />
+                    <Text style={styles.detailText}>{formatCurrency(item.total_amount)}</Text>
+                  </View>
+                </View>
+
+                {['pending', 'confirmed'].includes(item.status) && (
+                  <View style={styles.bookingActions}>
+                    <TouchableOpacity
+                      style={styles.actionButtonSecondary}
+                      onPress={() => handleCancel(item)}
+                      disabled={busyId === item.id}
+                      accessibilityRole="button"
+                      accessibilityLabel="Cancel booking"
+                    >
+                      {busyId === item.id ? (
+                        <ActivityIndicator size="small" color={Colors.text} />
+                      ) : (
+                        <Text style={styles.actionButtonTextSecondary}>Cancel</Text>
+                      )}
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.actionButtonPrimary}
+                      onPress={() => router.push(`/provider/${item.provider_id}`)}
+                      accessibilityRole="button"
+                      accessibilityLabel="View Details"
+                    >
+                      <Text style={styles.actionButtonTextPrimary}>View Details</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {item.status === 'completed' && !reviewedBookingIds.has(item.id) && (
+                  <TouchableOpacity
+                    style={styles.reviewButton}
+                    onPress={() => openReviewModal(item)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Leave a review"
+                  >
+                    <Ionicons name="star-outline" size={16} color={Colors.primary} />
+                    <Text style={styles.reviewButtonText}>Leave a Review</Text>
+                  </TouchableOpacity>
+                )}
+                {item.status === 'completed' && reviewedBookingIds.has(item.id) && (
+                  <View style={styles.reviewedBadge}>
+                    <Ionicons name="checkmark-circle" size={16} color={Colors.success} />
+                    <Text style={styles.reviewedBadgeText}>Reviewed</Text>
+                  </View>
+                )}
+              </View>
+            ))
+          )}
+        </ScrollView>
+      )}
+
+      <Modal visible={!!reviewModal} animationType="slide" transparent>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Rate your experience</Text>
+              <TouchableOpacity
+                onPress={() => setReviewModal(null)}
+                accessibilityRole="button"
+                accessibilityLabel="Close"
+              >
+                <Ionicons name="close" size={24} color={Colors.text} />
+              </TouchableOpacity>
+            </View>
+            <Text style={styles.modalSubtitle}>{reviewModal?.provider_name}</Text>
+            <View style={styles.starsRow}>
+              {[1, 2, 3, 4, 5].map((star) => (
+                <TouchableOpacity
+                  key={star}
+                  onPress={() => setReviewRating(star)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${star} star`}
+                >
+                  <Ionicons
+                    name={star <= reviewRating ? 'star' : 'star-outline'}
+                    size={36}
+                    color={Colors.warning}
+                  />
+                </TouchableOpacity>
+              ))}
+            </View>
+            <TextInput
+              style={styles.commentInput}
+              placeholder="Share details of your experience..."
+              placeholderTextColor={Colors.textMuted}
+              value={reviewComment}
+              onChangeText={setReviewComment}
+              multiline
+            />
+            <Button
+              title="Submit Review"
+              onPress={submitReview}
+              loading={submittingReview}
+              fullWidth
+              size="large"
+            />
           </View>
-        }
-      />
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -299,6 +463,61 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.sm,
     fontWeight: '600',
     color: Colors.primary,
+  },
+  reviewedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingVertical: Spacing.sm,
+  },
+  reviewedBadgeText: {
+    fontSize: FontSizes.sm,
+    fontWeight: '600',
+    color: Colors.success,
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  modalContent: {
+    backgroundColor: Colors.background,
+    borderTopLeftRadius: BorderRadius.lg,
+    borderTopRightRadius: BorderRadius.lg,
+    padding: Spacing.lg,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  modalTitle: {
+    fontSize: FontSizes.lg,
+    fontWeight: '700',
+    color: Colors.text,
+  },
+  modalSubtitle: {
+    fontSize: FontSizes.sm,
+    color: Colors.textSecondary,
+    marginBottom: Spacing.md,
+  },
+  starsRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.lg,
+  },
+  commentInput: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    color: Colors.text,
+    fontSize: FontSizes.sm,
+    minHeight: 90,
+    textAlignVertical: 'top',
+    marginBottom: Spacing.lg,
   },
   emptyState: {
     alignItems: 'center',

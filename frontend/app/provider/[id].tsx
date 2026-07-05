@@ -16,6 +16,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { Button } from '../../src/components/common';
 import { providerService } from '../../src/services/provider.service';
+import { formatCurrency, formatPriceRange } from '../../src/utils/currency';
 import { Provider, Review } from '../../src/types';
 
 export default function ProviderProfile() {
@@ -28,6 +29,7 @@ export default function ProviderProfile() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     if (!id) return;
@@ -41,6 +43,9 @@ export default function ProviderProfile() {
       setProvider(profile);
       setReviews(reviewList);
       setSlots(slotList);
+      if (profile.services.length > 0) {
+        setSelectedServiceId((prev) => prev || profile.services[0].id);
+      }
     } catch (err: any) {
       console.error('[provider-profile] failed to load', err);
       setError(err?.friendlyMessage || 'Could not load this provider. Pull down to retry.');
@@ -60,10 +65,15 @@ export default function ProviderProfile() {
   };
 
   const handleBookNow = () => {
-    Alert.alert(
-      'Booking coming soon',
-      'Booking, scheduling and payment are being wired up in the next phase. You will be able to book this provider directly from here shortly.'
-    );
+    if (!provider) return;
+    if (!selectedServiceId) {
+      Alert.alert('Choose a service', 'Please select a service before booking.');
+      return;
+    }
+    router.push({
+      pathname: '/booking/[providerId]',
+      params: { providerId: provider.id, serviceId: selectedServiceId },
+    });
   };
 
   if (loading) {
@@ -137,7 +147,7 @@ export default function ProviderProfile() {
               </View>
               {!!categoryLabel && <Text style={styles.category}>{categoryLabel}</Text>}
             </View>
-            <Text style={styles.priceRange}>{provider.price_range}</Text>
+            <Text style={styles.priceRange}>{formatPriceRange(provider.price_range)}</Text>
           </View>
 
           <View style={styles.metaRow}>
@@ -169,17 +179,31 @@ export default function ProviderProfile() {
               <Text style={styles.emptyInline}>No services listed yet.</Text>
             ) : (
               provider.services.map((service) => (
-                <View key={service.id} style={styles.serviceRow}>
+                <TouchableOpacity
+                  key={service.id}
+                  style={[
+                    styles.serviceRow,
+                    selectedServiceId === service.id && styles.serviceRowSelected,
+                  ]}
+                  onPress={() => setSelectedServiceId(service.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Select ${service.name}`}
+                >
                   <View style={{ flex: 1 }}>
                     <Text style={styles.serviceName}>{service.name}</Text>
+                    {!!service.description && (
+                      <Text style={styles.serviceDescription} numberOfLines={2}>
+                        {service.description}
+                      </Text>
+                    )}
                     <Text style={styles.serviceMeta}>
                       {service.duration} min
                       {service.in_store ? ' · In-store' : ''}
                       {service.home_service ? ' · Home service' : ''}
                     </Text>
                   </View>
-                  <Text style={styles.servicePrice}>${service.price}</Text>
-                </View>
+                  <Text style={styles.servicePrice}>{formatCurrency(service.price)}</Text>
+                </TouchableOpacity>
               ))
             )}
           </View>
@@ -364,6 +388,16 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
     marginBottom: Spacing.sm,
+    borderWidth: 1,
+    borderColor: 'transparent',
+  },
+  serviceRowSelected: {
+    borderColor: Colors.primary,
+  },
+  serviceDescription: {
+    fontSize: FontSizes.xs,
+    color: Colors.textSecondary,
+    marginTop: 2,
   },
   serviceName: {
     fontSize: FontSizes.sm,

@@ -47,8 +47,8 @@ export default function Login() {
 
     setLoading(true);
     try {
-      await login({ email, password });
-      router.replace('/(tabs)');
+      const profile = await login({ email, password });
+      router.replace(profile?.role === 'provider' ? '/(provider)/dashboard' : '/(tabs)');
     } catch (error: any) {
       Alert.alert('Login Failed', error.message || error.response?.data?.detail || 'Invalid credentials');
     } finally {

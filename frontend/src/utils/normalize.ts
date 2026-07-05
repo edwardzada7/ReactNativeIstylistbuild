@@ -3,7 +3,7 @@
 // same concept (e.g. business_name vs name vs stylist_name). These helpers
 // pick the first available value so the UI never crashes on a missing/renamed
 // field and always renders a sane fallback instead of blank/undefined text.
-import { Provider, Service, Review, Category } from '../types';
+import { Provider, Service, Review, Category, Booking } from '../types';
 
 const pick = (obj: any, keys: string[], fallback: any = undefined) => {
   if (!obj) return fallback;
@@ -50,7 +50,7 @@ export function normalizeProvider(raw: any): Provider {
     category: pick(raw, ['category', 'category_name', 'specialty']),
     rating: Number(pick(raw, ['rating', 'average_rating', 'avg_rating'], 0)),
     review_count: Number(pick(raw, ['review_count', 'reviews_count', 'total_reviews'], 0)),
-    price_range: pick(raw, ['price_range', 'price_level'], '$$'),
+    price_range: pick(raw, ['price_range', 'price_level'], '\u20A6\u20A6'),
     location: location || 'Location not set',
     latitude: pick(raw, ['latitude', 'lat']),
     longitude: pick(raw, ['longitude', 'lng']),
@@ -77,6 +77,41 @@ export function normalizeReview(raw: any): Review {
     images: pick(raw, ['images'], []),
     created_at: pick(raw, ['created_at'], ''),
   } as Review;
+}
+
+function deriveDateTime(scheduledAt: string): { date: string; time: string } {
+  if (!scheduledAt) return { date: '', time: '' };
+  const d = new Date(scheduledAt);
+  if (isNaN(d.getTime())) return { date: scheduledAt, time: '' };
+  const date = d.toISOString().slice(0, 10);
+  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  return { date, time };
+}
+
+export function normalizeBooking(raw: any): Booking {
+  const scheduledAt = pick(raw, ['scheduled_at', 'booking_date', 'date_time'], '');
+  const { date, time } = deriveDateTime(scheduledAt);
+  return {
+    id: String(pick(raw, ['id', 'booking_id'], '')),
+    customer_id: String(pick(raw, ['customer_id', 'user_id'], '')),
+    customer_auth_id: pick(raw, ['customer_auth_id']),
+    provider_id: String(pick(raw, ['provider_id', 'stylist_id'], '')),
+    provider_auth_id: pick(raw, ['provider_auth_id']),
+    service_id: String(pick(raw, ['service_id'], '')),
+    service_name: pick(raw, ['service_name', 'service_title'], 'Service'),
+    provider_name: pick(raw, ['provider_name', 'stylist_name', 'business_name'], 'Provider'),
+    provider_avatar: pick(raw, ['provider_avatar', 'provider_image', 'avatar']),
+    scheduled_at: scheduledAt,
+    date: pick(raw, ['date'], date),
+    time: pick(raw, ['time'], time),
+    status: pick(raw, ['status'], 'pending'),
+    total_amount: Number(pick(raw, ['total_amount', 'amount', 'price', 'total'], 0)),
+    payment_status: pick(raw, ['payment_status']),
+    location: pick(raw, ['location', 'address']),
+    notes: pick(raw, ['notes'], ''),
+    created_at: pick(raw, ['created_at'], ''),
+    updated_at: pick(raw, ['updated_at']),
+  } as Booking;
 }
 
 const CATEGORY_ICONS: Record<string, string> = {

@@ -9,16 +9,16 @@ interface AuthContextType {
   session: Session | null;
   isLoading: boolean;
   isAuthenticated: boolean;
-  login: (credentials: { email: string; password: string }) => Promise<void>;
+  login: (credentials: { email: string; password: string }) => Promise<User | null>;
   signup: (data: {
     email: string;
     password: string;
     full_name: string;
     phone?: string;
     role: string;
-  }) => Promise<{ needsVerification: boolean }>;
+  }) => Promise<{ needsVerification: boolean; user: User | null }>;
   logout: () => Promise<void>;
-  refreshUser: () => Promise<void>;
+  refreshUser: () => Promise<User | null>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -43,18 +43,20 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // near-simultaneous TOKEN_REFRESHED event) from racing each other.
   const hydratingRef = useRef<Promise<void> | null>(null);
 
-  const hydrateFromSession = async (nextSession: Session | null) => {
+  const hydrateFromSession = async (nextSession: Session | null): Promise<User | null> => {
     setSession(nextSession);
     if (!nextSession?.user) {
       setUser(null);
-      return;
+      return null;
     }
     try {
       const profile = await authService.ensureProfile(nextSession.user);
       setUser(profile);
+      return profile;
     } catch (error) {
       console.error('[auth] failed to load/create profile:', error);
       setUser(null);
+      return null;
     }
   };
 
@@ -89,7 +91,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = async (credentials: { email: string; password: string }) => {
     const data = await authService.login(credentials);
-    await hydrateFromSession(data.session);
+    return hydrateFromSession(data.session);
   };
 
   const signup = async (data: {
@@ -101,10 +103,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }) => {
     const result = await authService.signup(data);
     if (result.session) {
-      await hydrateFromSession(result.session);
-      return { needsVerification: false };
+      const profile = await hydrateFromSession(result.session);
+      return { needsVerification: false, user: profile };
     }
-    return { needsVerification: true };
+    return { needsVerification: true, user: null };
   };
 
   const logout = async () => {
@@ -120,7 +122,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const refreshUser = async () => {
     const { data } = await supabase.auth.getSession();
-    await hydrateFromSession(data.session);
+    return hydrateFromSession(data.session);
   };
 
   return (
