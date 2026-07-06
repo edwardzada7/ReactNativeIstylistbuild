@@ -97,6 +97,23 @@ export interface Service {
   home_service?: boolean;
 }
 
+// Catalog sub-service (production `/api/catalog/sub-services`): the actual
+// bookable service templates (e.g. "Haircut", "Box Braids") that providers
+// pick from when adding a service. Distinct from `Service` because creating
+// a provider-service needs the raw catalog slugs (sub_service_id, service_id,
+// category_id), not just a display name.
+export interface CatalogSubService {
+  id: string; // sub_service_id slug, e.g. "haircut"
+  name: string;
+  default_duration: number;
+  default_price: number;
+  service_id: string; // parent service-type slug, e.g. "barbers"
+  service_name: string;
+  category_id: string; // category slug, e.g. "beauty-grooming"
+  category_name: string;
+  requires_verification: boolean;
+}
+
 // Booking Types
 export interface Booking {
   id: string;

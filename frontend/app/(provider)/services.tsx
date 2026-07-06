@@ -19,7 +19,7 @@ import { Button, Input } from '../../src/components/common';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { providerService } from '../../src/services/provider.service';
 import { formatCurrency } from '../../src/utils/currency';
-import { Service } from '../../src/types';
+import { Service, CatalogSubService } from '../../src/types';
 
 type ModalStep = 'pick' | 'details';
 
@@ -32,17 +32,19 @@ export default function ProviderServices() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  // Service catalog (Priority 8): providers must pick from the master
-  // catalog instead of typing arbitrary service names, so search/discovery
-  // stays consistent across the app.
-  const [catalog, setCatalog] = useState<Service[]>([]);
+  // Service catalog (Priority 8 / 3.2 fix): providers must pick from the
+  // master catalog instead of typing arbitrary service names. Uses
+  // /catalog/sub-services (the real, granular, bookable items) - NOT
+  // /catalog/services, which only returns broad service *types*
+  // ("Barbers", "Makeup Artists") with no price/duration data.
+  const [catalog, setCatalog] = useState<CatalogSubService[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [catalogSearch, setCatalogSearch] = useState('');
 
   const [modalVisible, setModalVisible] = useState(false);
   const [modalStep, setModalStep] = useState<ModalStep>('pick');
-  const [selectedCatalogItem, setSelectedCatalogItem] = useState<Service | null>(null);
+  const [selectedCatalogItem, setSelectedCatalogItem] = useState<CatalogSubService | null>(null);
   const [form, setForm] = useState({ description: '', price: '', duration: '' });
 
   const loadServices = useCallback(async () => {
@@ -63,7 +65,7 @@ export default function ProviderServices() {
     setCatalogLoading(true);
     setCatalogError(null);
     try {
-      const list = await providerService.getCatalogServices();
+      const list = await providerService.getCatalogSubServices();
       setCatalog(list);
     } catch (err: any) {
       console.error('[provider-services] failed to load catalog', err);
@@ -99,14 +101,14 @@ export default function ProviderServices() {
       if (!query) return true;
       return (
         c.name.toLowerCase().includes(query) ||
-        (c.category || '').toLowerCase().includes(query)
+        (c.category_name || '').toLowerCase().includes(query)
       );
     });
   }, [catalog, catalogSearch, existingNames]);
 
-  const handlePickCatalogItem = (item: Service) => {
+  const handlePickCatalogItem = (item: CatalogSubService) => {
     setSelectedCatalogItem(item);
-    setForm({ description: item.description || '', price: '', duration: '' });
+    setForm({ description: '', price: '', duration: '' });
     setModalStep('details');
   };
 
@@ -120,7 +122,10 @@ export default function ProviderServices() {
     try {
       const created = await providerService.createProviderService({
         provider_id: providerId,
-        name: selectedCatalogItem.name,
+        sub_service_id: selectedCatalogItem.id,
+        sub_service_name: selectedCatalogItem.name,
+        service_id: selectedCatalogItem.service_id,
+        category_id: selectedCatalogItem.category_id,
         description: form.description.trim() || undefined,
         price: Number(form.price),
         duration_minutes: Number(form.duration),
@@ -259,8 +264,8 @@ export default function ProviderServices() {
                       >
                         <View style={{ flex: 1 }}>
                           <Text style={styles.catalogRowName}>{item.name}</Text>
-                          {!!item.category && (
-                            <Text style={styles.catalogRowCategory}>{item.category}</Text>
+                          {!!item.category_name && (
+                            <Text style={styles.catalogRowCategory}>{item.category_name}</Text>
                           )}
                         </View>
                         <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />

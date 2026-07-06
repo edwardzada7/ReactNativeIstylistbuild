@@ -15,13 +15,20 @@ const pick = (obj: any, keys: string[], fallback: any = undefined) => {
 
 export function normalizeService(raw: any): Service {
   return {
-    id: String(pick(raw, ['id', 'service_id'], '')),
+    id: String(pick(raw, ['id', 'sub_service_id', 'service_id'], '')),
     provider_id: String(pick(raw, ['provider_id', 'stylist_id'], '')),
-    name: pick(raw, ['name', 'service_name', 'title'], 'Service'),
+    // Real production shape uses `sub_service_name` on provider-service rows
+    // (e.g. { sub_service_id: "haircut", sub_service_name: "Haircut", ... })
+    // and plain `name` on catalog rows (e.g. /catalog/sub-services). Both are
+    // covered here so a real name is always shown instead of the "Service"
+    // placeholder that silently rendered everywhere before this fix.
+    name: pick(raw, ['name', 'sub_service_name', 'service_name', 'title'], 'Service'),
     description: pick(raw, ['description', 'details'], ''),
-    price: Number(pick(raw, ['price', 'amount', 'cost'], 0)),
-    duration: Number(pick(raw, ['duration_minutes', 'duration', 'minutes'], 30)),
-    category: pick(raw, ['category', 'category_name', 'service_category']),
+    price: Number(pick(raw, ['price', 'default_price', 'amount', 'cost'], 0)),
+    duration: Number(
+      pick(raw, ['duration_minutes', 'default_duration', 'duration', 'minutes'], 30)
+    ),
+    category: pick(raw, ['category', 'category_name', 'category_id', 'service_category']),
     is_active: pick(raw, ['is_active', 'active'], true),
     in_store: pick(raw, ['in_store'], undefined),
     home_service: pick(raw, ['home_service'], undefined),

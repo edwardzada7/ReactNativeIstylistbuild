@@ -35,10 +35,12 @@ export default function ProviderProfile() {
     if (!id) return;
     try {
       setError(null);
-      const [profile, reviewList, slotList] = await Promise.all([
-        providerService.getProviderFullProfile(id),
+      const profile = await providerService.getProviderFullProfile(id);
+      const today = new Date().toISOString().slice(0, 10);
+      const defaultDuration = profile.services[0]?.duration || 30;
+      const [reviewList, slotList] = await Promise.all([
         providerService.getProviderReviews(id).catch(() => []),
-        providerService.getAvailableSlots(id).catch(() => []),
+        providerService.getAvailableSlots(id, today, defaultDuration).catch(() => []),
       ]);
       setProvider(profile);
       setReviews(reviewList);

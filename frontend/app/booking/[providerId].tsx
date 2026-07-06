@@ -87,12 +87,16 @@ export default function CreateBooking() {
 
   useEffect(() => {
     (async () => {
-      if (!providerId) return;
+      if (!providerId || !selectedService) return;
       setSlotsLoading(true);
       setSelectedSlot(null);
       try {
         const dateStr = selectedDate.toISOString().slice(0, 10);
-        const slotList = await providerService.getAvailableSlots(providerId, dateStr);
+        const slotList = await providerService.getAvailableSlots(
+          providerId,
+          dateStr,
+          selectedService.duration || 30
+        );
         setSlots(slotList);
       } catch {
         setSlots([]);
@@ -100,7 +104,7 @@ export default function CreateBooking() {
         setSlotsLoading(false);
       }
     })();
-  }, [providerId, selectedDate]);
+  }, [providerId, selectedDate, selectedService]);
 
   const handleConfirm = async () => {
     if (!provider || !selectedService || !selectedSlot) {

@@ -9,8 +9,24 @@ const asList = (raw: any): any[] => {
 
 export const reviewService = {
   // Write a review for a completed booking.
+  // Real production contract (verified via direct API probe): `auth_id` of the
+  // reviewer must be sent as a QUERY param (not body); body only needs
+  // booking_id + rating + optional comment. Previously `auth_id` was missing
+  // entirely, which made every review submission fail with a 422 whose
+  // `detail` is an array - the raw (pre-fix) api.ts interceptor passed that
+  // array straight into Alert.alert() downstream, which crashed the app.
   async createReview(data: CreateReviewRequest): Promise<Review> {
-    const raw = await apiService.post<any>('/reviews', data);
+    const authId = await apiService.getAuthId();
+    const raw = await apiService.post<any>(
+      '/reviews',
+      {
+        booking_id: data.booking_id,
+        provider_id: data.provider_id,
+        rating: data.rating,
+        comment: data.comment,
+      },
+      authId ? { params: { auth_id: authId } } : undefined
+    );
     return normalizeReview(raw);
   },
 

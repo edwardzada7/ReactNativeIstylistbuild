@@ -45,13 +45,32 @@ class ApiService {
       (response) => response,
       async (error) => {
         // Surface a friendlier, consistent error shape for offline/timeout cases.
+        // CRITICAL: `error.friendlyMessage` must ALWAYS end up a string. FastAPI
+        // returns validation errors as `detail: [{ loc, msg, type }, ...]` (an
+        // array) or, for other errors, `detail` as an object. Passing anything
+        // other than a string into `Alert.alert(title, message)` throws a
+        // native-side type error that crashes the app immediately (this was the
+        // root cause of the Submit Review and Save Availability crashes - both
+        // endpoints returned a 422 with an array `detail`). Always reduce to a
+        // safe string here so no caller can ever crash on this.
         if (!error.response) {
           error.friendlyMessage = 'Network error. Please check your connection and try again.';
         } else if (error.response.status >= 500) {
           error.friendlyMessage = 'Something went wrong on our end. Please try again shortly.';
         } else {
-          error.friendlyMessage =
-            error.response.data?.detail || error.response.data?.message || 'Request failed.';
+          const detail = error.response.data?.detail ?? error.response.data?.message;
+          if (typeof detail === 'string' && detail.trim()) {
+            error.friendlyMessage = detail;
+          } else if (Array.isArray(detail)) {
+            const messages = detail
+              .map((d: any) => (typeof d === 'string' ? d : d?.msg))
+              .filter(Boolean);
+            error.friendlyMessage = messages.length > 0 ? messages.join(', ') : 'Request failed.';
+          } else if (detail && typeof detail === 'object') {
+            error.friendlyMessage = detail.msg || 'Request failed.';
+          } else {
+            error.friendlyMessage = 'Request failed.';
+          }
         }
         return Promise.reject(error);
       }

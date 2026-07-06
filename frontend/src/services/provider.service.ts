@@ -1,5 +1,13 @@
 import apiService from './api';
-import { Provider, Category, Service, Review, ProviderAvailability } from '../types';
+import {
+  Provider,
+  Category,
+  Service,
+  Review,
+  ProviderAvailability,
+  CatalogSubService,
+  DayAvailability,
+} from '../types';
 import {
   normalizeProvider,
   normalizeService,
@@ -11,6 +19,25 @@ const asList = (raw: any): any[] => {
   if (Array.isArray(raw)) return raw;
   return raw?.data || raw?.providers || raw?.services || raw?.results || [];
 };
+
+const DAY_NAME_TO_NUMBER: Record<DayAvailability['day'], number> = {
+  monday: 1,
+  tuesday: 2,
+  wednesday: 3,
+  thursday: 4,
+  friday: 5,
+  saturday: 6,
+  sunday: 7,
+};
+const ALL_DAY_NAMES: DayAvailability['day'][] = [
+  'monday',
+  'tuesday',
+  'wednesday',
+  'thursday',
+  'friday',
+  'saturday',
+  'sunday',
+];
 
 export const providerService = {
   // Browse providers with their services embedded (Home + Search use this).
@@ -31,64 +58,136 @@ export const providerService = {
     return asList(raw).map(normalizeService);
   },
 
-  // Full services catalog (used to derive categories client-side, since the
-  // production API has no dedicated /categories endpoint).
-  async getCatalogServices(): Promise<Service[]> {
-    const raw = await apiService.get<any>('/catalog/services');
-    return asList(raw).map(normalizeService);
+  // Full sub-service catalog - the actual bookable service templates a
+  // provider picks from when adding a service. Verified via direct API
+  // probe: `/api/catalog/services` only returns broad service *types*
+  // (e.g. "Barbers", "Makeup Artists") with no price/duration data; the
+  // real, granular, selectable items ("Haircut", "Box Braids", etc., each
+  // with default_price/default_duration) live at `/api/catalog/sub-services`.
+  // This is the root cause fix for the empty/wrong catalog picker.
+  async getCatalogSubServices(): Promise<CatalogSubService[]> {
+    const raw = await apiService.get<any>('/catalog/sub-services');
+    return asList(raw) as CatalogSubService[];
   },
 
   async getCategories(): Promise<Category[]> {
-    const services = await this.getCatalogServices();
-    return deriveCategories(services);
+    const subServices = await this.getCatalogSubServices();
+    return deriveCategories(subServices);
   },
 
-  async getProviderReviews(providerId: string): Promise<Review[]> {
-    const raw = await apiService.get<any>(`/providers/${providerId}/reviews`);
-    return asList(raw).map(normalizeReview);
-  },
-
-  async getAvailableSlots(providerId: string, date?: string): Promise<string[]> {
-    const raw = await apiService.get<any>(`/providers/${providerId}/available-slots`, {
-      params: date ? { date } : undefined,
-    });
-    if (Array.isArray(raw)) return raw;
-    return raw?.slots || raw?.data || [];
-  },
-
-  // NOTE: the API quick-reference only documents the write side of this
-  // (`POST /api/providers/{id}/availability`, used during provider
-  // onboarding). There is no documented GET for reading back the current
-  // schedule, so this best-effort reads it from the same path - if that 404s,
-  // callers should fall back to a sensible default schedule.
-  async getProviderAvailability(providerId: string): Promise<ProviderAvailability | null> {
+  // Resolves a provider's Supabase auth UUID from their numeric provider_id.
+  // Verified via direct API probe: `/providers/{id}/reviews` requires the
+  // provider's UUID in the path (passing the numeric id throws a Postgres
+  // "invalid input syntax for type uuid" error). The UUID isn't exposed on
+  // /full-profile or /with-services, but it IS embedded in the availability
+  // response's `weekly`/`rules` rows. Best-effort: if a provider has no
+  // availability configured yet this can't resolve, and callers fall back
+  // to an empty reviews list instead of crashing/erroring.
+  async resolveProviderAuthId(providerId: string): Promise<string | null> {
     try {
       const raw = await apiService.get<any>(`/providers/${providerId}/availability`);
-      if (!raw) return null;
-      return {
-        days: raw.days || raw.availability || [],
-        blocked_dates: raw.blocked_dates || [],
-      };
+      return (
+        raw?.weekly?.[0]?.provider_id ||
+        raw?.rules?.provider_id ||
+        raw?.exceptions?.[0]?.provider_id ||
+        null
+      );
     } catch {
       return null;
     }
   },
 
+  async getProviderReviews(providerId: string): Promise<Review[]> {
+    try {
+      const authId = await this.resolveProviderAuthId(providerId);
+      const raw = await apiService.get<any>(`/providers/${authId || providerId}/reviews`);
+      return asList(raw).map(normalizeReview);
+    } catch (err) {
+      console.error('[provider-service] failed to load reviews', err);
+      return [];
+    }
+  },
+
+  // Real contract (verified via direct API probe): both `date` (YYYY-MM-DD)
+  // and `service_duration` (minutes) are REQUIRED query params - the
+  // endpoint returns a 422 otherwise. Both used to be optional/missing here,
+  // which meant this call always failed silently and availability never
+  // showed up for customers.
+  async getAvailableSlots(
+    providerId: string,
+    date: string,
+    durationMinutes: number
+  ): Promise<string[]> {
+    const raw = await apiService.get<any>(`/providers/${providerId}/available-slots`, {
+      params: { date, service_duration: durationMinutes },
+    });
+    if (Array.isArray(raw)) return raw;
+    return raw?.slots || raw?.data || [];
+  },
+
+  // Real contract (verified via direct API probe): GET returns
+  // { weekly: [{ day_of_week: 1-7 (Mon-Sun), start_time, end_time, is_active }],
+  //   exceptions: [{ date, is_unavailable, start_time, end_time, note }],
+  //   rules: {...} } - not the { days, blocked_dates } shape this used to assume.
+  async getProviderAvailability(providerId: string): Promise<ProviderAvailability | null> {
+    try {
+      const raw = await apiService.get<any>(`/providers/${providerId}/availability`);
+      if (!raw) return null;
+      const weekly = Array.isArray(raw.weekly) ? raw.weekly : [];
+      const byDayNumber = new Map<number, any>(weekly.map((w: any) => [w.day_of_week, w]));
+      const days: DayAvailability[] = ALL_DAY_NAMES.map((dayName) => {
+        const entry = byDayNumber.get(DAY_NAME_TO_NUMBER[dayName]);
+        return {
+          day: dayName,
+          is_open: !!entry,
+          open_time: entry?.start_time?.slice(0, 5) || '09:00',
+          close_time: entry?.end_time?.slice(0, 5) || '18:00',
+        };
+      });
+      const exceptions = Array.isArray(raw.exceptions) ? raw.exceptions : [];
+      const blocked_dates = exceptions
+        .filter((e: any) => e.is_unavailable)
+        .map((e: any) => e.date);
+      return { days, blocked_dates };
+    } catch {
+      return null;
+    }
+  },
+
+  // Real contract (verified via direct API probe): POST body must be
+  // { weekly: [{ day_of_week: 1-7, start_time, end_time, is_active }] } -
+  // the previous { availability, blocked_dates } shape returned a 422
+  // (missing required `weekly`), and since that 422's `detail` is an array,
+  // it crashed the app before the api.ts interceptor fix (see api.ts).
+  // NOTE: blocked dates map to a separate `exceptions` resource that isn't
+  // documented for writes, so they're read-only here for now (shown from
+  // GET, not persisted on Save) rather than guessing an unconfirmed contract.
   async setProviderAvailability(
     providerId: string,
     availability: ProviderAvailability
   ): Promise<void> {
-    await apiService.post(`/providers/${providerId}/availability`, {
-      availability: availability.days,
-      blocked_dates: availability.blocked_dates,
-    });
+    const weekly = availability.days
+      .filter((d) => d.is_open)
+      .map((d) => ({
+        day_of_week: DAY_NAME_TO_NUMBER[d.day],
+        start_time: d.open_time,
+        end_time: d.close_time,
+        is_active: true,
+      }));
+    await apiService.post(`/providers/${providerId}/availability`, { weekly });
   },
 
-  // Add a new service to a provider's catalog. Documented in the onboarding
-  // workflow as `POST /api/provider-services`.
+  // Add a new service to a provider's catalog.
+  // Real contract (verified via direct API probe): required body fields are
+  // provider_id, sub_service_id, sub_service_name, service_id, category_id
+  // (all sourced from the chosen catalog sub-service) plus price/duration -
+  // NOT a free-text `name` field.
   async createProviderService(data: {
     provider_id: string;
-    name: string;
+    sub_service_id: string;
+    sub_service_name: string;
+    service_id: string;
+    category_id: string;
     description?: string;
     price: number;
     duration_minutes: number;

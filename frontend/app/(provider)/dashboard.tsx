@@ -83,7 +83,7 @@ export default function ProviderDashboard() {
 
   const quickActions = [
     { icon: 'time-outline', label: 'Availability', onPress: () => router.push('/(provider)/availability') },
-    { icon: 'calendar-outline', label: 'Calendar', onPress: () => router.push('/(provider)/bookings') },
+    { icon: 'calendar-outline', label: 'Calendar', onPress: () => router.push('/(provider)/availability') },
     {
       icon: 'wallet-outline',
       label: 'Wallet',
