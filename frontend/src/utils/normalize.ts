@@ -113,6 +113,7 @@ export function normalizeBooking(raw: any): Booking {
     time: pick(raw, ['time'], time),
     status: pick(raw, ['status'], 'pending'),
     total_amount: Number(pick(raw, ['total_amount', 'amount', 'price', 'total'], 0)),
+    platform_fee_amount: pick(raw, ['platform_fee_amount']) != null ? Number(pick(raw, ['platform_fee_amount'])) : undefined,
     payment_status: pick(raw, ['payment_status']),
     location: pick(raw, ['location', 'address']),
     notes: pick(raw, ['notes'], ''),

@@ -20,8 +20,11 @@ import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/th
 import { Button } from '../../src/components/common';
 import { bookingService } from '../../src/services/booking.service';
 import { reviewService } from '../../src/services/review.service';
+import { walletService } from '../../src/services/wallet.service';
+import { useAuth } from '../../src/contexts/AuthContext';
 import { formatCurrency } from '../../src/utils/currency';
-import { Booking } from '../../src/types';
+import { derivePaymentStatus, getPaymentStatusMeta } from '../../src/utils/walletHelpers';
+import { Booking, Transaction, Wallet } from '../../src/types';
 
 const tabs = ['Upcoming', 'Completed', 'Cancelled'];
 
@@ -34,10 +37,21 @@ const statusColors: Record<string, string> = {
   rejected: Colors.error,
 };
 
+const PAYMENT_TONE_COLOR: Record<string, string> = {
+  success: Colors.success,
+  error: Colors.error,
+  warning: Colors.warning,
+  info: Colors.info,
+  neutral: Colors.textMuted,
+};
+
 export default function Bookings() {
   const router = useRouter();
+  const { user } = useAuth();
   const [selectedTab, setSelectedTab] = useState('Upcoming');
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [wallet, setWallet] = useState<Wallet | null>(null);
   const [reviewedBookingIds, setReviewedBookingIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -52,12 +66,16 @@ export default function Bookings() {
   const loadData = useCallback(async () => {
     try {
       setError(null);
-      const [bookingList, myReviews] = await Promise.all([
+      const [bookingList, myReviews, walletData, txnData] = await Promise.all([
         bookingService.getBookings({ role: 'customer' }),
         reviewService.getMyReviews().catch(() => []),
+        user?.auth_id ? walletService.getWallet(user.auth_id).catch(() => null) : Promise.resolve(null),
+        user?.auth_id ? walletService.getTransactions(user.auth_id).catch(() => []) : Promise.resolve([]),
       ]);
       setBookings(bookingList);
       setReviewedBookingIds(new Set(myReviews.map((r) => r.booking_id)));
+      setWallet(walletData);
+      setTransactions(txnData);
     } catch (err: any) {
       console.error('[bookings] failed to load', err);
       setError(err?.friendlyMessage || 'Could not load your bookings.');
@@ -65,7 +83,7 @@ export default function Bookings() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [user?.auth_id]);
 
   useEffect(() => {
     loadData();
@@ -129,6 +147,32 @@ export default function Bookings() {
       Alert.alert('Error', err?.friendlyMessage || 'Could not submit your review.');
     } finally {
       setSubmittingReview(false);
+    }
+  };
+
+  const handlePayNow = async (booking: Booking) => {
+    setBusyId(booking.id);
+    try {
+      if ((wallet?.balance ?? 0) < booking.total_amount) {
+        Alert.alert(
+          'Insufficient balance',
+          `Your wallet balance (${formatCurrency(wallet?.balance ?? 0)}) is less than ${formatCurrency(
+            booking.total_amount
+          )}. Top up your wallet to complete this payment.`,
+          [
+            { text: 'Not now', style: 'cancel' },
+            { text: 'Top Up Wallet', onPress: () => router.push('/wallet/topup') },
+          ]
+        );
+        return;
+      }
+      await bookingService.payWithWallet(booking.id);
+      Alert.alert('Payment Successful', 'Your booking is now paid and held in escrow.');
+      loadData();
+    } catch (err: any) {
+      Alert.alert('Payment Failed', err?.friendlyMessage || 'Could not process payment.');
+    } finally {
+      setBusyId(null);
     }
   };
 
@@ -218,6 +262,43 @@ export default function Bookings() {
                     <Text style={styles.detailText}>{formatCurrency(item.total_amount)}</Text>
                   </View>
                 </View>
+
+                {(() => {
+                  const paymentKey = derivePaymentStatus(item, transactions);
+                  const paymentMeta = getPaymentStatusMeta(paymentKey);
+                  return (
+                    <View
+                      style={[
+                        styles.paymentBadge,
+                        { backgroundColor: `${PAYMENT_TONE_COLOR[paymentMeta.tone]}18` },
+                      ]}
+                    >
+                      <Ionicons name="shield-checkmark-outline" size={12} color={PAYMENT_TONE_COLOR[paymentMeta.tone]} />
+                      <Text style={[styles.paymentBadgeText, { color: PAYMENT_TONE_COLOR[paymentMeta.tone] }]}>
+                        {paymentMeta.label}
+                      </Text>
+                    </View>
+                  );
+                })()}
+
+                {item.status === 'pending' && derivePaymentStatus(item, transactions) === 'awaiting_payment' && (
+                  <TouchableOpacity
+                    style={styles.payNowButton}
+                    onPress={() => handlePayNow(item)}
+                    disabled={busyId === item.id}
+                    accessibilityRole="button"
+                    accessibilityLabel="Pay now"
+                  >
+                    {busyId === item.id ? (
+                      <ActivityIndicator size="small" color={Colors.text} />
+                    ) : (
+                      <>
+                        <Ionicons name="wallet-outline" size={16} color={Colors.text} />
+                        <Text style={styles.payNowButtonText}>Pay Now</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                )}
 
                 {['pending', 'confirmed'].includes(item.status) && (
                   <View style={styles.bookingActions}>
@@ -422,6 +503,28 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.sm,
     color: Colors.textSecondary,
   },
+  paymentBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    alignSelf: 'flex-start',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.sm,
+    marginBottom: Spacing.sm,
+  },
+  paymentBadgeText: { fontSize: FontSizes.xs, fontWeight: '600' },
+  payNowButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    backgroundColor: Colors.primary,
+    borderRadius: BorderRadius.md,
+    paddingVertical: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  payNowButtonText: { fontSize: FontSizes.sm, fontWeight: '700', color: Colors.text },
   bookingActions: {
     flexDirection: 'row',
     gap: Spacing.sm,

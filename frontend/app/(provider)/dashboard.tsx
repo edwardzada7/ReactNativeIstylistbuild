@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -69,7 +68,7 @@ export default function ProviderDashboard() {
     loadData();
   };
 
-  const { todays, pending, upcoming, completed, cancelled, totalEarnings } = useMemo(() => {
+  const { todays, pending, upcoming, completed, cancelled, totalEarnings, pendingPayout } = useMemo(() => {
     const todays = bookings.filter((b) => isSameDay(b.scheduled_at) && b.status !== 'cancelled');
     const pending = bookings.filter((b) => b.status === 'pending');
     const upcoming = bookings.filter((b) =>
@@ -78,17 +77,18 @@ export default function ProviderDashboard() {
     const completed = bookings.filter((b) => b.status === 'completed');
     const cancelled = bookings.filter((b) => ['cancelled', 'rejected'].includes(b.status));
     const totalEarnings = completed.reduce((sum, b) => sum + (b.total_amount || 0), 0);
-    return { todays, pending, upcoming, completed, cancelled, totalEarnings };
+    // Real earnings still tied up in active (unfinished) bookings - a
+    // best-effort "pending" figure derived from real booking data since the
+    // API has no dedicated earnings/escrow endpoint.
+    const pendingPayout = upcoming.reduce((sum, b) => sum + (b.total_amount || 0), 0);
+    return { todays, pending, upcoming, completed, cancelled, totalEarnings, pendingPayout };
   }, [bookings]);
 
   const quickActions = [
     { icon: 'time-outline', label: 'Availability', onPress: () => router.push('/(provider)/availability') },
     { icon: 'calendar-outline', label: 'Calendar', onPress: () => router.push('/(provider)/availability') },
-    {
-      icon: 'wallet-outline',
-      label: 'Wallet',
-      onPress: () => Alert.alert('Coming soon', 'Wallet and payouts are being wired up in the next phase.'),
-    },
+    { icon: 'wallet-outline', label: 'Wallet', onPress: () => router.push('/(provider)/wallet') },
+    { icon: 'arrow-up-circle-outline', label: 'Withdraw', onPress: () => router.push('/(provider)/withdraw') },
     { icon: 'cut-outline', label: 'Services', onPress: () => router.push('/(provider)/services') },
     { icon: 'person-outline', label: 'Profile', onPress: () => router.push('/(provider)/profile') },
   ];
@@ -133,7 +133,7 @@ export default function ProviderDashboard() {
             <Text style={styles.statLabel}>Total Earnings</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={styles.statValue}>{formatCurrency(totalEarnings)}</Text>
+            <Text style={styles.statValue}>{formatCurrency(pendingPayout)}</Text>
             <Text style={styles.statLabel}>Pending Payout</Text>
           </View>
           <View style={styles.statCard}>

@@ -13,8 +13,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { bookingService } from '../../src/services/booking.service';
+import { walletService } from '../../src/services/wallet.service';
+import { useAuth } from '../../src/contexts/AuthContext';
 import { formatCurrency } from '../../src/utils/currency';
-import { Booking } from '../../src/types';
+import { derivePaymentStatus, getPaymentStatusMeta } from '../../src/utils/walletHelpers';
+import { Booking, Transaction } from '../../src/types';
 
 const FILTERS = ['Pending', 'Upcoming', 'Completed', 'Cancelled'] as const;
 
@@ -25,6 +28,14 @@ const STATUS_COLOR: Record<string, string> = {
   completed: Colors.success,
   cancelled: Colors.error,
   rejected: Colors.error,
+};
+
+const PAYMENT_TONE_COLOR: Record<string, string> = {
+  success: Colors.success,
+  error: Colors.error,
+  warning: Colors.warning,
+  info: Colors.info,
+  neutral: Colors.textMuted,
 };
 
 // Buttons available per current status. Actions map to a target status sent
@@ -42,7 +53,9 @@ const ACTIONS_FOR_STATUS: Record<string, { label: string; next: string; destruct
 };
 
 export default function ProviderBookings() {
+  const { user } = useAuth();
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [filter, setFilter] = useState<typeof FILTERS[number]>('Pending');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -52,8 +65,12 @@ export default function ProviderBookings() {
   const loadData = useCallback(async () => {
     try {
       setError(null);
-      const list = await bookingService.getBookings({ role: 'provider' });
+      const [list, txnData] = await Promise.all([
+        bookingService.getBookings({ role: 'provider' }),
+        user?.auth_id ? walletService.getTransactions(user.auth_id).catch(() => []) : Promise.resolve([]),
+      ]);
       setBookings(list);
+      setTransactions(txnData);
     } catch (err: any) {
       console.error('[provider-bookings] failed to load', err);
       setError(err?.friendlyMessage || 'Could not load bookings.');
@@ -61,7 +78,7 @@ export default function ProviderBookings() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [user?.auth_id]);
 
   useEffect(() => {
     loadData();
@@ -183,6 +200,27 @@ export default function ProviderBookings() {
                   {!!booking.notes && <Text style={styles.notes}>{`"${booking.notes}"`}</Text>}
                   <Text style={styles.amount}>{formatCurrency(booking.total_amount)}</Text>
 
+                  {(() => {
+                    const paymentMeta = getPaymentStatusMeta(derivePaymentStatus(booking, transactions));
+                    return (
+                      <View
+                        style={[
+                          styles.paymentPill,
+                          { backgroundColor: `${PAYMENT_TONE_COLOR[paymentMeta.tone]}18` },
+                        ]}
+                      >
+                        <Ionicons
+                          name="shield-checkmark-outline"
+                          size={12}
+                          color={PAYMENT_TONE_COLOR[paymentMeta.tone]}
+                        />
+                        <Text style={[styles.paymentPillText, { color: PAYMENT_TONE_COLOR[paymentMeta.tone] }]}>
+                          {paymentMeta.label}
+                        </Text>
+                      </View>
+                    );
+                  })()}
+
                   {actions.length > 0 && (
                     <View style={styles.actionsRow}>
                       {actions.map((action) => (
@@ -260,6 +298,17 @@ const styles = StyleSheet.create({
   meta: { fontSize: FontSizes.sm, color: Colors.textSecondary, marginBottom: 4 },
   notes: { fontSize: FontSizes.xs, color: Colors.textMuted, marginBottom: 4, fontStyle: 'italic' },
   amount: { fontSize: FontSizes.md, fontWeight: '700', color: Colors.primary, marginBottom: Spacing.sm },
+  paymentPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    alignSelf: 'flex-start',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.sm,
+    marginBottom: Spacing.sm,
+  },
+  paymentPillText: { fontSize: FontSizes.xs, fontWeight: '600' },
   actionsRow: { flexDirection: 'row', gap: Spacing.sm },
   actionBtn: {
     flex: 1,

@@ -133,6 +133,7 @@ export interface Booking {
   time: string; // derived, e.g. "10:00 AM"
   status: string; // pending | confirmed | arrived | completed | cancelled | rejected | no_show (backend-driven, kept loose)
   total_amount: number;
+  platform_fee_amount?: number;
   payment_status?: string;
   location?: string;
   notes?: string;
@@ -148,32 +149,53 @@ export interface CreateBookingRequest {
 }
 
 // Wallet Types
+// Production shape confirmed via direct API probe:
+//   GET /api/wallets -> [{ id, user_auth_id, balance }, ...] (no per-user filter
+//   param exists server-side, so the app fetches all and matches by auth_id).
 export interface Wallet {
   id: string;
-  user_id: string;
+  user_auth_id: string;
   balance: number;
-  escrow_balance: number;
-  pending_balance: number;
-  currency: string;
-  updated_at: string;
 }
 
+// GET /api/wallet/transactions?auth_id={uuid} real shape (confirmed via probe):
+//   { id, type, direction, amount, description, created_at, booking_id,
+//     reference, status, raw_type }
+// `type`/`status` are kept as open strings (not a strict union) because only
+// "WITHDRAWAL" was directly observed in production data - other types
+// (BOOKING_PAYMENT, TOPUP, REFUND, ESCROW_HOLD, ESCROW_RELEASE, ADJUSTMENT,
+// PLATFORM_CREDIT) are handled defensively in the UI so an unexpected/new
+// value never crashes the app, it just falls back to a generic label.
 export interface Transaction {
   id: string;
-  wallet_id: string;
-  type: 'credit' | 'debit' | 'escrow' | 'release' | 'refund' | 'withdrawal';
+  type: string;
+  direction: 'CREDIT' | 'DEBIT' | string;
   amount: number;
   description: string;
-  reference: string;
-  status: 'pending' | 'completed' | 'failed';
   created_at: string;
+  booking_id: string | null;
+  reference: string;
+  status: string;
 }
 
 export interface WithdrawRequest {
   amount: number;
-  bank_account: string;
-  bank_code: string;
+  bank_name: string;
+  account_number: string;
+  account_name: string;
 }
+
+// Derived client-side (the production API has no dedicated payment_status /
+// escrow field on bookings) from real booking.status + matching wallet
+// transactions filtered by booking_id.
+export type BookingPaymentStatus =
+  | 'awaiting_payment'
+  | 'paid'
+  | 'escrow'
+  | 'completed'
+  | 'released'
+  | 'refunded'
+  | 'cancelled';
 
 // Feed Types
 export interface Post {

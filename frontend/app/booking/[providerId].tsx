@@ -16,6 +16,8 @@ import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/th
 import { Button } from '../../src/components/common';
 import { providerService } from '../../src/services/provider.service';
 import { bookingService } from '../../src/services/booking.service';
+import { walletService } from '../../src/services/wallet.service';
+import { useAuth } from '../../src/contexts/AuthContext';
 import { formatCurrency } from '../../src/utils/currency';
 import { Provider, Service } from '../../src/types';
 
@@ -50,6 +52,7 @@ function combineDateAndSlot(date: Date, slot: string): string {
 
 export default function CreateBooking() {
   const router = useRouter();
+  const { user } = useAuth();
   const { providerId, serviceId } = useLocalSearchParams<{
     providerId: string;
     serviceId?: string;
@@ -65,6 +68,10 @@ export default function CreateBooking() {
   const [slotsLoading, setSlotsLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
+  const [paymentOutcome, setPaymentOutcome] = useState<'paid' | 'insufficient_balance' | 'payment_failed' | null>(
+    null
+  );
+  const [walletBalance, setWalletBalance] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
   const days = useMemo(() => buildNextDays(NEXT_DAYS), []);
@@ -113,12 +120,39 @@ export default function CreateBooking() {
     }
     setSubmitting(true);
     try {
-      await bookingService.createBooking({
+      const booking = await bookingService.createBooking({
         provider_id: provider.id,
         service_id: selectedService.id,
         scheduled_at: combineDateAndSlot(selectedDate, selectedSlot),
         notes: notes.trim() || undefined,
       });
+
+      // Booking Payment Flow: this backend pays bookings out of the
+      // customer's wallet balance (see /api/bookings/{id}/pay-with-wallet -
+      // there is no dedicated per-booking Flutterwave checkout endpoint on
+      // the production API). If the wallet has enough funds, pay
+      // immediately so the booking moves straight to escrow; otherwise let
+      // the customer top up via Flutterwave and pay later from Bookings.
+      let balance = 0;
+      try {
+        const wallet = user?.auth_id ? await walletService.getWallet(user.auth_id) : null;
+        balance = wallet?.balance ?? 0;
+      } catch {
+        balance = 0;
+      }
+      setWalletBalance(balance);
+
+      if (balance >= selectedService.price) {
+        try {
+          await bookingService.payWithWallet(booking.id);
+          setPaymentOutcome('paid');
+        } catch (payErr: any) {
+          console.error('[booking] pay-with-wallet failed', payErr);
+          setPaymentOutcome('payment_failed');
+        }
+      } else {
+        setPaymentOutcome('insufficient_balance');
+      }
       setConfirmed(true);
     } catch (err: any) {
       Alert.alert('Booking Failed', err?.friendlyMessage || 'Could not create this booking.');
@@ -138,30 +172,53 @@ export default function CreateBooking() {
   }
 
   if (confirmed) {
+    const shortfall = Math.max(0, (selectedService?.price || 0) - walletBalance);
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
         <View style={styles.centerState}>
-          <View style={styles.successIcon}>
-            <Ionicons name="checkmark" size={48} color={Colors.text} />
+          <View
+            style={[
+              styles.successIcon,
+              paymentOutcome === 'insufficient_balance' && { backgroundColor: Colors.warning },
+              paymentOutcome === 'payment_failed' && { backgroundColor: Colors.error },
+            ]}
+          >
+            <Ionicons
+              name={paymentOutcome === 'paid' ? 'checkmark' : 'alert'}
+              size={48}
+              color={Colors.text}
+            />
           </View>
-          <Text style={styles.successTitle}>Booking Confirmed!</Text>
-          <Text style={styles.successSubtitle}>
-            Your booking with {provider?.business_name} has been sent. You will be notified once it
-            is confirmed.
+          <Text style={styles.successTitle}>
+            {paymentOutcome === 'paid'
+              ? 'Booking Confirmed & Paid!'
+              : 'Booking Created - Payment Needed'}
           </Text>
-          <Button
-            title="View My Bookings"
-            onPress={() => router.replace('/(tabs)/bookings')}
-            fullWidth
-            size="large"
-          />
+          <Text style={styles.successSubtitle}>
+            {paymentOutcome === 'paid' &&
+              `Your booking with ${provider?.business_name} is paid and held in escrow until the service is completed.`}
+            {paymentOutcome === 'insufficient_balance' &&
+              `Your booking with ${provider?.business_name} was created, but your wallet balance is short by ${formatCurrency(
+                shortfall
+              )}. Top up your wallet, then pay from the Bookings tab.`}
+            {paymentOutcome === 'payment_failed' &&
+              `Your booking with ${provider?.business_name} was created, but payment could not be completed. You can retry payment from the Bookings tab.`}
+          </Text>
+          {paymentOutcome === 'insufficient_balance' && (
+            <Button
+              title="Top Up Wallet"
+              onPress={() => router.push('/wallet/topup')}
+              fullWidth
+              size="large"
+            />
+          )}
           <TouchableOpacity
             style={{ marginTop: Spacing.md }}
-            onPress={() => router.replace('/(tabs)')}
+            onPress={() => router.replace('/(tabs)/bookings')}
             accessibilityRole="button"
-            accessibilityLabel="Back to Home"
+            accessibilityLabel="View my bookings"
           >
-            <Text style={styles.linkText}>Back to Home</Text>
+            <Text style={styles.linkText}>View My Bookings</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -314,7 +371,7 @@ export default function CreateBooking() {
 
         <View style={{ height: Spacing.xl }} />
         <Button
-          title="Proceed to Payment"
+          title="Confirm & Pay from Wallet"
           onPress={handleConfirm}
           loading={submitting}
           disabled={!selectedSlot}
@@ -322,7 +379,8 @@ export default function CreateBooking() {
           size="large"
         />
         <Text style={styles.paymentNote}>
-          Payment via Flutterwave will be enabled in the next phase. Confirming now reserves your slot.
+          Payment is deducted from your iStylist wallet and held in escrow until the service is
+          completed. If your balance is insufficient, you can top up via Flutterwave.
         </Text>
       </ScrollView>
     </SafeAreaView>
