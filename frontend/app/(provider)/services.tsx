@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { Button, Input } from '../../src/components/common';
 import { useAuth } from '../../src/contexts/AuthContext';
@@ -24,6 +25,7 @@ import { Service, CatalogSubService } from '../../src/types';
 type ModalStep = 'pick' | 'details';
 
 export default function ProviderServices() {
+  const router = useRouter();
   const { user } = useAuth();
   const providerId = user?.id;
 
@@ -144,6 +146,9 @@ export default function ProviderServices() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back">
+          <Ionicons name="arrow-back" size={24} color={Colors.text} />
+        </TouchableOpacity>
         <Text style={styles.title}>My Services</Text>
         <TouchableOpacity
           style={styles.addButton}

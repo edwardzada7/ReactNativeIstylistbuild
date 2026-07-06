@@ -32,11 +32,29 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="search"
+        name="bookings"
         options={{
-          title: 'Search',
+          title: 'Bookings',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="search" size={size} color={color} />
+            <Ionicons name="calendar" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="feed"
+        options={{
+          title: 'Feed',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="newspaper" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="shop"
+        options={{
+          title: 'Shop',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="bag-handle" size={size} color={color} />
           ),
         }}
       />
@@ -49,28 +67,19 @@ export default function TabsLayout() {
           ),
         }}
       />
+      {/* Search stays reachable from the Home search bar, not as its own
+          tab (per Phase 5A nav refactor). */}
       <Tabs.Screen
-        name="feed"
+        name="search"
         options={{
           href: null,
         }}
       />
-      <Tabs.Screen
-        name="bookings"
-        options={{
-          title: 'Bookings',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="calendar" size={size} color={color} />
-          ),
-        }}
-      />
+      {/* Profile is reachable only via the top-right icon on Home now. */}
       <Tabs.Screen
         name="profile"
         options={{
-          title: 'Profile',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person" size={size} color={color} />
-          ),
+          href: null,
         }}
       />
     </Tabs>

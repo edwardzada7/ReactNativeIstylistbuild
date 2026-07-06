@@ -151,15 +151,25 @@ export default function Home() {
             <Text style={styles.greeting}>Hello {user?.full_name || 'there'}! 👋</Text>
             <Text style={styles.subGreeting}>Find your perfect style today</Text>
           </View>
-          <TouchableOpacity
-            style={styles.notificationButton}
-            onPress={() => router.push('/(tabs)/profile')}
-            accessibilityRole="button"
-            accessibilityLabel="Notifications"
-          >
-            <Ionicons name="notifications-outline" size={24} color={Colors.text} />
-            <View style={styles.badge} />
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={() => router.push('/notifications')}
+              accessibilityRole="button"
+              accessibilityLabel="Notifications"
+            >
+              <Ionicons name="notifications-outline" size={24} color={Colors.text} />
+              <View style={styles.badge} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={() => router.push('/(tabs)/profile')}
+              accessibilityRole="button"
+              accessibilityLabel="Profile"
+            >
+              <Ionicons name="person-circle-outline" size={26} color={Colors.text} />
+            </TouchableOpacity>
+          </View>
         </View>
 
         {/* Search Bar */}
@@ -303,7 +313,12 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     marginTop: 4,
   },
-  notificationButton: {
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  iconButton: {
     width: 44,
     height: 44,
     borderRadius: 22,

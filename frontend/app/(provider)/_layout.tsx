@@ -41,32 +41,38 @@ export default function ProviderTabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="availability"
+        name="feed"
         options={{
-          title: 'Availability',
+          title: 'Feed',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="time" size={size} color={color} />
+            <Ionicons name="newspaper" size={size} color={color} />
           ),
         }}
       />
       <Tabs.Screen
-        name="services"
+        name="shop"
         options={{
-          title: 'Services',
+          title: 'Shop',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="cut" size={size} color={color} />
+            <Ionicons name="bag-handle" size={size} color={color} />
           ),
         }}
       />
       <Tabs.Screen
-        name="profile"
+        name="wallet"
         options={{
-          title: 'Profile',
+          title: 'Wallet',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person" size={size} color={color} />
+            <Ionicons name="wallet" size={size} color={color} />
           ),
         }}
       />
+      {/* Reachable from Dashboard quick actions / top-right icon instead of
+          the tab bar (per Phase 5A nav refactor). */}
+      <Tabs.Screen name="availability" options={{ href: null }} />
+      <Tabs.Screen name="services" options={{ href: null }} />
+      <Tabs.Screen name="profile" options={{ href: null }} />
+      <Tabs.Screen name="withdraw" options={{ href: null }} />
     </Tabs>
   );
 }

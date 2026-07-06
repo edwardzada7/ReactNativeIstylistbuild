@@ -48,7 +48,7 @@ export default function ProviderProfile() {
     {
       icon: 'wallet-outline',
       label: 'Wallet',
-      onPress: () => Alert.alert('Coming soon', 'Wallet is being wired up in the next phase.'),
+      onPress: () => router.push('/(provider)/wallet'),
     },
     {
       icon: 'help-circle-outline',
@@ -59,6 +59,13 @@ export default function ProviderProfile() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+      <View style={styles.backHeader}>
+        <TouchableOpacity onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back">
+          <Ionicons name="arrow-back" size={24} color={Colors.text} />
+        </TouchableOpacity>
+        <Text style={styles.backHeaderTitle}>Profile</Text>
+        <View style={{ width: 24 }} />
+      </View>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         <View style={styles.profileHeader}>
           <View style={styles.avatarContainer}>
@@ -124,6 +131,14 @@ export default function ProviderProfile() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   scrollContent: { paddingBottom: Spacing.xl },
+  backHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+  },
+  backHeaderTitle: { fontSize: FontSizes.lg, fontWeight: 'bold', color: Colors.text },
   profileHeader: { alignItems: 'center', paddingVertical: Spacing.xl, paddingHorizontal: Spacing.lg },
   avatarContainer: {
     width: 88,

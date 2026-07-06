@@ -108,6 +108,13 @@ export default function Profile() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+      <View style={styles.backHeader}>
+        <TouchableOpacity onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back">
+          <Ionicons name="arrow-back" size={24} color={Colors.text} />
+        </TouchableOpacity>
+        <Text style={styles.backHeaderTitle}>Profile</Text>
+        <View style={{ width: 24 }} />
+      </View>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
@@ -194,6 +201,14 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingBottom: Spacing.xl,
   },
+  backHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+  },
+  backHeaderTitle: { fontSize: FontSizes.lg, fontWeight: 'bold', color: Colors.text },
   profileHeader: {
     alignItems: 'center',
     paddingVertical: Spacing.xl,

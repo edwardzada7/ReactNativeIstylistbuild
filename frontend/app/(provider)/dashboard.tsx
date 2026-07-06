@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -86,11 +87,16 @@ export default function ProviderDashboard() {
 
   const quickActions = [
     { icon: 'time-outline', label: 'Availability', onPress: () => router.push('/(provider)/availability') },
+    { icon: 'cut-outline', label: 'Services', onPress: () => router.push('/(provider)/services') },
     { icon: 'calendar-outline', label: 'Calendar', onPress: () => router.push('/(provider)/availability') },
     { icon: 'wallet-outline', label: 'Wallet', onPress: () => router.push('/(provider)/wallet') },
-    { icon: 'arrow-up-circle-outline', label: 'Withdraw', onPress: () => router.push('/(provider)/withdraw') },
-    { icon: 'cut-outline', label: 'Services', onPress: () => router.push('/(provider)/services') },
     { icon: 'person-outline', label: 'Profile', onPress: () => router.push('/(provider)/profile') },
+    {
+      icon: 'bar-chart-outline',
+      label: 'Analytics',
+      onPress: () => Alert.alert('Coming soon', 'Analytics is being wired up in a later phase.'),
+    },
+    { icon: 'cash-outline', label: 'Earnings', onPress: () => router.push('/(provider)/wallet') },
   ];
 
   if (loading) {
@@ -113,9 +119,28 @@ export default function ProviderDashboard() {
         }
       >
         <View style={styles.header}>
-          <View>
+          <View style={{ flex: 1, marginRight: Spacing.sm }}>
             <Text style={styles.greeting}>Welcome back, {user?.full_name?.split(' ')[0] || 'there'} 👋</Text>
             <Text style={styles.subGreeting}>Here is how your business is doing</Text>
+          </View>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={() => router.push('/notifications')}
+              accessibilityRole="button"
+              accessibilityLabel="Notifications"
+            >
+              <Ionicons name="notifications-outline" size={24} color={Colors.text} />
+              <View style={styles.badge} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={() => router.push('/(provider)/profile')}
+              accessibilityRole="button"
+              accessibilityLabel="Profile"
+            >
+              <Ionicons name="person-circle-outline" size={26} color={Colors.text} />
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -219,8 +244,34 @@ const styles = StyleSheet.create({
   centerState: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   scrollContent: { paddingBottom: Spacing.xl },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+  },
+  iconButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.surface,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+  },
+  badge: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: Colors.error,
   },
   greeting: { fontSize: FontSizes.xl, fontWeight: 'bold', color: Colors.text },
   subGreeting: { fontSize: FontSizes.sm, color: Colors.textSecondary, marginTop: 4 },

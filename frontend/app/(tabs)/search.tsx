@@ -151,7 +151,11 @@ export default function Search() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back">
+          <Ionicons name="arrow-back" size={24} color={Colors.text} />
+        </TouchableOpacity>
         <Text style={styles.title}>Search</Text>
+        <View style={{ width: 24 }} />
       </View>
 
       {/* Search Input */}
@@ -229,6 +233,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.background,
   },
   header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
   },

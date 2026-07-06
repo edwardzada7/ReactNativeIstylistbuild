@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { Button } from '../../src/components/common';
 import { useAuth } from '../../src/contexts/AuthContext';
@@ -34,6 +35,7 @@ const DEFAULT_DAYS: DayAvailability[] = [
 }));
 
 export default function ProviderAvailability() {
+  const router = useRouter();
   const { user } = useAuth();
   const providerId = user?.id;
 
@@ -111,7 +113,11 @@ export default function ProviderAvailability() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back">
+          <Ionicons name="arrow-back" size={24} color={Colors.text} />
+        </TouchableOpacity>
         <Text style={styles.title}>Availability</Text>
+        <View style={{ width: 24 }} />
       </View>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={styles.sectionTitle}>Working Days & Hours</Text>
@@ -201,7 +207,13 @@ export default function ProviderAvailability() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   centerState: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  header: { paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+  },
   title: { fontSize: FontSizes.xxl, fontWeight: 'bold', color: Colors.text },
   content: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xl },
   sectionTitle: { fontSize: FontSizes.md, fontWeight: '700', color: Colors.text, marginBottom: Spacing.sm },
