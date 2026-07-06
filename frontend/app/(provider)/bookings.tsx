@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -11,12 +11,13 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { bookingService } from '../../src/services/booking.service';
 import { walletService } from '../../src/services/wallet.service';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { formatCurrency } from '../../src/utils/currency';
-import { derivePaymentStatus, getPaymentStatusMeta } from '../../src/utils/walletHelpers';
+import { derivePaymentStatus, getPaymentStatusMeta, formatStatusLabel } from '../../src/utils/walletHelpers';
 import { Booking, Transaction } from '../../src/types';
 
 const FILTERS = ['Pending', 'Upcoming', 'Completed', 'Cancelled'] as const;
@@ -28,6 +29,8 @@ const STATUS_COLOR: Record<string, string> = {
   completed: Colors.success,
   cancelled: Colors.error,
   rejected: Colors.error,
+  no_show: Colors.error,
+  disputed: Colors.warning,
 };
 
 const PAYMENT_TONE_COLOR: Record<string, string> = {
@@ -80,9 +83,14 @@ export default function ProviderBookings() {
     }
   }, [user?.auth_id]);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  // Refresh bookings + wallet-derived payment status every time this
+  // screen regains focus - covers a customer paying/topping-up, or a
+  // backend-side escrow release/refund, while this screen wasn't visible.
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -98,7 +106,7 @@ export default function ProviderBookings() {
       case 'Completed':
         return bookings.filter((b) => b.status === 'completed');
       case 'Cancelled':
-        return bookings.filter((b) => ['cancelled', 'rejected'].includes(b.status));
+        return bookings.filter((b) => ['cancelled', 'rejected', 'no_show', 'disputed'].includes(b.status));
       default:
         return bookings;
     }
@@ -190,7 +198,7 @@ export default function ProviderBookings() {
                           { color: STATUS_COLOR[booking.status] || Colors.textMuted },
                         ]}
                       >
-                        {booking.status}
+                        {formatStatusLabel(booking.status)}
                       </Text>
                     </View>
                   </View>

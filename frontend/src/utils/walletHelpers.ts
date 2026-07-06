@@ -65,6 +65,19 @@ export function getPaymentStatusMeta(key: BookingPaymentStatus) {
 }
 
 /**
+ * Formats a raw booking lifecycle `status` string (e.g. "no_show",
+ * "disputed", "confirmed") into a readable label ("No Show", "Disputed",
+ * "Confirmed") without inventing any new status values - purely a display
+ * formatter for whatever the production backend actually returns.
+ */
+export function formatStatusLabel(status: string): string {
+  return (status || '')
+    .replace(/_/g, ' ')
+    .toLowerCase()
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+/**
  * Derives a booking's payment/escrow status from real data. The production
  * API has no dedicated `payment_status` or `escrow` field on bookings, so
  * this combines the booking's real lifecycle `status` with any matching

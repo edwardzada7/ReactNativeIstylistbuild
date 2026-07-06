@@ -1,8 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { walletService } from '../../src/services/wallet.service';
@@ -45,25 +45,38 @@ export default function ProviderWallet() {
     }
   }, [user?.auth_id]);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  // Refresh every time this screen regains focus - covers a customer's
+  // wallet payment moving a booking into escrow, an escrow release after
+  // service completion, or a withdrawal, that happened while this screen
+  // wasn't visible. Also covers the initial mount/focus.
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
 
   const handleRefresh = () => {
     setRefreshing(true);
     loadData();
   };
 
-  // Earnings breakdown is derived from real bookings (net of platform fee
-  // when present) since the production API has no dedicated earnings
-  // endpoint. Wallet balance is the real, authoritative available/
-  // withdrawable amount.
+  // Earnings breakdown: "In Escrow" is a best-effort projection derived
+  // from real bookings still confirmed/arrived (net of platform fee) since
+  // the production API has no dedicated per-booking escrow-status field.
+  // "Released Earnings" is NOT a local calculation - it's the sum of real
+  // ESCROW_RELEASE transactions already recorded in the production wallet
+  // ledger (GET /api/wallet/transactions), so it reflects exactly what the
+  // backend has released to this provider, never a guess. Wallet balance
+  // (availableBalance) is the real, authoritative available/withdrawable
+  // amount - it never includes escrowed/unreleased funds.
   const stats = useMemo(() => {
     const completed = bookings.filter((b) => b.status === 'completed');
     const pendingBookings = bookings.filter((b) => ['confirmed', 'arrived'].includes(b.status));
-    const completedEarnings = completed.reduce((sum, b) => sum + netAmount(b), 0);
-    const pendingEarnings = pendingBookings.reduce((sum, b) => sum + netAmount(b), 0);
-    const totalEarnings = completedEarnings + pendingEarnings;
+    const inEscrow = pendingBookings.reduce((sum, b) => sum + netAmount(b), 0);
+    const releasedEarnings = transactions
+      .filter((t) => t.type.includes('RELEASE'))
+      .reduce((sum, t) => sum + t.amount, 0);
+    const totalEarnings = releasedEarnings + inEscrow;
     const availableBalance = wallet?.balance ?? 0;
 
     const monthly = new Map<string, number>();
@@ -81,13 +94,13 @@ export default function ProviderWallet() {
     return {
       availableBalance,
       withdrawableBalance: availableBalance,
-      pendingEarnings,
-      completedEarnings,
+      inEscrow,
+      releasedEarnings,
       totalEarnings,
       monthlyEarnings,
       maxMonthly,
     };
-  }, [wallet, bookings]);
+  }, [wallet, bookings, transactions]);
 
   const withdrawalHistory = useMemo(
     () => transactions.filter((t) => t.type.includes('WITHDRAWAL')),
@@ -138,12 +151,12 @@ export default function ProviderWallet() {
 
         <View style={styles.statsGrid}>
           <View style={styles.statCard}>
-            <Text style={styles.statValue}>{formatCurrency(stats.pendingEarnings)}</Text>
-            <Text style={styles.statLabel}>Pending Earnings</Text>
+            <Text style={styles.statValue}>{formatCurrency(stats.inEscrow)}</Text>
+            <Text style={styles.statLabel}>In Escrow</Text>
           </View>
           <View style={styles.statCard}>
-            <Text style={styles.statValue}>{formatCurrency(stats.completedEarnings)}</Text>
-            <Text style={styles.statLabel}>Completed Earnings</Text>
+            <Text style={styles.statValue}>{formatCurrency(stats.releasedEarnings)}</Text>
+            <Text style={styles.statLabel}>Released Earnings</Text>
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statValue}>{formatCurrency(stats.totalEarnings)}</Text>
@@ -154,6 +167,10 @@ export default function ProviderWallet() {
             <Text style={styles.statLabel}>Withdrawable</Text>
           </View>
         </View>
+        <Text style={styles.escrowHint}>
+          Money from new bookings stays locked in escrow and only moves into your wallet once the
+          service is marked completed and released.
+        </Text>
 
         {/* Monthly earnings */}
         <Text style={styles.sectionTitle}>Monthly Earnings</Text>
@@ -253,7 +270,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.md,
   },
   withdrawButtonText: { fontSize: FontSizes.sm, fontWeight: '700', color: Colors.text },
-  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginBottom: Spacing.lg },
+  statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginBottom: Spacing.sm },
+  escrowHint: {
+    fontSize: FontSizes.xs,
+    color: Colors.textMuted,
+    marginBottom: Spacing.lg,
+    lineHeight: 16,
+  },
   statCard: {
     flexBasis: '48%',
     flexGrow: 1,

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { Button } from '../../src/components/common';
 import { bookingService } from '../../src/services/booking.service';
@@ -23,7 +23,7 @@ import { reviewService } from '../../src/services/review.service';
 import { walletService } from '../../src/services/wallet.service';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { formatCurrency } from '../../src/utils/currency';
-import { derivePaymentStatus, getPaymentStatusMeta } from '../../src/utils/walletHelpers';
+import { derivePaymentStatus, getPaymentStatusMeta, formatStatusLabel } from '../../src/utils/walletHelpers';
 import { Booking, Transaction, Wallet } from '../../src/types';
 
 const tabs = ['Upcoming', 'Completed', 'Cancelled'];
@@ -35,6 +35,8 @@ const statusColors: Record<string, string> = {
   completed: Colors.success,
   cancelled: Colors.error,
   rejected: Colors.error,
+  no_show: Colors.error,
+  disputed: Colors.warning,
 };
 
 const PAYMENT_TONE_COLOR: Record<string, string> = {
@@ -85,9 +87,16 @@ export default function Bookings() {
     }
   }, [user?.auth_id]);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  // Refresh wallet + bookings every time this screen regains focus so
+  // balance/escrow/status reflect any change made elsewhere (Top Up,
+  // a provider marking a booking completed, an admin-side refund/release,
+  // etc.) - never a stale locally-cached figure. This also covers the
+  // initial mount/focus, so no separate mount-only effect is needed.
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -98,7 +107,8 @@ export default function Bookings() {
     return bookings.filter((b) => {
       if (selectedTab === 'Upcoming') return ['pending', 'confirmed', 'arrived'].includes(b.status);
       if (selectedTab === 'Completed') return b.status === 'completed';
-      if (selectedTab === 'Cancelled') return ['cancelled', 'rejected'].includes(b.status);
+      if (selectedTab === 'Cancelled')
+        return ['cancelled', 'rejected', 'no_show', 'disputed'].includes(b.status);
       return true;
     });
   }, [bookings, selectedTab]);
@@ -150,7 +160,7 @@ export default function Bookings() {
     }
   };
 
-  const handlePayNow = async (booking: Booking) => {
+  const handlePayFromWallet = async (booking: Booking) => {
     setBusyId(booking.id);
     try {
       if ((wallet?.balance ?? 0) < booking.total_amount) {
@@ -243,7 +253,7 @@ export default function Bookings() {
                     <Text
                       style={[styles.statusText, { color: statusColors[item.status] || Colors.textMuted }]}
                     >
-                      {item.status}
+                      {formatStatusLabel(item.status)}
                     </Text>
                   </View>
                 </View>
@@ -284,17 +294,17 @@ export default function Bookings() {
                 {item.status === 'pending' && derivePaymentStatus(item, transactions) === 'awaiting_payment' && (
                   <TouchableOpacity
                     style={styles.payNowButton}
-                    onPress={() => handlePayNow(item)}
+                    onPress={() => handlePayFromWallet(item)}
                     disabled={busyId === item.id}
                     accessibilityRole="button"
-                    accessibilityLabel="Pay now"
+                    accessibilityLabel="Pay from wallet"
                   >
                     {busyId === item.id ? (
                       <ActivityIndicator size="small" color={Colors.text} />
                     ) : (
                       <>
                         <Ionicons name="wallet-outline" size={16} color={Colors.text} />
-                        <Text style={styles.payNowButtonText}>Pay Now</Text>
+                        <Text style={styles.payNowButtonText}>Pay from Wallet</Text>
                       </>
                     )}
                   </TouchableOpacity>

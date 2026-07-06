@@ -1,8 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { walletService } from '../../src/services/wallet.service';
@@ -39,9 +39,15 @@ export default function CustomerWallet() {
     }
   }, [user?.auth_id]);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  // Refresh every time this screen regains focus - covers Top Up, a
+  // booking payment, an escrow release/refund, or a cancellation that
+  // happened while this screen wasn't visible. Also covers the initial
+  // mount/focus, so no separate mount-only effect is needed.
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
 
   const handleRefresh = () => {
     setRefreshing(true);

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { bookingService } from '../../src/services/booking.service';
@@ -60,9 +60,16 @@ export default function ProviderDashboard() {
     }
   }, [providerId]);
 
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
+  // Refresh dashboard stats every time it regains focus - covers a
+  // just-paid booking, a status change made on the Bookings tab, or an
+  // escrow release that happened while this screen wasn't visible. Also
+  // covers the initial mount/focus, so no separate mount-only effect is
+  // needed.
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
 
   const handleRefresh = () => {
     setRefreshing(true);
