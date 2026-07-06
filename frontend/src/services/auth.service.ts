@@ -31,6 +31,8 @@ export function mapProfile(raw: any): User {
     city: raw?.city,
     gender: raw?.gender,
     account_type: raw?.account_type,
+    created_at: raw?.created_at,
+    updated_at: raw?.updated_at,
   };
 }
 

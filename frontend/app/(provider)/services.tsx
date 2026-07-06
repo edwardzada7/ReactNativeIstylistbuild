@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Modal,
   KeyboardAvoidingView,
   Platform,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -20,6 +21,8 @@ import { providerService } from '../../src/services/provider.service';
 import { formatCurrency } from '../../src/utils/currency';
 import { Service } from '../../src/types';
 
+type ModalStep = 'pick' | 'details';
+
 export default function ProviderServices() {
   const { user } = useAuth();
   const providerId = user?.id;
@@ -27,10 +30,20 @@ export default function ProviderServices() {
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [modalVisible, setModalVisible] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  const [form, setForm] = useState({ name: '', description: '', price: '', duration: '' });
+  // Service catalog (Priority 8): providers must pick from the master
+  // catalog instead of typing arbitrary service names, so search/discovery
+  // stays consistent across the app.
+  const [catalog, setCatalog] = useState<Service[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [catalogSearch, setCatalogSearch] = useState('');
+
+  const [modalVisible, setModalVisible] = useState(false);
+  const [modalStep, setModalStep] = useState<ModalStep>('pick');
+  const [selectedCatalogItem, setSelectedCatalogItem] = useState<Service | null>(null);
+  const [form, setForm] = useState({ description: '', price: '', duration: '' });
 
   const loadServices = useCallback(async () => {
     if (!providerId) return;
@@ -46,28 +59,76 @@ export default function ProviderServices() {
     }
   }, [providerId]);
 
+  const loadCatalog = useCallback(async () => {
+    setCatalogLoading(true);
+    setCatalogError(null);
+    try {
+      const list = await providerService.getCatalogServices();
+      setCatalog(list);
+    } catch (err: any) {
+      console.error('[provider-services] failed to load catalog', err);
+      setCatalogError(err?.friendlyMessage || 'Could not load the service catalog.');
+      setCatalog([]);
+    } finally {
+      setCatalogLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     loadServices();
   }, [loadServices]);
 
+  const openAddModal = () => {
+    setModalStep('pick');
+    setSelectedCatalogItem(null);
+    setCatalogSearch('');
+    setForm({ description: '', price: '', duration: '' });
+    setModalVisible(true);
+    if (catalog.length === 0) loadCatalog();
+  };
+
+  const existingNames = useMemo(
+    () => new Set(services.map((s) => s.name.trim().toLowerCase())),
+    [services]
+  );
+
+  const filteredCatalog = useMemo(() => {
+    const query = catalogSearch.trim().toLowerCase();
+    return catalog.filter((c) => {
+      if (existingNames.has(c.name.trim().toLowerCase())) return false; // avoid duplicates
+      if (!query) return true;
+      return (
+        c.name.toLowerCase().includes(query) ||
+        (c.category || '').toLowerCase().includes(query)
+      );
+    });
+  }, [catalog, catalogSearch, existingNames]);
+
+  const handlePickCatalogItem = (item: Service) => {
+    setSelectedCatalogItem(item);
+    setForm({ description: item.description || '', price: '', duration: '' });
+    setModalStep('details');
+  };
+
   const handleAddService = async () => {
-    if (!providerId) return;
-    if (!form.name.trim() || !form.price.trim() || !form.duration.trim()) {
-      Alert.alert('Missing info', 'Please fill in name, price and duration.');
+    if (!providerId || !selectedCatalogItem) return;
+    if (!form.price.trim() || !form.duration.trim()) {
+      Alert.alert('Missing info', 'Please fill in price and duration.');
       return;
     }
     setSaving(true);
     try {
       const created = await providerService.createProviderService({
         provider_id: providerId,
-        name: form.name.trim(),
+        name: selectedCatalogItem.name,
         description: form.description.trim() || undefined,
         price: Number(form.price),
         duration_minutes: Number(form.duration),
       });
       setServices((prev) => [...prev, created]);
       setModalVisible(false);
-      setForm({ name: '', description: '', price: '', duration: '' });
+      setSelectedCatalogItem(null);
+      setForm({ description: '', price: '', duration: '' });
     } catch (err: any) {
       Alert.alert('Error', err?.friendlyMessage || 'Could not add this service.');
     } finally {
@@ -81,7 +142,7 @@ export default function ProviderServices() {
         <Text style={styles.title}>My Services</Text>
         <TouchableOpacity
           style={styles.addButton}
-          onPress={() => setModalVisible(true)}
+          onPress={openAddModal}
           accessibilityRole="button"
           accessibilityLabel="Add service"
         >
@@ -127,7 +188,21 @@ export default function ProviderServices() {
         >
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Add Service</Text>
+              {modalStep === 'details' ? (
+                <TouchableOpacity
+                  onPress={() => setModalStep('pick')}
+                  accessibilityRole="button"
+                  accessibilityLabel="Back to catalog"
+                  style={styles.modalBackButton}
+                >
+                  <Ionicons name="arrow-back" size={22} color={Colors.text} />
+                </TouchableOpacity>
+              ) : (
+                <View style={styles.modalBackButton} />
+              )}
+              <Text style={styles.modalTitle}>
+                {modalStep === 'pick' ? 'Choose a Service' : 'Set Price & Duration'}
+              </Text>
               <TouchableOpacity
                 onPress={() => setModalVisible(false)}
                 accessibilityRole="button"
@@ -136,35 +211,93 @@ export default function ProviderServices() {
                 <Ionicons name="close" size={24} color={Colors.text} />
               </TouchableOpacity>
             </View>
-            <ScrollView>
-              <Input
-                label="Service Name"
-                placeholder="e.g. Bridal Makeup"
-                value={form.name}
-                onChangeText={(v) => setForm((f) => ({ ...f, name: v }))}
-              />
-              <Input
-                label="Description (optional)"
-                placeholder="Brief description"
-                value={form.description}
-                onChangeText={(v) => setForm((f) => ({ ...f, description: v }))}
-              />
-              <Input
-                label="Price (NGN)"
-                placeholder="e.g. 15000"
-                keyboardType="numeric"
-                value={form.price}
-                onChangeText={(v) => setForm((f) => ({ ...f, price: v }))}
-              />
-              <Input
-                label="Duration (minutes)"
-                placeholder="e.g. 60"
-                keyboardType="numeric"
-                value={form.duration}
-                onChangeText={(v) => setForm((f) => ({ ...f, duration: v }))}
-              />
-              <Button title="Add Service" onPress={handleAddService} loading={saving} fullWidth size="large" />
-            </ScrollView>
+
+            {modalStep === 'pick' ? (
+              <View style={styles.pickStep}>
+                <Text style={styles.pickHint}>
+                  Select a service from our catalog. This keeps search accurate for customers.
+                </Text>
+                <View style={styles.catalogSearchBar}>
+                  <Ionicons name="search" size={18} color={Colors.textMuted} />
+                  <TextInput
+                    style={styles.catalogSearchInput}
+                    placeholder="Search services..."
+                    placeholderTextColor={Colors.textMuted}
+                    value={catalogSearch}
+                    onChangeText={setCatalogSearch}
+                  />
+                </View>
+
+                {catalogLoading ? (
+                  <View style={styles.catalogCenterState}>
+                    <ActivityIndicator size="large" color={Colors.primary} />
+                  </View>
+                ) : catalogError ? (
+                  <View style={styles.catalogCenterState}>
+                    <Ionicons name="alert-circle-outline" size={28} color={Colors.error} />
+                    <Text style={styles.emptyText}>{catalogError}</Text>
+                    <Button title="Retry" onPress={loadCatalog} variant="outline" />
+                  </View>
+                ) : filteredCatalog.length === 0 ? (
+                  <View style={styles.catalogCenterState}>
+                    <Ionicons name="search-outline" size={28} color={Colors.textMuted} />
+                    <Text style={styles.emptyText}>
+                      {catalogSearch
+                        ? 'No matching services found.'
+                        : 'No more catalog services to add.'}
+                    </Text>
+                  </View>
+                ) : (
+                  <ScrollView style={styles.catalogList} showsVerticalScrollIndicator={false}>
+                    {filteredCatalog.map((item) => (
+                      <TouchableOpacity
+                        key={item.id || item.name}
+                        style={styles.catalogRow}
+                        onPress={() => handlePickCatalogItem(item)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Select ${item.name}`}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.catalogRowName}>{item.name}</Text>
+                          {!!item.category && (
+                            <Text style={styles.catalogRowCategory}>{item.category}</Text>
+                          )}
+                        </View>
+                        <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                )}
+              </View>
+            ) : (
+              <ScrollView>
+                <View style={styles.selectedServiceBanner}>
+                  <Ionicons name="checkmark-circle" size={18} color={Colors.primary} />
+                  <Text style={styles.selectedServiceName}>{selectedCatalogItem?.name}</Text>
+                </View>
+                <Input
+                  label="Description (optional)"
+                  placeholder="Brief description"
+                  value={form.description}
+                  onChangeText={(v) => setForm((f) => ({ ...f, description: v }))}
+                />
+                <Input
+                  label="Price (NGN)"
+                  placeholder="e.g. 15000"
+                  keyboardType="numeric"
+                  value={form.price}
+                  onChangeText={(v) => setForm((f) => ({ ...f, price: v }))}
+                />
+                <Input
+                  label="Duration (minutes)"
+                  placeholder="e.g. 60"
+                  keyboardType="numeric"
+                  value={form.duration}
+                  onChangeText={(v) => setForm((f) => ({ ...f, duration: v }))}
+                />
+                <Button title="Add Service" onPress={handleAddService} loading={saving} fullWidth size="large" />
+              </ScrollView>
+            )}
           </View>
         </KeyboardAvoidingView>
       </Modal>
@@ -222,4 +355,46 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
   },
   modalTitle: { fontSize: FontSizes.lg, fontWeight: '700', color: Colors.text },
+  modalBackButton: { width: 28 },
+  pickStep: { flex: 1, minHeight: 300 },
+  pickHint: { fontSize: FontSizes.xs, color: Colors.textSecondary, marginBottom: Spacing.md },
+  catalogSearchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    backgroundColor: Colors.surface,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.md,
+  },
+  catalogSearchInput: { flex: 1, fontSize: FontSizes.sm, color: Colors.text, paddingVertical: 4 },
+  catalogCenterState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    paddingVertical: Spacing.xxl,
+  },
+  catalogList: { maxHeight: 380 },
+  catalogRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  catalogRowName: { fontSize: FontSizes.sm, fontWeight: '600', color: Colors.text },
+  catalogRowCategory: { fontSize: FontSizes.xs, color: Colors.textSecondary, marginTop: 2 },
+  selectedServiceBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    backgroundColor: `${Colors.primary}15`,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  selectedServiceName: { fontSize: FontSizes.md, fontWeight: '700', color: Colors.text },
 });

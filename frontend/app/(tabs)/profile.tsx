@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -6,42 +6,46 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { bookingService } from '../../src/services/booking.service';
+import { Booking } from '../../src/types';
 
-const menuItems = [
+const comingSoon = (feature: string) =>
+  Alert.alert('Coming soon', `${feature} is being wired up in a later phase.`);
+
+const menuSections = [
   {
     section: 'Account',
     items: [
-      { icon: 'person-outline', label: 'Edit Profile', route: '/profile/edit' },
-      { icon: 'wallet-outline', label: 'Wallet', route: '/wallet' },
-      { icon: 'heart-outline', label: 'Saved Providers', route: '/saved' },
-      { icon: 'star-outline', label: 'My Reviews', route: '/reviews' },
+      { icon: 'person-outline', label: 'Edit Profile' },
+      { icon: 'wallet-outline', label: 'Wallet' },
+      { icon: 'heart-outline', label: 'Saved Providers' },
+      { icon: 'star-outline', label: 'My Reviews' },
     ],
   },
   {
     section: 'Provider',
-    items: [
-      { icon: 'briefcase-outline', label: 'Become a Provider', route: '/become-provider' },
-    ],
+    items: [{ icon: 'briefcase-outline', label: 'Become a Provider' }],
   },
   {
     section: 'Support',
     items: [
-      { icon: 'help-circle-outline', label: 'Help Center', route: '/support' },
-      { icon: 'shield-outline', label: 'Safety Center', route: '/safety' },
-      { icon: 'document-text-outline', label: 'Terms & Privacy', route: '/legal' },
+      { icon: 'help-circle-outline', label: 'Help Center' },
+      { icon: 'shield-outline', label: 'Safety Center' },
+      { icon: 'document-text-outline', label: 'Terms & Privacy' },
     ],
   },
   {
     section: 'Settings',
     items: [
-      { icon: 'notifications-outline', label: 'Notifications', route: '/settings/notifications' },
-      { icon: 'settings-outline', label: 'App Settings', route: '/settings' },
+      { icon: 'notifications-outline', label: 'Notifications' },
+      { icon: 'settings-outline', label: 'App Settings' },
     ],
   },
 ];
@@ -49,6 +53,35 @@ const menuItems = [
 export default function Profile() {
   const router = useRouter();
   const { user, logout } = useAuth();
+
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [loadingStats, setLoadingStats] = useState(true);
+
+  const loadStats = useCallback(async () => {
+    try {
+      const list = await bookingService.getBookings({ role: 'customer' });
+      setBookings(list);
+    } catch (err) {
+      // Non-fatal: the profile screen should still render without stats.
+      console.error('[profile] failed to load booking stats', err);
+      setBookings([]);
+    } finally {
+      setLoadingStats(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadStats();
+  }, [loadStats]);
+
+  const { totalBookings, upcomingCount, completedCount } = useMemo(() => {
+    const totalBookings = bookings.length;
+    const upcomingCount = bookings.filter((b) =>
+      ['pending', 'confirmed', 'arrived'].includes(b.status)
+    ).length;
+    const completedCount = bookings.filter((b) => b.status === 'completed').length;
+    return { totalBookings, upcomingCount, completedCount };
+  }, [bookings]);
 
   const handleLogout = () => {
     Alert.alert(
@@ -60,8 +93,13 @@ export default function Profile() {
           text: 'Logout',
           style: 'destructive',
           onPress: async () => {
-            await logout();
-            router.replace('/(auth)/login');
+            try {
+              await logout();
+            } catch (err) {
+              console.error('[profile] logout failed', err);
+            } finally {
+              router.replace('/(auth)/login');
+            }
           },
         },
       ]
@@ -81,34 +119,34 @@ export default function Profile() {
           </View>
           <Text style={styles.userName}>{user?.full_name || 'Guest User'}</Text>
           <Text style={styles.userEmail}>{user?.email || 'guest@example.com'}</Text>
-          {user?.role === 'provider' && (
-            <View style={styles.badge}>
-              <Ionicons name="checkmark-circle" size={16} color={Colors.success} />
-              <Text style={styles.badgeText}>Verified Provider</Text>
-            </View>
+        </View>
+
+        {/* Stats - customer-relevant only (booking activity, not provider metrics) */}
+        <View style={styles.statsContainer}>
+          {loadingStats ? (
+            <ActivityIndicator color={Colors.primary} style={{ paddingVertical: Spacing.sm }} />
+          ) : (
+            <>
+              <View style={styles.statItem}>
+                <Text style={styles.statValue}>{totalBookings}</Text>
+                <Text style={styles.statLabel}>Total Bookings</Text>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <Text style={styles.statValue}>{upcomingCount}</Text>
+                <Text style={styles.statLabel}>Upcoming</Text>
+              </View>
+              <View style={styles.statDivider} />
+              <View style={styles.statItem}>
+                <Text style={styles.statValue}>{completedCount}</Text>
+                <Text style={styles.statLabel}>Completed</Text>
+              </View>
+            </>
           )}
         </View>
 
-        {/* Stats */}
-        <View style={styles.statsContainer}>
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>12</Text>
-            <Text style={styles.statLabel}>Bookings</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>8</Text>
-            <Text style={styles.statLabel}>Reviews</Text>
-          </View>
-          <View style={styles.statDivider} />
-          <View style={styles.statItem}>
-            <Text style={styles.statValue}>4.8</Text>
-            <Text style={styles.statLabel}>Rating</Text>
-          </View>
-        </View>
-
         {/* Menu Sections */}
-        {menuItems.map((section, index) => (
+        {menuSections.map((section, index) => (
           <View key={index} style={styles.menuSection}>
             <Text style={styles.sectionTitle}>{section.section}</Text>
             <View style={styles.menuItems}>
@@ -116,10 +154,9 @@ export default function Profile() {
                 <TouchableOpacity
                   key={itemIndex}
                   style={styles.menuItem}
-                  onPress={() => {
-                    // Navigation will be implemented when these screens are created
-                    console.log('Navigate to:', item.route);
-                  }}
+                  onPress={() => comingSoon(item.label)}
+                  accessibilityRole="button"
+                  accessibilityLabel={item.label}
                 >
                   <View style={styles.menuItemLeft}>
                     <Ionicons name={item.icon as any} size={22} color={Colors.text} />
@@ -133,7 +170,12 @@ export default function Profile() {
         ))}
 
         {/* Logout Button */}
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+        <TouchableOpacity
+          style={styles.logoutButton}
+          onPress={handleLogout}
+          accessibilityRole="button"
+          accessibilityLabel="Logout"
+        >
           <Ionicons name="log-out-outline" size={22} color={Colors.error} />
           <Text style={styles.logoutText}>Logout</Text>
         </TouchableOpacity>
