@@ -43,10 +43,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // near-simultaneous TOKEN_REFRESHED event) from racing each other.
   const hydratingRef = useRef<Promise<void> | null>(null);
 
-  const hydrateFromSession = async (
-    nextSession: Session | null,
-    opts?: { strict?: boolean }
-  ): Promise<User | null> => {
+  const hydrateFromSession = async (nextSession: Session | null): Promise<User | null> => {
     setSession(nextSession);
     if (!nextSession?.user) {
       setUser(null);
@@ -57,21 +54,28 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setUser(profile);
       return profile;
     } catch (error) {
-      console.error('[auth] failed to load/create profile:', error);
-      setUser(null);
-      // BUG FIX (Phase 5D / Bug 4): previously this ALWAYS swallowed the
-      // error and returned null, even for an explicit login()/signup()
-      // call. That made a real profile-fetch failure (e.g. a
-      // provider-specific backend error) look exactly like "nothing
-      // happened" to the user - Supabase auth had actually succeeded, but
-      // the screen had no error to show and no valid profile to route
-      // with. `strict` re-throws so login/signup can surface the real
-      // failure reason instead of silently no-oping. The passive
-      // onAuthStateChange/bootstrap path stays lenient (strict is
-      // omitted there) so a transient hiccup never crashes the app on
-      // launch/background token refresh.
-      if (opts?.strict) throw error;
-      return null;
+      // Web parity (frontend/src/contexts/AuthContext.jsx loadUser/
+      // ensureUserExists): the production web app NEVER blocks sign-in on
+      // a backend profile-fetch/create failure - it only logs the error
+      // and falls back to the Supabase auth user's own metadata (role,
+      // full_name) so the session the customer/provider already has with
+      // Supabase is never wasted. Mirrored here instead of throwing.
+      console.error('[auth] failed to load/create profile, using session fallback:', error);
+      const meta = (nextSession.user.user_metadata || {}) as Record<string, any>;
+      const fallbackRole: User['role'] =
+        meta.role === 'stylist' || meta.role === 'provider' ? 'provider' : 'customer';
+      const fallbackProfile: User = {
+        id: nextSession.user.id,
+        auth_id: nextSession.user.id,
+        email: nextSession.user.email || '',
+        full_name: meta.full_name || nextSession.user.email?.split('@')[0] || 'User',
+        phone: meta.phone,
+        role: fallbackRole,
+        role_raw: meta.role,
+        is_verified: false,
+      };
+      setUser(fallbackProfile);
+      return fallbackProfile;
     }
   };
 
@@ -106,7 +110,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = async (credentials: { email: string; password: string }) => {
     const data = await authService.login(credentials);
-    return hydrateFromSession(data.session, { strict: true });
+    return hydrateFromSession(data.session);
   };
 
   const signup = async (data: {
@@ -118,7 +122,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }) => {
     const result = await authService.signup(data);
     if (result.session) {
-      const profile = await hydrateFromSession(result.session, { strict: true });
+      const profile = await hydrateFromSession(result.session);
       return { needsVerification: false, user: profile };
     }
     return { needsVerification: true, user: null };

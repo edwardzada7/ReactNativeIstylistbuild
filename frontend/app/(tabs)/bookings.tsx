@@ -176,7 +176,7 @@ export default function Bookings() {
         );
         return;
       }
-      await bookingService.payWithWallet(booking.id, booking.total_amount);
+      await bookingService.payWithWallet(booking.id, user?.auth_id || '');
       Alert.alert('Payment Successful', 'Your booking is now paid and held in escrow.');
       loadData();
     } catch (err: any) {

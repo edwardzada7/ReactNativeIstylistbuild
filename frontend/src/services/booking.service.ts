@@ -57,17 +57,17 @@ export const bookingService = {
     return normalizeBooking(raw);
   },
 
-  // BUG FIX (Phase 5D): this previously sent NO body/params at all, which
-  // the production API rejected with "Field required". This backend's
-  // confirmed convention for simple wallet-amount actions is a query param
-  // (see wallet.service.ts topUp: POST /wallets/{id}/topup?amount=...) - so
-  // the booking's amount is now sent the same way here.
-  async payWithWallet(id: string, amount?: number): Promise<Booking> {
-    const raw = await apiService.post<any>(
-      `/bookings/${id}/pay-with-wallet`,
-      undefined,
-      amount != null ? { params: { amount } } : undefined
-    );
+  // GROUND TRUTH (Phase 6 - verified against production web app source,
+  // frontend/src/services/api.js `paymentsAPI.payWithWallet`):
+  //   POST /bookings/{bookingId}/pay-with-wallet?auth_id={customerAuthId}
+  // No request body - only the customer's Supabase auth_id as a query
+  // param. (Phase 5D had guessed `amount` as a query param, matching the
+  // sibling `topup` endpoint - that guess is now corrected to match the
+  // real web app contract exactly.)
+  async payWithWallet(id: string, authId: string): Promise<Booking> {
+    const raw = await apiService.post<any>(`/bookings/${id}/pay-with-wallet`, undefined, {
+      params: { auth_id: authId },
+    });
     return normalizeBooking(raw);
   },
 

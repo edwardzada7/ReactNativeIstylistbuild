@@ -74,7 +74,6 @@ export default function CreateBooking() {
   const [autoCompleting, setAutoCompleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [failedBookingId, setFailedBookingId] = useState<string | null>(null);
-  const [failedBookingAmount, setFailedBookingAmount] = useState<number>(0);
 
   // Set right before navigating to Top Up so we know to auto-complete this
   // exact booking attempt (no re-selecting service/date/time) once the
@@ -169,13 +168,12 @@ export default function CreateBooking() {
       // the production API; Top Up Wallet is the only place Flutterwave is
       // used, per product spec).
       try {
-        await bookingService.payWithWallet(booking.id, selectedService.price);
+        await bookingService.payWithWallet(booking.id, user?.auth_id || '');
         setPaymentOutcome('paid');
       } catch (payErr: any) {
         console.error('[booking] pay-with-wallet failed', payErr);
         setPaymentOutcome('payment_failed');
         setFailedBookingId(booking.id);
-        setFailedBookingAmount(selectedService.price);
       }
       setConfirmed(true);
     } catch (err: any) {
@@ -232,7 +230,7 @@ export default function CreateBooking() {
     if (!failedBookingId) return;
     setSubmitting(true);
     try {
-      await bookingService.payWithWallet(failedBookingId, failedBookingAmount);
+      await bookingService.payWithWallet(failedBookingId, user?.auth_id || '');
       setPaymentOutcome('paid');
     } catch (err: any) {
       Alert.alert('Payment Failed', err?.friendlyMessage || 'Could not process payment.');
