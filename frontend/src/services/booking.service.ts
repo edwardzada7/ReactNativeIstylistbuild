@@ -33,24 +33,54 @@ export const bookingService = {
     return asList(raw).map(normalizeBooking);
   },
 
-  async getBooking(id: string): Promise<Booking> {
-    const raw = await apiService.get<any>(`/bookings/${id}`);
+  async getBooking(id: string, role?: 'customer' | 'provider'): Promise<Booking> {
+    const raw = await apiService.get<any>(`/bookings/${id}`, { params: role ? { role } : undefined });
     return normalizeBooking(raw);
   },
 
-  // Status transitions (confirm / reject / arrived / completed / cancelled)
-  // all go through the documented `PUT /api/bookings/{id}` endpoint.
-  async updateBookingStatus(id: string, status: string): Promise<Booking> {
-    const raw = await apiService.put<any>(`/bookings/${id}`, { status });
-    return normalizeBooking(raw);
-  },
-
-  async cancelBooking(id: string, reason?: string): Promise<Booking> {
-    const raw = await apiService.put<any>(`/bookings/${id}`, {
-      status: 'cancelled',
-      cancellation_reason: reason,
+  // GROUND TRUTH (Phase 6.1 - verified against production web app source,
+  // frontend/src/services/api.js `bookingsAPI.updateStatus` +
+  // frontend/src/screens/BookingDetailsScreen.jsx handleStatusUpdate):
+  //   PUT /bookings/{id}?status={status}&role={role}&auth_id={authId}
+  // NO request body at all - status/role/auth_id are all query params.
+  // Sending `{status}` as a JSON body (as this previously did) is exactly
+  // why the backend replied "field required" - it never received the
+  // query params it actually requires.
+  // Real status values (confirmed from web's STATUS_CONFIG): pending_payment,
+  // pending, confirmed, completed, canceled, declined, no_show_pending,
+  // user_no_show, provider_no_show, disputed. NOT "cancelled"/"rejected".
+  async updateBookingStatus(
+    id: string,
+    status: string,
+    role: 'customer' | 'provider',
+    authId: string
+  ): Promise<Booking> {
+    const raw = await apiService.put<any>(`/bookings/${id}`, undefined, {
+      params: { status, role, auth_id: authId },
     });
     return normalizeBooking(raw);
+  },
+
+  // Customer or provider cancel - both use status "canceled" (single L,
+  // matching the real backend value) via the same updateStatus contract.
+  async cancelBooking(id: string, role: 'customer' | 'provider', authId: string): Promise<Booking> {
+    return this.updateBookingStatus(id, 'canceled', role, authId);
+  },
+
+  // Provider accepts a pending booking.
+  async acceptBooking(id: string, authId: string): Promise<Booking> {
+    return this.updateBookingStatus(id, 'confirmed', 'provider', authId);
+  },
+
+  // Provider rejects a pending booking - real status value is "declined",
+  // not "rejected".
+  async declineBooking(id: string, authId: string): Promise<Booking> {
+    return this.updateBookingStatus(id, 'declined', 'provider', authId);
+  },
+
+  // Provider marks an accepted booking as done.
+  async completeBooking(id: string, authId: string): Promise<Booking> {
+    return this.updateBookingStatus(id, 'completed', 'provider', authId);
   },
 
   async rescheduleBooking(id: string, scheduledAt: string): Promise<Booking> {

@@ -65,12 +65,28 @@ export function getPaymentStatusMeta(key: BookingPaymentStatus) {
 }
 
 /**
- * Formats a raw booking lifecycle `status` string (e.g. "no_show",
- * "disputed", "confirmed") into a readable label ("No Show", "Disputed",
- * "Confirmed") without inventing any new status values - purely a display
- * formatter for whatever the production backend actually returns.
+ * Formats a raw booking lifecycle `status` string into a readable label.
+ * Known values use the EXACT label text from the production web app's
+ * STATUS_CONFIG (BookingDetailsScreen.jsx); anything else falls back to a
+ * generic Title Case formatter - never inventing a new status, only
+ * formatting whatever the backend actually returns.
  */
+const KNOWN_STATUS_LABELS: Record<string, string> = {
+  pending_payment: 'Awaiting Payment',
+  pending: 'Pending',
+  confirmed: 'Confirmed',
+  completed: 'Completed',
+  canceled: 'Canceled',
+  declined: 'Declined',
+  no_show_pending: 'No-Show Pending',
+  user_no_show: 'Customer No-Show',
+  provider_no_show: 'Provider No-Show',
+  disputed: 'Disputed',
+};
+
 export function formatStatusLabel(status: string): string {
+  const key = (status || '').toLowerCase();
+  if (KNOWN_STATUS_LABELS[key]) return KNOWN_STATUS_LABELS[key];
   return (status || '')
     .replace(/_/g, ' ')
     .toLowerCase()
@@ -78,13 +94,17 @@ export function formatStatusLabel(status: string): string {
 }
 
 /**
- * Derives a booking's payment/escrow status from real data. The production
- * API has no dedicated `payment_status` or `escrow` field on bookings, so
- * this combines the booking's real lifecycle `status` with any matching
- * wallet transactions (filtered by `booking_id`) when available. Passing no
- * transactions still yields a sensible best-effort status from `status`
- * alone - this is never fabricated data, only a computed view of real
- * fields.
+ * Derives a booking's payment/escrow status from real data. GROUND TRUTH
+ * (Phase 6.1 - verified against production web app source,
+ * BookingDetailsScreen.jsx STATUS_CONFIG + canCustomerPay/canProviderConfirm
+ * logic): the real lifecycle is
+ *   pending_payment (unpaid) -> pending (paid, awaiting provider) ->
+ *   confirmed (accepted, in progress) -> completed
+ * "pending" does NOT mean unpaid - it means already paid, awaiting the
+ * provider's accept/reject. Only "pending_payment" means awaiting payment.
+ * This was previously inverted (status === 'pending' was treated as
+ * awaiting payment), which caused the Pay from Wallet button to show for
+ * already-paid bookings.
  */
 export function derivePaymentStatus(
   booking: Pick<Booking, 'id' | 'status'>,
@@ -95,12 +115,13 @@ export function derivePaymentStatus(
   const status = (booking.status || '').toLowerCase();
 
   if (hasType('REFUND')) return 'refunded';
-  if (['cancelled', 'rejected', 'declined'].includes(status)) return 'cancelled';
-  if (status === 'completed') return hasType('RELEASE') ? 'released' : 'completed';
-  if (hasType('ESCROW_HOLD') || hasType('BOOKING_PAYMENT')) {
-    return ['confirmed', 'arrived'].includes(status) ? 'escrow' : 'paid';
+  if (['canceled', 'cancelled', 'declined', 'rejected', 'user_no_show', 'provider_no_show'].includes(status)) {
+    return 'cancelled';
   }
-  if (['confirmed', 'arrived'].includes(status)) return 'paid';
+  if (status === 'pending_payment') return 'awaiting_payment';
+  if (status === 'completed') return hasType('RELEASE') ? 'released' : 'completed';
+  if (status === 'confirmed') return 'escrow';
+  if (status === 'pending') return 'paid';
   return 'awaiting_payment';
 }
 

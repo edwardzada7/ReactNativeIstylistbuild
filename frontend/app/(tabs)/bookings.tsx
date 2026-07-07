@@ -29,13 +29,15 @@ import { Booking, Transaction, Wallet } from '../../src/types';
 const tabs = ['Upcoming', 'Completed', 'Cancelled'];
 
 const statusColors: Record<string, string> = {
-  pending: Colors.warning,
+  pending_payment: Colors.warning,
+  pending: Colors.info,
   confirmed: Colors.info,
-  arrived: Colors.info,
   completed: Colors.success,
-  cancelled: Colors.error,
-  rejected: Colors.error,
-  no_show: Colors.error,
+  canceled: Colors.error,
+  declined: Colors.error,
+  no_show_pending: Colors.warning,
+  user_no_show: Colors.error,
+  provider_no_show: Colors.error,
   disputed: Colors.warning,
 };
 
@@ -105,10 +107,12 @@ export default function Bookings() {
 
   const filteredBookings = useMemo(() => {
     return bookings.filter((b) => {
-      if (selectedTab === 'Upcoming') return ['pending', 'confirmed', 'arrived'].includes(b.status);
+      if (selectedTab === 'Upcoming') return ['pending_payment', 'pending', 'confirmed'].includes(b.status);
       if (selectedTab === 'Completed') return b.status === 'completed';
       if (selectedTab === 'Cancelled')
-        return ['cancelled', 'rejected', 'no_show', 'disputed'].includes(b.status);
+        return ['canceled', 'declined', 'no_show_pending', 'user_no_show', 'provider_no_show', 'disputed'].includes(
+          b.status
+        );
       return true;
     });
   }, [bookings, selectedTab]);
@@ -122,7 +126,7 @@ export default function Bookings() {
         onPress: async () => {
           setBusyId(booking.id);
           try {
-            const updated = await bookingService.cancelBooking(booking.id);
+            const updated = await bookingService.cancelBooking(booking.id, 'customer', user?.auth_id || '');
             setBookings((prev) => prev.map((b) => (b.id === booking.id ? updated : b)));
           } catch (err: any) {
             Alert.alert('Error', err?.friendlyMessage || 'Could not cancel this booking.');
@@ -291,7 +295,11 @@ export default function Bookings() {
                   );
                 })()}
 
-                {item.status === 'pending' && derivePaymentStatus(item, transactions) === 'awaiting_payment' && (
+                {/* GROUND TRUTH (Phase 6.1): web's canCustomerPay is exactly
+                    `booking.status === "pending_payment"` - "pending" means
+                    already paid, awaiting the provider's confirmation, so
+                    the Pay button must never show for it. */}
+                {item.status === 'pending_payment' && (
                   <TouchableOpacity
                     style={styles.payNowButton}
                     onPress={() => handlePayFromWallet(item)}
@@ -310,7 +318,9 @@ export default function Bookings() {
                   </TouchableOpacity>
                 )}
 
-                {['pending', 'confirmed'].includes(item.status) && (
+                {/* GROUND TRUTH (Phase 6.1): web's canCustomerCancel includes
+                    pending_payment, pending AND confirmed. */}
+                {['pending_payment', 'pending', 'confirmed'].includes(item.status) && (
                   <View style={styles.bookingActions}>
                     <TouchableOpacity
                       style={styles.actionButtonSecondary}

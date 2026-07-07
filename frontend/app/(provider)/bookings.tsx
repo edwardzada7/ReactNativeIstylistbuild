@@ -23,13 +23,15 @@ import { Booking, Transaction } from '../../src/types';
 const FILTERS = ['Pending', 'Upcoming', 'Completed', 'Cancelled'] as const;
 
 const STATUS_COLOR: Record<string, string> = {
-  pending: Colors.warning,
+  pending_payment: Colors.warning,
+  pending: Colors.info,
   confirmed: Colors.info,
-  arrived: Colors.info,
   completed: Colors.success,
-  cancelled: Colors.error,
-  rejected: Colors.error,
-  no_show: Colors.error,
+  canceled: Colors.error,
+  declined: Colors.error,
+  no_show_pending: Colors.warning,
+  user_no_show: Colors.error,
+  provider_no_show: Colors.error,
   disputed: Colors.warning,
 };
 
@@ -41,18 +43,22 @@ const PAYMENT_TONE_COLOR: Record<string, string> = {
   neutral: Colors.textMuted,
 };
 
-// Buttons available per current status. Actions map to a target status sent
-// via the documented `PUT /api/bookings/{id}` endpoint.
+// GROUND TRUTH (Phase 6.1 - verified against production web app source,
+// frontend/src/screens/BookingDetailsScreen.jsx canProviderConfirm/
+// canProviderCancel + STATUS_CONFIG): the provider confirms/declines a
+// booking while status is "pending" (already paid, awaiting provider) -
+// NOT "confirmed"->"declined". Real target status values are exactly
+// "confirmed", "declined", "canceled", "completed" (single L on canceled,
+// not "cancelled"/"rejected"/"arrived").
 const ACTIONS_FOR_STATUS: Record<string, { label: string; next: string; destructive?: boolean }[]> = {
   pending: [
     { label: 'Accept', next: 'confirmed' },
-    { label: 'Reject', next: 'rejected', destructive: true },
+    { label: 'Decline', next: 'declined', destructive: true },
   ],
   confirmed: [
-    { label: 'Mark Arrived', next: 'arrived' },
-    { label: 'Cancel', next: 'cancelled', destructive: true },
+    { label: 'Mark Completed', next: 'completed' },
+    { label: 'Cancel', next: 'canceled', destructive: true },
   ],
-  arrived: [{ label: 'Mark Completed', next: 'completed' }],
 };
 
 export default function ProviderBookings() {
@@ -100,13 +106,17 @@ export default function ProviderBookings() {
   const filtered = useMemo(() => {
     switch (filter) {
       case 'Pending':
-        return bookings.filter((b) => b.status === 'pending');
+        return bookings.filter((b) => ['pending_payment', 'pending'].includes(b.status));
       case 'Upcoming':
-        return bookings.filter((b) => ['confirmed', 'arrived'].includes(b.status));
+        return bookings.filter((b) => b.status === 'confirmed');
       case 'Completed':
         return bookings.filter((b) => b.status === 'completed');
       case 'Cancelled':
-        return bookings.filter((b) => ['cancelled', 'rejected', 'no_show', 'disputed'].includes(b.status));
+        return bookings.filter((b) =>
+          ['canceled', 'declined', 'no_show_pending', 'user_no_show', 'provider_no_show', 'disputed'].includes(
+            b.status
+          )
+        );
       default:
         return bookings;
     }
@@ -116,7 +126,7 @@ export default function ProviderBookings() {
     const proceed = async () => {
       setUpdatingId(booking.id);
       try {
-        const updated = await bookingService.updateBookingStatus(booking.id, next);
+        const updated = await bookingService.updateBookingStatus(booking.id, next, 'provider', user?.auth_id || '');
         setBookings((prev) => prev.map((b) => (b.id === booking.id ? updated : b)));
       } catch (err: any) {
         Alert.alert('Error', err?.friendlyMessage || 'Could not update this booking.');
