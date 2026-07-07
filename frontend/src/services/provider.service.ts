@@ -58,16 +58,14 @@ export const providerService = {
     return asList(raw).map(normalizeService);
   },
 
-  // Full sub-service catalog - the actual bookable service templates a
-  // provider picks from when adding a service. Verified via direct API
-  // probe: `/api/catalog/services` only returns broad service *types*
-  // (e.g. "Barbers", "Makeup Artists") with no price/duration data; the
-  // real, granular, selectable items ("Haircut", "Box Braids", etc., each
-  // with default_price/default_duration) live at `/api/catalog/sub-services`.
-  // This is the root cause fix for the empty/wrong catalog picker.
+  // GROUND TRUTH (Phase 6.4 - verified against production web app source,
+  // frontend/src/screens/ProviderServicesScreen.jsx): the web app's
+  // "Add Service" picker does NOT call any /catalog/* API endpoint at all
+  // - it imports a static SERVICE_CATALOG constant. Mirrored exactly here
+  // (src/constants/serviceCatalog.ts) instead of relying on a live API
+  // call, which is what caused the empty "Select from list" picker.
   async getCatalogSubServices(): Promise<CatalogSubService[]> {
-    const raw = await apiService.get<any>('/catalog/sub-services');
-    return asList(raw) as CatalogSubService[];
+    return getAllSubServicesCatalog();
   },
 
   async getCategories(): Promise<Category[]> {

@@ -50,15 +50,41 @@ export const walletService = {
     return asList(raw).map(normalizeTransaction);
   },
 
-  // Real contract (verified via direct API probe): POST /api/wallets/{id}/topup
-  // requires `amount` as a query param and credits the wallet directly. This
-  // is called after a Flutterwave checkout reports a successful payment -
-  // Flutterwave's own server-to-server webhook (/api/webhooks/flutterwave,
-  // confirmed to exist and signature-protected) is the authoritative source
-  // of truth on the backend; this call is the client-facing complement that
-  // reflects the top-up immediately instead of waiting on webhook timing.
-  async topUp(walletId: string, amount: number): Promise<void> {
-    await apiService.post(`/wallets/${walletId}/topup`, null, { params: { amount } });
+  // GROUND TRUTH (Phase 6.4 - verified against production web app source,
+  // frontend/src/screens/WalletScreen.jsx handleTopUp + frontend/src/services/api.js
+  // paymentsAPI.initialize/verify): top-up does NOT call a direct
+  // /wallets/{id}/topup credit endpoint. It is a real hosted-checkout flow:
+  //   1) POST /payments/flutterwave/initialize
+  //      { amount, email, purpose: "wallet_topup", name?, phone?, redirect_url? }
+  //      -> { status, authorization_url, message }
+  //   2) customer completes payment on Flutterwave's hosted page
+  //   3) Flutterwave redirects back to redirect_url with
+  //      ?status=successful&tx_ref=...&transaction_id=...
+  //   4) GET /payments/flutterwave/verify?reference={tx_ref}&transaction_id={id}
+  //      -> { status: "success"|..., amount, message } - THIS is what
+  //      actually confirms + credits the wallet server-side.
+  // The previous /wallets/{id}/topup call skipped steps 1-3 entirely and
+  // never actually verified anything with Flutterwave, which is why a
+  // real successful payment could still end up showing "Payment Failed"
+  // with no wallet credit.
+  async initializePayment(data: {
+    amount: number;
+    email: string;
+    purpose: 'wallet_topup';
+    name?: string;
+    phone?: string;
+    redirect_url?: string;
+  }): Promise<{ status: boolean; authorization_url?: string; message?: string }> {
+    return apiService.post('/payments/flutterwave/initialize', data);
+  },
+
+  async verifyPayment(
+    reference: string,
+    transactionId?: string | null
+  ): Promise<{ status: string; amount?: number; message?: string }> {
+    return apiService.get('/payments/flutterwave/verify', {
+      params: { reference, ...(transactionId ? { transaction_id: transactionId } : {}) },
+    });
   },
 
   // KNOWN BACKEND LIMITATION: no withdrawal-request creation endpoint could

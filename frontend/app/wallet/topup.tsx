@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -20,82 +20,73 @@ import { useAuth } from '../../src/contexts/AuthContext';
 import { walletService } from '../../src/services/wallet.service';
 import { formatCurrency } from '../../src/utils/currency';
 
-const FLW_PUBLIC_KEY = process.env.EXPO_PUBLIC_FLW_PUBLIC_KEY || '';
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8001/api';
+// Same-origin redirect target (mirrors web's `${window.location.origin}/wallet`)
+// - not an invented external domain, just the app's own known backend origin.
+const REDIRECT_URL = `${API_BASE_URL.replace(/\/api\/?$/, '')}/wallet`;
 const QUICK_AMOUNTS = [1000, 2000, 5000, 10000, 20000];
 
 type Step = 'amount' | 'checkout' | 'success' | 'failed' | 'cancelled';
 
 /**
- * Flutterwave top-up, implemented as an Inline Checkout loaded inside a
- * react-native-webview (works in Expo Go - no native build required, unlike
- * the flutterwave-react-native SDK which needs native Android/iOS config).
- * Uses ONLY the existing public key (client-side initiation). After a
- * successful payment, calls the real, confirmed `POST /wallets/{id}/topup`
- * endpoint to credit the wallet - Flutterwave's own server-side webhook
- * (/api/webhooks/flutterwave, signature-protected) is the backend's
- * authoritative source of truth; this call is the client-facing complement
- * so the balance updates immediately in the app.
+ * Wallet Top-Up. GROUND TRUTH (Phase 6.4 - verified against production web
+ * app source, frontend/src/screens/WalletScreen.jsx handleTopUp +
+ * frontend/src/services/api.js paymentsAPI): this is a real hosted
+ * Flutterwave checkout flow, not a client-side inline widget:
+ *   1) POST /payments/flutterwave/initialize -> { authorization_url }
+ *   2) Customer pays on Flutterwave's OWN hosted page (loaded here in a
+ *      WebView since mobile has no browser redirect equivalent - this is
+ *      the only UI-layer adaptation, the business logic is identical)
+ *   3) Flutterwave redirects back to redirect_url with
+ *      ?status=&tx_ref=&transaction_id= (or legacy ?reference=&trxref=)
+ *   4) GET /payments/flutterwave/verify?reference=&transaction_id= is the
+ *      ONLY call that actually confirms + credits the wallet.
+ * Previously this called a direct /wallets/{id}/topup endpoint that never
+ * verified anything with Flutterwave - a real successful payment could
+ * still show "Payment Failed" with no wallet credit.
  */
-function buildCheckoutHtml(options: Record<string, any>): string {
-  const optionsJson = JSON.stringify(options);
-  return [
-    '<!DOCTYPE html><html><head>',
-    '<meta name="viewport" content="width=device-width, initial-scale=1.0">',
-    '<script src="https://checkout.flutterwave.com/v3.js"></script>',
-    '</head><body style="margin:0;background:#0B0B0F;">',
-    '<script>',
-    'function post(msg){ if (window.ReactNativeWebView) { window.ReactNativeWebView.postMessage(JSON.stringify(msg)); } }',
-    'try {',
-    'var opts = ' + optionsJson + ';',
-    'opts.callback = function (data) { post({ event: "callback", data: data }); };',
-    'opts.onclose = function (incomplete) { post({ event: "close", incomplete: incomplete }); };',
-    'FlutterwaveCheckout(opts);',
-    '} catch (e) { post({ event: "error", message: String(e) }); }',
-    '</script>',
-    '</body></html>',
-  ].join('\n');
-}
-
 export default function WalletTopUp() {
   const router = useRouter();
   const { user } = useAuth();
 
   const [step, setStep] = useState<Step>('amount');
   const [amount, setAmount] = useState('');
-  const [walletId, setWalletId] = useState<string | null>(null);
   const [checking, setChecking] = useState(false);
-  const [crediting, setCrediting] = useState(false);
+  const [verifying, setVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
+  const handledRef = useRef(false);
 
   const numericAmount = Number(amount);
   const isValidAmount = Number.isFinite(numericAmount) && numericAmount >= 100;
-
-  const txRef = useMemo(
-    () => `WALLET-${(user?.auth_id || 'guest').slice(0, 8)}-${Date.now()}`,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [step === 'checkout']
-  );
 
   const handleContinue = async () => {
     if (!isValidAmount) {
       Alert.alert('Invalid amount', 'Please enter an amount of at least ₦100.');
       return;
     }
-    if (!FLW_PUBLIC_KEY) {
-      Alert.alert('Payment unavailable', 'Payment configuration is missing. Please contact support.');
+    if (!user?.email) {
+      Alert.alert('Payment unavailable', 'User email not found. Please complete your profile.');
       return;
     }
-    if (!user?.auth_id) return;
     setChecking(true);
     setError(null);
     try {
-      const wallet = await walletService.getWallet(user.auth_id);
-      if (!wallet) {
-        setError('No wallet found for your account yet. Please contact support.');
-        return;
+      const response = await walletService.initializePayment({
+        amount: numericAmount,
+        email: user.email,
+        purpose: 'wallet_topup',
+        name: user.full_name,
+        phone: user.phone || undefined,
+        redirect_url: REDIRECT_URL,
+      });
+      if (response?.status && response.authorization_url) {
+        handledRef.current = false;
+        setCheckoutUrl(response.authorization_url);
+        setStep('checkout');
+      } else {
+        setError(response?.message || 'Failed to initialize payment');
       }
-      setWalletId(wallet.id);
-      setStep('checkout');
     } catch (err: any) {
       setError(err?.friendlyMessage || 'Could not start checkout. Please try again.');
     } finally {
@@ -103,72 +94,54 @@ export default function WalletTopUp() {
     }
   };
 
-  const handleMessage = useCallback(
-    async (event: any) => {
-      let payload: any;
-      try {
-        payload = JSON.parse(event.nativeEvent.data);
-      } catch {
-        return;
-      }
+  // Intercepts the WebView navigating back to REDIRECT_URL after payment -
+  // this is the mobile equivalent of web reading its own URL query params
+  // on mount. Returning false stops the WebView from actually loading that
+  // URL (there's nothing useful to render there anyway).
+  const handleShouldStartLoad = useCallback(
+    (request: { url: string }) => {
+      const url = request.url;
+      if (!url.startsWith(REDIRECT_URL)) return true;
+      if (handledRef.current) return false;
+      handledRef.current = true;
 
-      if (payload.event === 'close') {
-        if (payload.incomplete) setStep('cancelled');
-        return;
+      const query = url.split('?')[1] || '';
+      const params = new URLSearchParams(query);
+      const reference = params.get('reference') || params.get('trxref') || params.get('tx_ref');
+      const transactionId = params.get('transaction_id');
+      const flwStatus = params.get('status');
+
+      if (!reference && !transactionId) {
+        setStep('cancelled');
+        return false;
       }
-      if (payload.event === 'error') {
-        setError(payload.message || 'Checkout failed to load.');
+      if (flwStatus && flwStatus !== 'successful' && flwStatus !== 'completed') {
+        setError(`Payment ${flwStatus}. No funds were deducted.`);
         setStep('failed');
-        return;
+        return false;
       }
-      if (payload.event === 'callback') {
-        const data = payload.data || {};
-        if (data.status === 'successful' || data.status === 'completed') {
-          if (!walletId) {
-            setStep('failed');
-            setError('Payment succeeded but wallet could not be credited (missing wallet id).');
-            return;
-          }
-          setCrediting(true);
-          try {
-            await walletService.topUp(walletId, numericAmount);
-            setStep('success');
-          } catch (err: any) {
-            setStep('failed');
-            setError(
-              err?.friendlyMessage ||
-                'Payment was received by Flutterwave, but we could not update your wallet balance. It will sync automatically shortly.'
-            );
-          } finally {
-            setCrediting(false);
-          }
-        } else {
-          setStep('failed');
-        }
-      }
-    },
-    [walletId, numericAmount]
-  );
 
-  const checkoutHtml = useMemo(() => {
-    if (step !== 'checkout') return '';
-    return buildCheckoutHtml({
-      public_key: FLW_PUBLIC_KEY,
-      tx_ref: txRef,
-      amount: numericAmount,
-      currency: 'NGN',
-      payment_options: 'card,banktransfer,ussd,mobilemoney',
-      customer: {
-        email: user?.email || 'customer@istylist.app',
-        name: user?.full_name || 'iStylist Customer',
-        phone_number: user?.phone || '',
-      },
-      customizations: {
-        title: 'iStylist Wallet Top-Up',
-        description: `Add ${formatCurrency(numericAmount)} to your wallet`,
-      },
-    });
-  }, [step, txRef, numericAmount, user]);
+      setVerifying(true);
+      walletService
+        .verifyPayment(reference || '', transactionId)
+        .then((res) => {
+          if (res?.status === 'success') {
+            setStep('success');
+          } else {
+            setError(`Payment ${res?.status}: ${res?.message || ''}`.trim());
+            setStep('failed');
+          }
+        })
+        .catch(() => {
+          setError('Failed to verify payment. Please contact support if funds were deducted.');
+          setStep('failed');
+        })
+        .finally(() => setVerifying(false));
+
+      return false;
+    },
+    []
+  );
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
@@ -240,11 +213,11 @@ export default function WalletTopUp() {
         </KeyboardAvoidingView>
       )}
 
-      {step === 'checkout' && (
+      {step === 'checkout' && checkoutUrl && (
         <View style={{ flex: 1 }}>
           <WebView
-            source={{ html: checkoutHtml }}
-            onMessage={handleMessage}
+            source={{ uri: checkoutUrl }}
+            onShouldStartLoadWithRequest={handleShouldStartLoad}
             startInLoadingState
             renderLoading={() => (
               <View style={styles.centerState}>
@@ -252,7 +225,7 @@ export default function WalletTopUp() {
               </View>
             )}
           />
-          {crediting && (
+          {verifying && (
             <View style={styles.creditingOverlay}>
               <ActivityIndicator size="large" color={Colors.primary} />
               <Text style={styles.creditingText}>Confirming payment...</Text>
