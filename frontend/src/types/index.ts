@@ -124,6 +124,7 @@ export interface Booking {
   service_id: string;
   service_name: string;
   provider_name: string;
+  customer_name?: string;
   provider_avatar?: string;
   service?: Service;
   provider?: Provider;
@@ -132,7 +133,8 @@ export interface Booking {
   date: string; // derived, YYYY-MM-DD - sourced from booking_date when present
   time: string; // derived, e.g. "10:00" - sourced from booking_time when present
   total_duration?: number; // minutes, matches web's booking.total_duration
-  status: string; // pending | confirmed | arrived | completed | cancelled | rejected | no_show (backend-driven, kept loose)
+  services?: BookingServiceLine[]; // real `services` array from the booking response
+  status: string; // GROUND TRUTH (web STATUS_CONFIG): pending_payment | pending | confirmed | completed | canceled | declined | no_show_pending | user_no_show | provider_no_show | disputed
   total_amount: number;
   platform_fee_amount?: number;
   payment_status?: string;
@@ -140,6 +142,13 @@ export interface Booking {
   notes?: string;
   created_at: string;
   updated_at?: string;
+}
+
+export interface BookingServiceLine {
+  service_id?: string | number;
+  service_name: string;
+  duration_minutes?: number;
+  price?: number;
 }
 
 // GROUND TRUTH (Phase 6 - verified against production web app source,

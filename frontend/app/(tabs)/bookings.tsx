@@ -337,7 +337,7 @@ export default function Bookings() {
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.actionButtonPrimary}
-                      onPress={() => router.push(`/provider/${item.provider_id}`)}
+                      onPress={() => router.push(`/bookings/${item.id}`)}
                       accessibilityRole="button"
                       accessibilityLabel="View Details"
                     >

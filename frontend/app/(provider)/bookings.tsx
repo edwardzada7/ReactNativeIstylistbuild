@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { bookingService } from '../../src/services/booking.service';
 import { walletService } from '../../src/services/wallet.service';
@@ -62,6 +62,7 @@ const ACTIONS_FOR_STATUS: Record<string, { label: string; next: string; destruct
 };
 
 export default function ProviderBookings() {
+  const router = useRouter();
   const { user } = useAuth();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -193,7 +194,14 @@ export default function ProviderBookings() {
             filtered.map((booking) => {
               const actions = ACTIONS_FOR_STATUS[booking.status] || [];
               return (
-                <View key={booking.id} style={styles.card}>
+                <TouchableOpacity
+                  key={booking.id}
+                  style={styles.card}
+                  onPress={() => router.push(`/bookings/${booking.id}`)}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel="View booking details"
+                >
                   <View style={styles.cardHeader}>
                     <Text style={styles.serviceName}>{booking.service_name}</Text>
                     <View
@@ -269,7 +277,7 @@ export default function ProviderBookings() {
                       ))}
                     </View>
                   )}
-                </View>
+                </TouchableOpacity>
               );
             })
           )}
