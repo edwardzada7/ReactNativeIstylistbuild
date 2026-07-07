@@ -43,7 +43,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // near-simultaneous TOKEN_REFRESHED event) from racing each other.
   const hydratingRef = useRef<Promise<void> | null>(null);
 
-  const hydrateFromSession = async (nextSession: Session | null): Promise<User | null> => {
+  const hydrateFromSession = async (
+    nextSession: Session | null,
+    opts?: { strict?: boolean }
+  ): Promise<User | null> => {
     setSession(nextSession);
     if (!nextSession?.user) {
       setUser(null);
@@ -56,6 +59,18 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch (error) {
       console.error('[auth] failed to load/create profile:', error);
       setUser(null);
+      // BUG FIX (Phase 5D / Bug 4): previously this ALWAYS swallowed the
+      // error and returned null, even for an explicit login()/signup()
+      // call. That made a real profile-fetch failure (e.g. a
+      // provider-specific backend error) look exactly like "nothing
+      // happened" to the user - Supabase auth had actually succeeded, but
+      // the screen had no error to show and no valid profile to route
+      // with. `strict` re-throws so login/signup can surface the real
+      // failure reason instead of silently no-oping. The passive
+      // onAuthStateChange/bootstrap path stays lenient (strict is
+      // omitted there) so a transient hiccup never crashes the app on
+      // launch/background token refresh.
+      if (opts?.strict) throw error;
       return null;
     }
   };
@@ -91,7 +106,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = async (credentials: { email: string; password: string }) => {
     const data = await authService.login(credentials);
-    return hydrateFromSession(data.session);
+    return hydrateFromSession(data.session, { strict: true });
   };
 
   const signup = async (data: {
@@ -103,7 +118,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }) => {
     const result = await authService.signup(data);
     if (result.session) {
-      const profile = await hydrateFromSession(result.session);
+      const profile = await hydrateFromSession(result.session, { strict: true });
       return { needsVerification: false, user: profile };
     }
     return { needsVerification: true, user: null };

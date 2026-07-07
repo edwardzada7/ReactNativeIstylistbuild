@@ -74,6 +74,7 @@ export default function CreateBooking() {
   const [autoCompleting, setAutoCompleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [failedBookingId, setFailedBookingId] = useState<string | null>(null);
+  const [failedBookingAmount, setFailedBookingAmount] = useState<number>(0);
 
   // Set right before navigating to Top Up so we know to auto-complete this
   // exact booking attempt (no re-selecting service/date/time) once the
@@ -155,18 +156,26 @@ export default function CreateBooking() {
         notes: notes.trim() || undefined,
       });
 
+      // Bug 3 guard: only attempt wallet payment if the booking response
+      // actually parsed a valid booking id - otherwise fail loudly instead
+      // of calling pay-with-wallet with an empty/invalid id.
+      if (!booking?.id) {
+        throw new Error('Booking was created but no booking id was returned by the server.');
+      }
+
       // Booking Payment Flow: pay from the wallet immediately, moving the
       // funds into escrow (see POST /api/bookings/{id}/pay-with-wallet -
       // there is no separate per-booking Flutterwave checkout endpoint on
       // the production API; Top Up Wallet is the only place Flutterwave is
       // used, per product spec).
       try {
-        await bookingService.payWithWallet(booking.id);
+        await bookingService.payWithWallet(booking.id, selectedService.price);
         setPaymentOutcome('paid');
       } catch (payErr: any) {
         console.error('[booking] pay-with-wallet failed', payErr);
         setPaymentOutcome('payment_failed');
         setFailedBookingId(booking.id);
+        setFailedBookingAmount(selectedService.price);
       }
       setConfirmed(true);
     } catch (err: any) {
@@ -223,7 +232,7 @@ export default function CreateBooking() {
     if (!failedBookingId) return;
     setSubmitting(true);
     try {
-      await bookingService.payWithWallet(failedBookingId);
+      await bookingService.payWithWallet(failedBookingId, failedBookingAmount);
       setPaymentOutcome('paid');
     } catch (err: any) {
       Alert.alert('Payment Failed', err?.friendlyMessage || 'Could not process payment.');

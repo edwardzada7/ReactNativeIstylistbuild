@@ -47,10 +47,20 @@ export default function Login() {
 
     setLoading(true);
     try {
-      const profile = await login({ email, password });
-      router.replace(profile?.role === 'provider' ? '/(provider)/dashboard' : '/(tabs)');
+      // Bug 4 fix: normalize email (trim + lowercase) before authenticating -
+      // matches the production web app and avoids case/whitespace mismatches.
+      const normalizedEmail = email.trim().toLowerCase();
+      const profile = await login({ email: normalizedEmail, password });
+      if (!profile) {
+        Alert.alert('Login Failed', 'Could not load your account profile. Please try again.');
+        return;
+      }
+      router.replace(profile.role === 'provider' ? '/(provider)/dashboard' : '/(tabs)');
     } catch (error: any) {
-      Alert.alert('Login Failed', error.message || error.response?.data?.detail || 'Invalid credentials');
+      Alert.alert(
+        'Login Failed',
+        error?.friendlyMessage || error?.message || error?.response?.data?.detail || 'Invalid credentials'
+      );
     } finally {
       setLoading(false);
     }

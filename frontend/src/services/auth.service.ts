@@ -9,6 +9,7 @@ const ROLE_TO_BACKEND: Record<string, string> = {
 };
 const ROLE_FROM_BACKEND: Record<string, 'customer' | 'provider' | 'admin'> = {
   stylist: 'provider',
+  provider: 'provider', // defensive: some accounts may already store 'provider' literally
   customer: 'customer',
   user: 'customer',
   admin: 'admin',
