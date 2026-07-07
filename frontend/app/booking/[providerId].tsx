@@ -33,23 +33,6 @@ function buildNextDays(count: number) {
   return days;
 }
 
-/** Combines a date (YYYY-MM-DD) with a slot value that may already be a full
- * ISO datetime, or just a time string like "10:00" / "10:00 AM". */
-function combineDateAndSlot(date: Date, slot: string): string {
-  if (/^\d{4}-\d{2}-\d{2}T/.test(slot)) return slot; // already ISO
-  const match = slot.match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
-  const result = new Date(date);
-  if (match) {
-    let hours = parseInt(match[1], 10);
-    const minutes = parseInt(match[2], 10);
-    const meridian = match[3]?.toUpperCase();
-    if (meridian === 'PM' && hours < 12) hours += 12;
-    if (meridian === 'AM' && hours === 12) hours = 0;
-    result.setHours(hours, minutes, 0, 0);
-  }
-  return result.toISOString();
-}
-
 export default function CreateBooking() {
   const router = useRouter();
   const { user } = useAuth();
@@ -148,11 +131,17 @@ export default function CreateBooking() {
     setSubmitting(true);
     setAutoCompleting(false);
     try {
+      const bookingDate = selectedDate.toISOString().slice(0, 10);
       const booking = await bookingService.createBooking({
-        provider_id: provider.id,
-        service_id: selectedService.id,
-        scheduled_at: combineDateAndSlot(selectedDate, selectedSlot),
+        provider_id: Number(provider.id),
+        customer_id: user?.id,
+        customer_auth_id: user?.auth_id,
+        booking_date: bookingDate,
+        booking_time: selectedSlot,
+        service_ids: [Number(selectedService.id)],
+        service_duration_minutes: selectedService.duration || 30,
         notes: notes.trim() || undefined,
+        status: 'pending_payment',
       });
 
       // Bug 3 guard: only attempt wallet payment if the booking response

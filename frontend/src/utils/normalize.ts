@@ -96,23 +96,46 @@ function deriveDateTime(scheduledAt: string): { date: string; time: string } {
 }
 
 export function normalizeBooking(raw: any): Booking {
-  const scheduledAt = pick(raw, ['scheduled_at', 'booking_date', 'date_time'], '');
-  const { date, time } = deriveDateTime(scheduledAt);
+  // GROUND TRUTH (Phase 6): the production booking object uses SEPARATE
+  // `booking_date` ("YYYY-MM-DD") + `booking_time` (raw slot string, e.g.
+  // "10:00") fields - NOT a single combined `scheduled_at` ISO datetime.
+  // Prioritize those exact fields; only fall back to a combined
+  // scheduled_at/date_time shape for older/other endpoints that might
+  // still use it.
+  const bookingDate = pick(raw, ['booking_date'], '');
+  const bookingTime = pick(raw, ['booking_time'], '');
+  let date = bookingDate;
+  let time = bookingTime;
+  let scheduledAt = pick(raw, ['scheduled_at', 'date_time'], '');
+  if ((!bookingDate || !bookingTime) && scheduledAt) {
+    const derived = deriveDateTime(scheduledAt);
+    date = date || derived.date;
+    time = time || derived.time;
+  }
+  if (!scheduledAt && bookingDate) {
+    scheduledAt = bookingTime ? `${bookingDate}T${bookingTime}` : bookingDate;
+  }
+  // `services` is the real (plural) field on the booking object - a
+  // single-service booking still has one entry in that array.
+  const servicesList = Array.isArray(raw?.services) ? raw.services : [];
+  const firstService = servicesList[0] || {};
+
   return {
     id: String(pick(raw, ['id', 'booking_id'], '')),
     customer_id: String(pick(raw, ['customer_id', 'user_id'], '')),
     customer_auth_id: pick(raw, ['customer_auth_id']),
     provider_id: String(pick(raw, ['provider_id', 'stylist_id'], '')),
     provider_auth_id: pick(raw, ['provider_auth_id']),
-    service_id: String(pick(raw, ['service_id'], '')),
-    service_name: pick(raw, ['service_name', 'service_title'], 'Service'),
-    provider_name: pick(raw, ['provider_name', 'stylist_name', 'business_name'], 'Provider'),
+    service_id: String(pick(raw, ['service_id'], firstService.id ?? firstService.sub_service_id ?? '')),
+    service_name: pick(raw, ['service_name', 'service_title'], firstService.sub_service_name || firstService.name || 'Service'),
+    provider_name: pick(raw, ['provider_name', 'stylist_name', 'business_name', 'provider_display_name'], 'Provider'),
     provider_avatar: pick(raw, ['provider_avatar', 'provider_image', 'avatar']),
     scheduled_at: scheduledAt,
     date: pick(raw, ['date'], date),
     time: pick(raw, ['time'], time),
     status: pick(raw, ['status'], 'pending'),
     total_amount: Number(pick(raw, ['total_amount', 'amount', 'price', 'total'], 0)),
+    total_duration: raw?.total_duration != null ? Number(raw.total_duration) : undefined,
     platform_fee_amount: pick(raw, ['platform_fee_amount']) != null ? Number(pick(raw, ['platform_fee_amount'])) : undefined,
     payment_status: pick(raw, ['payment_status']),
     location: pick(raw, ['location', 'address']),

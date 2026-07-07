@@ -8,18 +8,19 @@ const asList = (raw: any): any[] => {
 };
 
 export const bookingService = {
-  // Create booking. Documented contract:
-  // { provider_id, service_id, scheduled_at: ISO string, notes? }
-  // BUG FIX (Phase 5D): provider_id/service_id were sent as JSON strings
-  // (e.g. "12"), but the production API validates them as integers and
-  // rejects non-int-typed JSON values with "Input should be a valid
-  // integer". Cast both to real numbers here so the wire payload always
-  // matches the backend's integer contract, matching the web app.
+  // Create booking. GROUND TRUTH (Phase 6 - verified against production
+  // web app source, frontend/src/screens/ProviderProfileScreen.jsx
+  // handleConfirmBooking): the real payload is provider_id (int),
+  // customer_id, customer_auth_id, booking_date ("YYYY-MM-DD"),
+  // booking_time (raw slot string), service_ids (array, even for a single
+  // service), service_duration_minutes, notes, status ("pending_payment"),
+  // and an optional staff_id - NOT { provider_id, service_id,
+  // scheduled_at } as previously assumed.
   async createBooking(data: CreateBookingRequest): Promise<Booking> {
     const raw = await apiService.post<any>('/bookings', {
       ...data,
       provider_id: Number(data.provider_id),
-      service_id: Number(data.service_id),
+      service_ids: (data.service_ids || []).map((id) => Number(id)),
     });
     return normalizeBooking(raw);
   },

@@ -128,9 +128,10 @@ export interface Booking {
   service?: Service;
   provider?: Provider;
   customer?: User;
-  scheduled_at: string; // ISO datetime
-  date: string; // derived, YYYY-MM-DD
-  time: string; // derived, e.g. "10:00 AM"
+  scheduled_at: string; // ISO datetime (derived for backward compatibility)
+  date: string; // derived, YYYY-MM-DD - sourced from booking_date when present
+  time: string; // derived, e.g. "10:00" - sourced from booking_time when present
+  total_duration?: number; // minutes, matches web's booking.total_duration
   status: string; // pending | confirmed | arrived | completed | cancelled | rejected | no_show (backend-driven, kept loose)
   total_amount: number;
   platform_fee_amount?: number;
@@ -141,11 +142,21 @@ export interface Booking {
   updated_at?: string;
 }
 
+// GROUND TRUTH (Phase 6 - verified against production web app source,
+// frontend/src/screens/ProviderProfileScreen.jsx handleConfirmBooking):
+// the real create-booking payload is NOT { provider_id, service_id,
+// scheduled_at } - it is:
 export interface CreateBookingRequest {
-  provider_id: string;
-  service_id: string;
-  scheduled_at: string;
+  provider_id: number;
+  customer_id?: string | number;
+  customer_auth_id?: string;
+  booking_date: string; // "YYYY-MM-DD"
+  booking_time: string; // raw slot string returned by available-slots, e.g. "10:00"
+  service_ids: number[]; // array, even for a single service
+  service_duration_minutes: number;
   notes?: string;
+  status?: string; // web sends "pending_payment" explicitly
+  staff_id?: string; // only included when a specific staff member was picked
 }
 
 // Wallet Types
