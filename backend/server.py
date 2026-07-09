@@ -55,10 +55,23 @@ async def get_status_checks():
 # Include the router in the main app
 app.include_router(api_router)
 
+# CORS: never combine a wildcard origin ("*") with credentials. Starlette
+# reflects the request Origin back when allow_credentials=True, so "*" would
+# effectively allow ANY site to make credentialed cross-origin requests.
+# Configure an explicit allow-list via the CORS_ORIGINS env var (comma
+# separated); it defaults to local development origins only.
+_default_origins = "http://localhost:3000,http://localhost:8081,http://localhost:19006"
+cors_origins = [
+    origin.strip()
+    for origin in os.environ.get("CORS_ORIGINS", _default_origins).split(",")
+    if origin.strip()
+]
+allow_all_origins = "*" in cors_origins
+
 app.add_middleware(
     CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=["*"],
+    allow_credentials=not allow_all_origins,
+    allow_origins=cors_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
