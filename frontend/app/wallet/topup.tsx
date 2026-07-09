@@ -132,7 +132,8 @@ export default function WalletTopUp() {
             setStep('failed');
           }
         })
-        .catch(() => {
+        .catch((err) => {
+          console.error('[topup] payment verification failed', err);
           setError('Failed to verify payment. Please contact support if funds were deducted.');
           setStep('failed');
         })

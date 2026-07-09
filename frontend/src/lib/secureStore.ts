@@ -70,7 +70,18 @@ export class LargeSecureStore {
       const encrypted = await encrypt(value);
       await AsyncStorage.setItem(key, encrypted);
     } catch (err) {
-      console.warn('[secureStore] failed to encrypt session', err);
+      // Persisting the new session failed. Deliberately don't re-throw:
+      // supabase-js calls this on every sign-in AND every token refresh, and
+      // a thrown storage error there would surface as a spurious login
+      // failure / logout for what may be a transient device-storage hiccup.
+      // But we must NOT leave the previous (now-stale) ciphertext behind - a
+      // later getItem would otherwise resurrect an outdated session - and the
+      // failure must be loud rather than silently swallowed, so log at error
+      // level and clear the key.
+      console.error('[secureStore] failed to persist session, clearing key', err);
+      await AsyncStorage.removeItem(key).catch((removeErr) => {
+        console.error('[secureStore] failed to clear stale session key', removeErr);
+      });
     }
   }
 

@@ -96,7 +96,9 @@ export default function CreateBooking() {
           selectedService.duration || 30
         );
         setSlots(slotList);
-      } catch {
+      } catch (err) {
+        // Non-fatal: fall back to "no slots" but don't swallow the cause.
+        console.warn('[booking] failed to load available slots', err);
         setSlots([]);
       } finally {
         setSlotsLoading(false);
@@ -116,7 +118,10 @@ export default function CreateBooking() {
       const balance = wallet?.balance ?? 0;
       setWalletBalance(balance);
       return balance;
-    } catch {
+    } catch (err) {
+      // Keep the last known balance on a transient fetch failure, but surface
+      // the cause instead of discarding it silently.
+      console.warn('[booking] failed to refresh wallet balance', err);
       return walletBalance;
     } finally {
       setWalletChecked(true);
