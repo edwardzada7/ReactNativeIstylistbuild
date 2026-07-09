@@ -1,11 +1,9 @@
 import apiService from './api';
 import { Booking, CreateBookingRequest } from '../types';
 import { normalizeBooking } from '../utils/normalize';
+import { toList } from '../utils/list';
 
-const asList = (raw: any): any[] => {
-  if (Array.isArray(raw)) return raw;
-  return raw?.data || raw?.bookings || raw?.results || [];
-};
+const asList = (raw: any): any[] => toList(raw, ['data', 'bookings', 'results']);
 
 export const bookingService = {
   // Create booking. GROUND TRUTH (Phase 6 - verified against production

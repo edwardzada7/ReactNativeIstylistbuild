@@ -19,6 +19,7 @@ import { Button } from '../../src/components/common';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { walletService } from '../../src/services/wallet.service';
 import { formatCurrency } from '../../src/utils/currency';
+import { getErrorMessage } from '../../src/utils/errors';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8001/api';
 // Same-origin redirect target (mirrors web's `${window.location.origin}/wallet`)
@@ -88,7 +89,7 @@ export default function WalletTopUp() {
         setError(response?.message || 'Failed to initialize payment');
       }
     } catch (err: any) {
-      setError(err?.friendlyMessage || 'Could not start checkout. Please try again.');
+      setError(getErrorMessage(err, 'Could not start checkout. Please try again.'));
     } finally {
       setChecking(false);
     }

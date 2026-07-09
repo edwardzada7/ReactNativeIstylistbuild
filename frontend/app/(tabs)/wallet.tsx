@@ -8,7 +8,9 @@ import { useAuth } from '../../src/contexts/AuthContext';
 import { walletService } from '../../src/services/wallet.service';
 import { formatCurrency } from '../../src/utils/currency';
 import TransactionList from '../../src/components/wallet/TransactionList';
+import { ErrorBanner } from '../../src/components/common';
 import { Wallet, Transaction } from '../../src/types';
+import { getErrorMessage } from '../../src/utils/errors';
 
 export default function CustomerWallet() {
   const router = useRouter();
@@ -32,7 +34,7 @@ export default function CustomerWallet() {
       setTransactions(txns);
     } catch (err: any) {
       console.error('[wallet] failed to load', err);
-      setError(err?.friendlyMessage || 'Could not load your wallet.');
+      setError(getErrorMessage(err, 'Could not load your wallet.'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -101,12 +103,7 @@ export default function CustomerWallet() {
       >
         <Text style={styles.title}>Wallet</Text>
 
-        {error ? (
-          <View style={styles.errorBanner}>
-            <Ionicons name="alert-circle-outline" size={20} color={Colors.error} />
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        ) : null}
+        <ErrorBanner message={error} iconSize={20} style={{ backgroundColor: `${Colors.error}15` }} />
 
         {/* Balance card */}
         <View style={styles.balanceCard}>
@@ -149,16 +146,6 @@ const styles = StyleSheet.create({
   centerState: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   scrollContent: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xl },
   title: { fontSize: FontSizes.xxl, fontWeight: 'bold', color: Colors.text, marginVertical: Spacing.md },
-  errorBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    backgroundColor: `${Colors.error}15`,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.md,
-    marginBottom: Spacing.md,
-  },
-  errorText: { flex: 1, fontSize: FontSizes.sm, color: Colors.error },
   balanceCard: {
     backgroundColor: Colors.primary,
     borderRadius: BorderRadius.lg,

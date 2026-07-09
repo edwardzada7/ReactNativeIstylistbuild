@@ -25,6 +25,7 @@ import { useAuth } from '../../src/contexts/AuthContext';
 import { formatCurrency } from '../../src/utils/currency';
 import { derivePaymentStatus, getPaymentStatusMeta, formatStatusLabel } from '../../src/utils/walletHelpers';
 import { Booking, Transaction, Wallet } from '../../src/types';
+import { getErrorMessage } from '../../src/utils/errors';
 
 const tabs = ['Upcoming', 'Completed', 'Cancelled'];
 
@@ -82,7 +83,7 @@ export default function Bookings() {
       setTransactions(txnData);
     } catch (err: any) {
       console.error('[bookings] failed to load', err);
-      setError(err?.friendlyMessage || 'Could not load your bookings.');
+      setError(getErrorMessage(err, 'Could not load your bookings.'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -129,7 +130,7 @@ export default function Bookings() {
             const updated = await bookingService.cancelBooking(booking.id, 'customer', user?.auth_id || '');
             setBookings((prev) => prev.map((b) => (b.id === booking.id ? updated : b)));
           } catch (err: any) {
-            Alert.alert('Error', err?.friendlyMessage || 'Could not cancel this booking.');
+            Alert.alert('Error', getErrorMessage(err, 'Could not cancel this booking.'));
           } finally {
             setBusyId(null);
           }
@@ -158,7 +159,7 @@ export default function Bookings() {
       setReviewModal(null);
       Alert.alert('Thank you!', 'Your review has been submitted.');
     } catch (err: any) {
-      Alert.alert('Error', err?.friendlyMessage || 'Could not submit your review.');
+      Alert.alert('Error', getErrorMessage(err, 'Could not submit your review.'));
     } finally {
       setSubmittingReview(false);
     }
@@ -184,7 +185,7 @@ export default function Bookings() {
       Alert.alert('Payment Successful', 'Your booking is now paid and held in escrow.');
       loadData();
     } catch (err: any) {
-      Alert.alert('Payment Failed', err?.friendlyMessage || 'Could not process payment.');
+      Alert.alert('Payment Failed', getErrorMessage(err, 'Could not process payment.'));
     } finally {
       setBusyId(null);
     }

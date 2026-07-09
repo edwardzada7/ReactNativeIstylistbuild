@@ -18,6 +18,7 @@ import { Button } from '../../src/components/common';
 import { providerService } from '../../src/services/provider.service';
 import { formatCurrency, formatPriceRange } from '../../src/utils/currency';
 import { Provider, Review } from '../../src/types';
+import { getErrorMessage } from '../../src/utils/errors';
 
 export default function ProviderProfile() {
   const router = useRouter();
@@ -50,7 +51,7 @@ export default function ProviderProfile() {
       }
     } catch (err: any) {
       console.error('[provider-profile] failed to load', err);
-      setError(err?.friendlyMessage || 'Could not load this provider. Pull down to retry.');
+      setError(getErrorMessage(err, 'Could not load this provider. Pull down to retry.'));
     } finally {
       setLoading(false);
       setRefreshing(false);
