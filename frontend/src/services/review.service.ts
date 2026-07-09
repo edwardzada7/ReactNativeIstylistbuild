@@ -1,11 +1,9 @@
 import apiService from './api';
 import { Review, CreateReviewRequest } from '../types';
 import { normalizeReview } from '../utils/normalize';
+import { toList } from '../utils/list';
 
-const asList = (raw: any): any[] => {
-  if (Array.isArray(raw)) return raw;
-  return raw?.data || raw?.reviews || [];
-};
+const asList = (raw: any): any[] => toList(raw, ['data', 'reviews']);
 
 export const reviewService = {
   // Write a review for a completed booking.

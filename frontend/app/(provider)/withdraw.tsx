@@ -22,6 +22,7 @@ import { walletService } from '../../src/services/wallet.service';
 import { formatCurrency } from '../../src/utils/currency';
 import { NIGERIAN_BANKS } from '../../src/utils/walletHelpers';
 import { Wallet } from '../../src/types';
+import { getErrorMessage } from '../../src/utils/errors';
 
 export default function ProviderWithdraw() {
   const router = useRouter();
@@ -82,8 +83,7 @@ export default function ProviderWithdraw() {
     } catch (err: any) {
       Alert.alert(
         'Coming Soon',
-        err?.friendlyMessage ||
-          'Withdrawal requests are coming soon. This feature is not yet available on the server.'
+        getErrorMessage(err, 'Withdrawal requests are coming soon. This feature is not yet available on the server.')
       );
     } finally {
       setSubmitting(false);

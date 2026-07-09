@@ -21,6 +21,7 @@ import { useAuth } from '../../src/contexts/AuthContext';
 import { providerService } from '../../src/services/provider.service';
 import { formatCurrency } from '../../src/utils/currency';
 import { Service, CatalogSubService } from '../../src/types';
+import { getErrorMessage } from '../../src/utils/errors';
 
 type ModalStep = 'pick' | 'details';
 
@@ -57,7 +58,7 @@ export default function ProviderServices() {
       setServices(list);
     } catch (err: any) {
       console.error('[provider-services] failed to load', err);
-      setError(err?.friendlyMessage || 'Could not load your services.');
+      setError(getErrorMessage(err, 'Could not load your services.'));
     } finally {
       setLoading(false);
     }
@@ -71,7 +72,7 @@ export default function ProviderServices() {
       setCatalog(list);
     } catch (err: any) {
       console.error('[provider-services] failed to load catalog', err);
-      setCatalogError(err?.friendlyMessage || 'Could not load the service catalog.');
+      setCatalogError(getErrorMessage(err, 'Could not load the service catalog.'));
       setCatalog([]);
     } finally {
       setCatalogLoading(false);
@@ -137,7 +138,7 @@ export default function ProviderServices() {
       setSelectedCatalogItem(null);
       setForm({ description: '', price: '', duration: '' });
     } catch (err: any) {
-      Alert.alert('Error', err?.friendlyMessage || 'Could not add this service.');
+      Alert.alert('Error', getErrorMessage(err, 'Could not add this service.'));
     } finally {
       setSaving(false);
     }

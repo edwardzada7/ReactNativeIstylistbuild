@@ -18,6 +18,7 @@ import { useAuth } from '../../src/contexts/AuthContext';
 import { formatCurrency } from '../../src/utils/currency';
 import { formatStatusLabel } from '../../src/utils/walletHelpers';
 import { Booking } from '../../src/types';
+import { getErrorMessage } from '../../src/utils/errors';
 
 // Matches web's formatDate exactly (booking_date is "YYYY-MM-DD").
 function formatDate(dateStr?: string) {
@@ -72,7 +73,7 @@ export default function BookingDetails() {
       const data = await bookingService.getBooking(String(id), role);
       setBooking(data);
     } catch (err: any) {
-      setError(err?.friendlyMessage || 'This booking does not exist or you do not have access to it.');
+      setError(getErrorMessage(err, 'This booking does not exist or you do not have access to it.'));
     } finally {
       setLoading(false);
     }
@@ -95,7 +96,7 @@ export default function BookingDetails() {
       await bookingService.updateBookingStatus(booking.id, newStatus, role, user?.auth_id || '');
       await fetchBooking();
     } catch (err: any) {
-      Alert.alert('Error', err?.friendlyMessage || 'Failed to update booking');
+      Alert.alert('Error', getErrorMessage(err, 'Failed to update booking'));
     } finally {
       setUpdating(false);
     }
@@ -124,7 +125,7 @@ export default function BookingDetails() {
       Alert.alert('Payment Successful', 'Your booking has been confirmed.');
       await fetchBooking();
     } catch (err: any) {
-      Alert.alert('Payment Failed', err?.friendlyMessage || 'Payment failed. Please try again.');
+      Alert.alert('Payment Failed', getErrorMessage(err, 'Payment failed. Please try again.'));
     } finally {
       setProcessingPayment(false);
     }

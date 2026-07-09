@@ -18,6 +18,7 @@ import { Button } from '../../src/components/common';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { providerService } from '../../src/services/provider.service';
 import { DayAvailability } from '../../src/types';
+import { getErrorMessage } from '../../src/utils/errors';
 
 const DEFAULT_DAYS: DayAvailability[] = [
   'monday',
@@ -94,7 +95,7 @@ export default function ProviderAvailability() {
       await providerService.setProviderAvailability(providerId, { days, blocked_dates: blockedDates });
       Alert.alert('Saved', 'Your availability has been updated. Customers will see it immediately.');
     } catch (err: any) {
-      Alert.alert('Error', err?.friendlyMessage || 'Could not save availability.');
+      Alert.alert('Error', getErrorMessage(err, 'Could not save availability.'));
     } finally {
       setSaving(false);
     }

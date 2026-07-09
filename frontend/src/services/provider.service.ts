@@ -14,11 +14,9 @@ import {
   normalizeReview,
   deriveCategories,
 } from '../utils/normalize';
+import { toList } from '../utils/list';
 
-const asList = (raw: any): any[] => {
-  if (Array.isArray(raw)) return raw;
-  return raw?.data || raw?.providers || raw?.services || raw?.results || [];
-};
+const asList = (raw: any): any[] => toList(raw, ['data', 'providers', 'services', 'results']);
 
 const DAY_NAME_TO_NUMBER: Record<DayAvailability['day'], number> = {
   monday: 1,

@@ -18,7 +18,9 @@ import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/th
 import { useAuth } from '../../src/contexts/AuthContext';
 import { providerService } from '../../src/services/provider.service';
 import { formatPriceRange } from '../../src/utils/currency';
+import { ErrorBanner } from '../../src/components/common';
 import { Category, Provider } from '../../src/types';
+import { getErrorMessage } from '../../src/utils/errors';
 
 export default function Home() {
   const router = useRouter();
@@ -41,7 +43,7 @@ export default function Home() {
       setCategories(categoryList);
     } catch (err: any) {
       console.error('[home] failed to load data', err);
-      setError(err?.friendlyMessage || 'Could not load providers. Pull down to retry.');
+      setError(getErrorMessage(err, 'Could not load providers. Pull down to retry.'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -207,12 +209,7 @@ export default function Home() {
           <Text style={styles.bannerEmoji}>🎉</Text>
         </LinearGradient>
 
-        {error && (
-          <View style={styles.errorBanner}>
-            <Ionicons name="alert-circle-outline" size={18} color={Colors.error} />
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        )}
+        <ErrorBanner message={error} style={{ marginHorizontal: Spacing.lg, marginBottom: Spacing.lg }} />
 
         {/* Categories */}
         {categories.length > 0 && (
@@ -389,21 +386,6 @@ const styles = StyleSheet.create({
   },
   bannerEmoji: {
     fontSize: 64,
-  },
-  errorBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    backgroundColor: Colors.surface,
-    marginHorizontal: Spacing.lg,
-    marginBottom: Spacing.lg,
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-  },
-  errorText: {
-    flex: 1,
-    fontSize: FontSizes.sm,
-    color: Colors.error,
   },
   emptyText: {
     fontSize: FontSizes.sm,

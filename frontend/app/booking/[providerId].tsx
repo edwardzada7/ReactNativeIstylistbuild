@@ -20,6 +20,7 @@ import { walletService } from '../../src/services/wallet.service';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { formatCurrency } from '../../src/utils/currency';
 import { Provider, Service } from '../../src/types';
+import { getErrorMessage } from '../../src/utils/errors';
 
 const NEXT_DAYS = 14;
 
@@ -76,7 +77,7 @@ export default function CreateBooking() {
         const preselected = profile.services.find((s) => s.id === serviceId);
         setSelectedService(preselected || profile.services[0] || null);
       } catch (err: any) {
-        setError(err?.friendlyMessage || 'Could not load this provider.');
+        setError(getErrorMessage(err, 'Could not load this provider.'));
       } finally {
         setLoading(false);
       }
@@ -166,7 +167,7 @@ export default function CreateBooking() {
       }
       setConfirmed(true);
     } catch (err: any) {
-      Alert.alert('Booking Failed', err?.friendlyMessage || 'Could not create this booking.');
+      Alert.alert('Booking Failed', getErrorMessage(err, 'Could not create this booking.'));
     } finally {
       setSubmitting(false);
       awaitingTopUpRef.current = false;
@@ -222,7 +223,7 @@ export default function CreateBooking() {
       await bookingService.payWithWallet(failedBookingId, user?.auth_id || '');
       setPaymentOutcome('paid');
     } catch (err: any) {
-      Alert.alert('Payment Failed', err?.friendlyMessage || 'Could not process payment.');
+      Alert.alert('Payment Failed', getErrorMessage(err, 'Could not process payment.'));
     } finally {
       setSubmitting(false);
     }

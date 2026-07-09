@@ -1,10 +1,8 @@
 import apiService from './api';
 import { Wallet, Transaction, WithdrawRequest } from '../types';
+import { toList } from '../utils/list';
 
-const asList = (raw: any): any[] => {
-  if (Array.isArray(raw)) return raw;
-  return raw?.data || raw?.transactions || raw?.results || [];
-};
+const asList = (raw: any): any[] => toList(raw, ['data', 'transactions', 'results']);
 
 function normalizeWallet(raw: any): Wallet {
   return {

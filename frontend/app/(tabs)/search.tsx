@@ -17,6 +17,7 @@ import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/th
 import { providerService } from '../../src/services/provider.service';
 import { formatPriceRange } from '../../src/utils/currency';
 import { Provider, Category } from '../../src/types';
+import { getErrorMessage } from '../../src/utils/errors';
 
 const PAGE_SIZE = 10;
 
@@ -48,7 +49,7 @@ export default function Search() {
         setCategories(categoryList);
       } catch (err: any) {
         console.error('[search] failed to load providers', err);
-        setError(err?.friendlyMessage || 'Could not load providers.');
+        setError(getErrorMessage(err, 'Could not load providers.'));
       } finally {
         setLoading(false);
       }

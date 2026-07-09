@@ -19,6 +19,7 @@ import { useAuth } from '../../src/contexts/AuthContext';
 import { formatCurrency } from '../../src/utils/currency';
 import { derivePaymentStatus, getPaymentStatusMeta, formatStatusLabel } from '../../src/utils/walletHelpers';
 import { Booking, Transaction } from '../../src/types';
+import { getErrorMessage } from '../../src/utils/errors';
 
 const FILTERS = ['Pending', 'Upcoming', 'Completed', 'Cancelled'] as const;
 
@@ -83,7 +84,7 @@ export default function ProviderBookings() {
       setTransactions(txnData);
     } catch (err: any) {
       console.error('[provider-bookings] failed to load', err);
-      setError(err?.friendlyMessage || 'Could not load bookings.');
+      setError(getErrorMessage(err, 'Could not load bookings.'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -130,7 +131,7 @@ export default function ProviderBookings() {
         const updated = await bookingService.updateBookingStatus(booking.id, next, 'provider', user?.auth_id || '');
         setBookings((prev) => prev.map((b) => (b.id === booking.id ? updated : b)));
       } catch (err: any) {
-        Alert.alert('Error', err?.friendlyMessage || 'Could not update this booking.');
+        Alert.alert('Error', getErrorMessage(err, 'Could not update this booking.'));
       } finally {
         setUpdatingId(null);
       }

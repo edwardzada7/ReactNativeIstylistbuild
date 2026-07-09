@@ -17,7 +17,9 @@ import { useAuth } from '../../src/contexts/AuthContext';
 import { bookingService } from '../../src/services/booking.service';
 import { providerService } from '../../src/services/provider.service';
 import { formatCurrency } from '../../src/utils/currency';
+import { ErrorBanner } from '../../src/components/common';
 import { Booking, Provider } from '../../src/types';
+import { getErrorMessage } from '../../src/utils/errors';
 
 const isSameDay = (isoDate: string) => {
   if (!isoDate) return false;
@@ -53,7 +55,7 @@ export default function ProviderDashboard() {
       setProfile(providerProfile);
     } catch (err: any) {
       console.error('[provider-dashboard] failed to load', err);
-      setError(err?.friendlyMessage || 'Could not load your dashboard.');
+      setError(getErrorMessage(err, 'Could not load your dashboard.'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -151,12 +153,7 @@ export default function ProviderDashboard() {
           </View>
         </View>
 
-        {error && (
-          <View style={styles.errorBanner}>
-            <Ionicons name="alert-circle-outline" size={18} color={Colors.error} />
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        )}
+        <ErrorBanner message={error} style={{ marginHorizontal: Spacing.lg }} />
 
         {/* Stats */}
         <View style={styles.statsGrid}>
@@ -282,17 +279,6 @@ const styles = StyleSheet.create({
   },
   greeting: { fontSize: FontSizes.xl, fontWeight: 'bold', color: Colors.text },
   subGreeting: { fontSize: FontSizes.sm, color: Colors.textSecondary, marginTop: 4 },
-  errorBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    backgroundColor: Colors.surface,
-    marginHorizontal: Spacing.lg,
-    marginBottom: Spacing.md,
-    padding: Spacing.md,
-    borderRadius: BorderRadius.md,
-  },
-  errorText: { flex: 1, fontSize: FontSizes.sm, color: Colors.error },
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',

@@ -9,7 +9,9 @@ import { walletService } from '../../src/services/wallet.service';
 import { bookingService } from '../../src/services/booking.service';
 import { formatCurrency } from '../../src/utils/currency';
 import TransactionList from '../../src/components/wallet/TransactionList';
+import { ErrorBanner } from '../../src/components/common';
 import { Wallet, Transaction, Booking } from '../../src/types';
+import { getErrorMessage } from '../../src/utils/errors';
 
 const netAmount = (b: Booking) => (b.total_amount || 0) - (b.platform_fee_amount || 0);
 
@@ -38,7 +40,7 @@ export default function ProviderWallet() {
       setBookings(bookingList);
     } catch (err: any) {
       console.error('[provider-wallet] failed to load', err);
-      setError(err?.friendlyMessage || 'Could not load your wallet.');
+      setError(getErrorMessage(err, 'Could not load your wallet.'));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -128,12 +130,7 @@ export default function ProviderWallet() {
       >
         <Text style={styles.title}>Wallet</Text>
 
-        {error ? (
-          <View style={styles.errorBanner}>
-            <Ionicons name="alert-circle-outline" size={20} color={Colors.error} />
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        ) : null}
+        <ErrorBanner message={error} iconSize={20} style={{ backgroundColor: `${Colors.error}15` }} />
 
         <View style={styles.balanceCard}>
           <Text style={styles.balanceLabel}>Available Balance</Text>
@@ -240,16 +237,6 @@ const styles = StyleSheet.create({
   centerState: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   scrollContent: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xl },
   title: { fontSize: FontSizes.xxl, fontWeight: 'bold', color: Colors.text, marginVertical: Spacing.md },
-  errorBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    backgroundColor: `${Colors.error}15`,
-    borderRadius: BorderRadius.md,
-    padding: Spacing.md,
-    marginBottom: Spacing.md,
-  },
-  errorText: { flex: 1, fontSize: FontSizes.sm, color: Colors.error },
   balanceCard: {
     backgroundColor: Colors.primary,
     borderRadius: BorderRadius.lg,
