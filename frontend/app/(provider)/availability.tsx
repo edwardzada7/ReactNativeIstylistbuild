@@ -53,8 +53,9 @@ export default function ProviderAvailability() {
         setDays(existing.days);
         setBlockedDates(existing.blocked_dates || []);
       }
-    } catch {
+    } catch (err) {
       // Fall back to defaults - the read endpoint isn't confirmed to exist.
+      console.warn('[provider-availability] failed to load existing availability', err);
     } finally {
       setLoading(false);
     }

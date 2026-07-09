@@ -83,10 +83,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     let mounted = true;
 
     (async () => {
-      const { data } = await supabase.auth.getSession();
-      if (!mounted) return;
-      await hydrateFromSession(data.session);
-      if (mounted) setIsLoading(false);
+      try {
+        const { data } = await supabase.auth.getSession();
+        if (!mounted) return;
+        await hydrateFromSession(data.session);
+      } catch (error) {
+        // Never leave the app wedged on the splash/loading screen if the
+        // initial session read fails (e.g. corrupt stored session, storage
+        // adapter error). Surface the error and fall through as signed-out.
+        console.error('[auth] initial session load failed:', error);
+        if (mounted) {
+          setSession(null);
+          setUser(null);
+        }
+      } finally {
+        if (mounted) setIsLoading(false);
+      }
     })();
 
     const { data: sub } = supabase.auth.onAuthStateChange((event, nextSession) => {
@@ -99,7 +111,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         }
         await hydrateFromSession(nextSession);
       };
-      hydratingRef.current = run();
+      // hydrateFromSession handles its own errors, but this promise is never
+      // awaited by anyone - guard against an unhandled rejection regardless.
+      hydratingRef.current = run().catch((error) => {
+        console.error('[auth] auth-state change handling failed:', error);
+      });
     });
 
     return () => {

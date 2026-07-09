@@ -14,6 +14,7 @@ import {
   normalizeReview,
   deriveCategories,
 } from '../utils/normalize';
+import { getAllSubServicesCatalog } from '../constants/serviceCatalog';
 
 const asList = (raw: any): any[] => {
   if (Array.isArray(raw)) return raw;
@@ -90,7 +91,11 @@ export const providerService = {
         raw?.exceptions?.[0]?.provider_id ||
         null
       );
-    } catch {
+    } catch (err) {
+      // Best-effort: a provider with no availability configured legitimately
+      // has no UUID to resolve, so this is expected - log at debug level so
+      // the failure is traceable without being swallowed outright.
+      console.debug('[provider-service] could not resolve provider auth id', err);
       return null;
     }
   },
@@ -147,7 +152,8 @@ export const providerService = {
         .filter((e: any) => e.is_unavailable)
         .map((e: any) => e.date);
       return { days, blocked_dates };
-    } catch {
+    } catch (err) {
+      console.warn('[provider-service] failed to load availability', err);
       return null;
     }
   },
