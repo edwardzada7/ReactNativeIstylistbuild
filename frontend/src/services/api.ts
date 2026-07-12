@@ -1,7 +1,8 @@
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 import { supabase } from '../lib/supabase';
+import { EXPO_PUBLIC_API_BASE_URL } from '@env';
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8001/api';
+const API_BASE_URL = EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8001/api';
 
 // The production business-logic API (mongo-supabase-api.emergent.host) is a
 // separate service from Supabase Auth. Authentication (signup/login/session/

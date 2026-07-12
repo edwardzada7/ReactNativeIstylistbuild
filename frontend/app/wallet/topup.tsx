@@ -20,10 +20,12 @@ import { useAuth } from '../../src/contexts/AuthContext';
 import { walletService } from '../../src/services/wallet.service';
 import { formatCurrency } from '../../src/utils/currency';
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8001/api';
-// Same-origin redirect target (mirrors web's `${window.location.origin}/wallet`)
-// - not an invented external domain, just the app's own known backend origin.
-const REDIRECT_URL = `${API_BASE_URL.replace(/\/api\/?$/, '')}/wallet`;
+// Redirect URL for Flutterwave callback.
+// On web: Flutterwave redirects to ${window.location.origin}/wallet, the frontend route.
+// On mobile: WebView intercepts the redirect, so the URL doesn't need to be a real route.
+// We use a dummy URL that the WebView can detect and intercept.
+// The actual value doesn't matter as long as it's consistent and unique.
+const REDIRECT_URL = 'https://istylist.app/wallet/callback';
 const QUICK_AMOUNTS = [1000, 2000, 5000, 10000, 20000];
 
 type Step = 'amount' | 'checkout' | 'success' | 'failed' | 'cancelled';
@@ -101,7 +103,8 @@ export default function WalletTopUp() {
   const handleShouldStartLoad = useCallback(
     (request: { url: string }) => {
       const url = request.url;
-      if (!url.startsWith(REDIRECT_URL)) return true;
+      // Match exact REDIRECT_URL or REDIRECT_URL with query params
+      if (!url.startsWith(REDIRECT_URL) && url !== REDIRECT_URL) return true;
       if (handledRef.current) return false;
       handledRef.current = true;
 
@@ -125,6 +128,8 @@ export default function WalletTopUp() {
       walletService
         .verifyPayment(reference || '', transactionId)
         .then((res) => {
+          console.log('[topup] verify response:', res);
+          // Backend normalizes Flutterwave "successful" to "success"
           if (res?.status === 'success') {
             setStep('success');
           } else {
@@ -132,7 +137,8 @@ export default function WalletTopUp() {
             setStep('failed');
           }
         })
-        .catch(() => {
+        .catch((err) => {
+          console.error('[topup] verify error:', err);
           setError('Failed to verify payment. Please contact support if funds were deducted.');
           setStep('failed');
         })
