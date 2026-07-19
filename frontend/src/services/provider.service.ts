@@ -17,7 +17,12 @@ import {
 
 const asList = (raw: any): any[] => {
   if (Array.isArray(raw)) return raw;
-  return raw?.data || raw?.providers || raw?.services || raw?.results || [];
+  // `reviews` covers GET /providers/{auth_id}/reviews, whose real shape is
+  // { reviews: [...], avg_rating, total_reviews } - NOT a bare array. This
+  // was previously missing here, so provider reviews always normalized to
+  // an empty list even when the API had real data (falls through to the
+  // final `[]` fallback since none of the other keys exist on that shape).
+  return raw?.data || raw?.providers || raw?.services || raw?.reviews || raw?.results || [];
 };
 
 const DAY_NAME_TO_NUMBER: Record<DayAvailability['day'], number> = {

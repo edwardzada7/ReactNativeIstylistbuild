@@ -19,33 +19,31 @@ import { Booking } from '../../src/types';
 const comingSoon = (feature: string) =>
   Alert.alert('Coming soon', `${feature} is being wired up in a later phase.`);
 
-const menuSections = [
+const menuSections = (router: ReturnType<typeof useRouter>) => [
   {
     section: 'Account',
     items: [
-      { icon: 'person-outline', label: 'Edit Profile' },
-      { icon: 'wallet-outline', label: 'Wallet' },
-      { icon: 'heart-outline', label: 'Saved Providers' },
-      { icon: 'star-outline', label: 'My Reviews' },
+      { icon: 'person-outline', label: 'Edit Profile', onPress: () => router.push('/settings/edit-profile') },
+      { icon: 'wallet-outline', label: 'Wallet', onPress: () => router.push('/(tabs)/wallet') },
+      { icon: 'star-outline', label: 'My Reviews', onPress: () => router.push('/settings/my-reviews') },
     ],
   },
   {
     section: 'Provider',
-    items: [{ icon: 'briefcase-outline', label: 'Become a Provider' }],
+    items: [{ icon: 'briefcase-outline', label: 'Become a Provider', onPress: () => comingSoon('Become a Provider') }],
   },
   {
     section: 'Support',
     items: [
-      { icon: 'help-circle-outline', label: 'Help Center' },
-      { icon: 'shield-outline', label: 'Safety Center' },
-      { icon: 'document-text-outline', label: 'Terms & Privacy' },
+      { icon: 'help-circle-outline', label: 'Help Center', onPress: () => router.push('/settings/help') },
+      { icon: 'document-text-outline', label: 'Terms & Privacy', onPress: () => router.push('/settings/terms') },
     ],
   },
   {
     section: 'Settings',
     items: [
-      { icon: 'notifications-outline', label: 'Notifications' },
-      { icon: 'settings-outline', label: 'App Settings' },
+      { icon: 'notifications-outline', label: 'Notifications', onPress: () => router.push('/notifications') },
+      { icon: 'settings-outline', label: 'App Settings', onPress: () => router.push('/settings') },
     ],
   },
 ];
@@ -153,7 +151,7 @@ export default function Profile() {
         </View>
 
         {/* Menu Sections */}
-        {menuSections.map((section, index) => (
+        {menuSections(router).map((section, index) => (
           <View key={index} style={styles.menuSection}>
             <Text style={styles.sectionTitle}>{section.section}</Text>
             <View style={styles.menuItems}>
@@ -161,7 +159,7 @@ export default function Profile() {
                 <TouchableOpacity
                   key={itemIndex}
                   style={styles.menuItem}
-                  onPress={() => comingSoon(item.label)}
+                  onPress={item.onPress}
                   accessibilityRole="button"
                   accessibilityLabel={item.label}
                 >

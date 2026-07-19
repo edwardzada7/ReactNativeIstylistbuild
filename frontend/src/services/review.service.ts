@@ -30,15 +30,22 @@ export const reviewService = {
     return normalizeReview(raw);
   },
 
-  // Reviews written by the current customer.
+  // Reviews written by the current customer. Real contract (verified via
+  // direct API probe): GET /reviews/me requires BOTH `auth_id` and `role`
+  // as query params (422 "Field required" otherwise) - previously called
+  // with no params at all, so this always 422'd and silently resolved to
+  // an empty list via the .catch(() => []) callers use, meaning "already
+  // reviewed" bookings kept showing the "Leave a Review" button forever.
   async getMyReviews(): Promise<Review[]> {
-    const raw = await apiService.get<any>('/reviews/me');
+    const authId = await apiService.getAuthId();
+    if (!authId) return [];
+    const raw = await apiService.get<any>('/reviews/me', { params: { auth_id: authId, role: 'customer' } });
     return asList(raw).map(normalizeReview);
   },
 
-  // Reviews received by a provider (also used by provider profile screen).
-  async getProviderReviews(providerId: string): Promise<Review[]> {
-    const raw = await apiService.get<any>(`/providers/${providerId}/reviews`);
-    return asList(raw).map(normalizeReview);
-  },
+  // NOTE: provider-received reviews are served by
+  // providerService.getProviderReviews() (src/services/provider.service.ts),
+  // which correctly resolves the provider's Supabase auth UUID first (the
+  // real /providers/{auth_id}/reviews contract requires a UUID, not the
+  // numeric provider_id). Intentionally not duplicated here.
 };

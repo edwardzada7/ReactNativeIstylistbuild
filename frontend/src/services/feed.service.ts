@@ -1,5 +1,5 @@
 import apiService from './api';
-import { Post, Comment, Review, CreateReviewRequest, PaginatedResponse } from '../types';
+import { Post, Comment, PaginatedResponse } from '../types';
 
 export const feedService = {
   // Get feed posts. Verified via direct probe against production API: GET
@@ -39,24 +39,7 @@ export const feedService = {
   },
 };
 
-export const reviewService = {
-  // Get provider reviews
-  async getProviderReviews(
-    providerId: string,
-    params?: { page?: number; per_page?: number }
-  ): Promise<PaginatedResponse<Review>> {
-    return await apiService.get<PaginatedResponse<Review>>(`/reviews/provider/${providerId}`, {
-      params,
-    });
-  },
-
-  // Create review
-  async createReview(data: CreateReviewRequest): Promise<Review> {
-    return await apiService.post<Review>('/reviews', data);
-  },
-
-  // Get my reviews
-  async getMyReviews(params?: { page?: number; per_page?: number }): Promise<PaginatedResponse<Review>> {
-    return await apiService.get<PaginatedResponse<Review>>('/reviews/me', { params });
-  },
-};
+// NOTE: review-related API calls live in src/services/review.service.ts
+// (real reviewService, actually imported/used by the app). A dead duplicate
+// `reviewService` export used to live here - removed to avoid two
+// conflicting sources of truth for the same feature.

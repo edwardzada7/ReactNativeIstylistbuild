@@ -323,18 +323,118 @@ frontend:
         comment: >
           RE-TESTED (2026-07-19 - FINAL VERIFICATION): Completed comprehensive 10-step verification plan from review request. CRITICAL FINDING: The previous "profiles NOT auto-created" report was a TEST-ORDERING ARTIFACT, NOT A BUG. Profiles ARE being created correctly by ensureProfile() on first UI login. EVIDENCE: (1) ✅ Step 1 PASS: Customer login via Playwright -> navigates to /(tabs) without error. (2) ✅ Step 2 PASS: Immediately after UI login, GET /api/users/by-auth/{customer_auth_id} returns 200 with profile data (name="QA Customer", email="istylist.qa.customer@mailinator.com", role="customer"). (3) ✅ Step 4 PASS: Provider login via Playwright -> navigates to /(provider)/dashboard without error. (4) ✅ Step 5 PASS: Immediately after UI login, GET /api/users/by-auth/{provider_auth_id} returns 200 with profile data (name="QA Provider", email="istylist.qa.provider@mailinator.com", role="stylist"). (5) ✅ Step 6 PASS: Provider profile screen renders without crash. (6) ✅ Step 7 PASS: All wallet/bookings APIs return 200 (GET /api/wallets: 29 wallets, GET /api/wallet/transactions: 200, GET /api/bookings: 89 bookings). (7) ✅ Step 8 PASS: GET /api/feed/posts returns 200 (path was fixed from /feed to /feed/posts in feed.service.ts). (8) ✅ Step 9 PASS: Notifications screen renders without crash (intentional placeholder UI, no backend call). (9) ✅ Step 10 PASS: Signup screen loads without crash. CONCLUSION: Backend URL revert to production Emergent host is SUCCESSFUL. User profiles ARE being auto-created on first login as designed. The previous 404 errors occurred because the API was checked BEFORE any UI login had happened - profiles are created LAZILY by ensureProfile() during the first UI login flow, not by direct API calls. All core flows working correctly. No critical bugs found.
 
+  - task: "Provider Reviews screen (real API, Phase 2)"
+    implemented: true
+    working: true
+    file: "/app/frontend/app/(provider)/reviews.tsx, /app/frontend/src/services/provider.service.ts"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: >
+          New screen using providerService.getProviderReviews() (real GET
+          /providers/{auth_id}/reviews) + getProviderFullProfile() for the
+          rating/review_count summary. Fixed a real bug found during audit:
+          provider.service.ts's `asList()` helper did not recognize the
+          `reviews` key in the real response shape
+          `{reviews:[...], avg_rating, total_reviews}` and always fell
+          through to an empty-array default - so provider reviews (both on
+          this new screen AND on the pre-existing customer-facing
+          `/provider/[id].tsx` profile page) were silently always empty
+          even when real reviews existed. Linked from provider Profile menu
+          ("Reviews") and Dashboard quick actions, plus made the Profile
+          screen's review-count stat tappable.
+      - working: true
+        agent: "testing"
+        comment: >
+          BACKEND API TEST PASSED: GET /api/providers/{provider_auth_id}/reviews returns 200 with correct shape {reviews: [], avg_rating: 0, total_reviews: 0}. Empty reviews list is EXPECTED and CORRECT for test provider (0 reviews). API contract matches implementation. Screen accessible from provider Profile menu, Dashboard quick actions, and tappable Reviews stat on Profile screen.
+
+  - task: "Settings screens - Edit Profile, Change Password, Help/Support, Terms, Privacy, My Reviews (Phase 2)"
+    implemented: true
+    working: false
+    file: "/app/frontend/app/settings/*.tsx, /app/frontend/src/services/auth.service.ts, /app/frontend/src/services/support.service.ts, /app/frontend/src/services/review.service.ts"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: >
+          Built a Settings hub (/settings) plus Edit Profile (PUT
+          /api/users/{id}, confirmed real via direct probe), Change
+          Password (authService.changePassword: re-verifies current
+          password via supabase.auth.signInWithPassword then
+          supabase.auth.updateUser - no new backend endpoint), Help &
+          Support (fixed supportService.createTicket to match the REAL
+          contract discovered via probing: POST /support/tickets needs
+          {name, email, category, subject, message}, previously sent
+          {subject, description, category} which would always fail
+          validation), Terms of Service + Privacy Policy (static legal
+          copy, not dynamic/mock data), and My Reviews for customers
+          (reviewService.getMyReviews, fixed to send required
+          auth_id+role=customer query params - previously missing,
+          causing a silent 422 -> empty list on every call, which also
+          meant already-reviewed bookings kept showing "Leave a Review").
+          Wired into both customer ((tabs)/profile.tsx - removed two
+          non-functional menu items "Saved Providers" and "Safety Center"
+          that had no backing endpoint, per user's "no mock/temporary
+          features" instruction) and provider ((provider)/profile.tsx)
+          profile menus. Also removed a dead/unused duplicate
+          `reviewService` export from feed.service.ts (two conflicting
+          implementations existed; only the one in review.service.ts was
+          actually imported anywhere). Found and fixed a real timing bug:
+          Edit Profile's form state was a useState snapshot of `user` at
+          mount time with no sync, so if AuthContext was still hydrating
+          when the screen mounted, fields stayed permanently blank even
+          after the profile loaded - added a useEffect to sync form state
+          whenever `user` updates. Verified via screenshot after the fix:
+          Name/Email/Phone now populate correctly.
+      - working: false
+        agent: "testing"
+        comment: >
+          BACKEND API TESTS COMPLETED (2026-07-19): Mixed results with 2 CRITICAL BUGS found. DETAILED FINDINGS: (1) ❌ FAIL - Edit Profile API (PUT /api/users/{id}): API returns 200 but city/country fields are NOT persisted (remain null in response). Tested with curl: PUT /api/users/35 with body {"city": "Lagos", "country": "Nigeria"} returns 200 but response shows city=null, country=null. The 'name' field DOES update correctly, so the endpoint works but doesn't support city/country updates. This means the Edit Profile form will appear to save successfully but changes to City/Country will be silently lost. (2) ❌ FAIL - Help & Support API (POST /api/support/tickets): CATEGORY MISMATCH between frontend and backend. Frontend (/app/frontend/app/settings/help.tsx line 11) uses categories: ['general', 'payment', 'booking', 'technical', 'account']. Backend API expects: ['abuse_report', 'account', 'booking', 'other', 'payment', 'provider', 'technical_issue']. Submitting with frontend's 'technical' returns 400 validation error. When using correct 'technical_issue', API works fine (returns 200 with ticket_id). Frontend needs to map: 'general'->'other', 'technical'->'technical_issue'. (3) ✅ PASS - My Reviews Customer API (GET /api/reviews/me?auth_id&role=customer): Returns 200 with correct array shape (empty array for test customer, which is valid). (4) ✅ PASS - Change Password: Uses Supabase Auth API (no custom backend endpoint), no API testing needed. (5) ✅ PASS - Terms & Privacy: Static content screens, no API calls. SUMMARY: 2 critical bugs block full functionality - Edit Profile silently fails to save city/country, Help & Support will fail on form submission due to category validation errors.
+
+  - task: "Shop Module, Provider Portfolio - BLOCKED (no production backend support)"
+    implemented: false
+    working: "NA"
+    file: "N/A"
+    stuck_count: 0
+    priority: "medium"
+    needs_retesting: false
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: >
+          Per explicit user decision (option C), these are intentionally
+          NOT built this phase. Direct probing of the production API
+          (https://mongo-supabase-api.emergent.host/api) confirmed zero
+          backend support exists for either: /products, /categories,
+          /orders, /cart, /stores, /shops all return 404 (Shop), and
+          /providers/{id}/portfolio, /providers/{id}/images,
+          /providers/{id}/gallery, /providers/{id}/media,
+          /providers/{id}/photos all return 404, and the full-profile
+          response for a real provider contains no images/gallery field at
+          all (Portfolio). Building either with mock data or a new local
+          backend was explicitly ruled out. Real implementation requires
+          new production backend endpoints - out of scope until the user
+          decides to extend the production backend itself.
+
 metadata:
   created_by: "testing_agent"
   version: "1.0"
-  test_sequence: 1
+  test_sequence: 2
   run_ui: true
   last_updated: "2026-07-19"
 
 test_plan:
   current_focus:
-    - "Signup Form Submission"
+    []
   stuck_tasks:
     - "Signup Form Submission"
+    - "Settings screens - Edit Profile city/country persistence"
+    - "Settings screens - Help & Support category validation"
   test_all: false
   test_priority: "critical_first"
 
@@ -460,3 +560,8 @@ agent_communication:
       ✅ All backend API endpoints tested return 200 (users, wallets, transactions, bookings, feed/posts).
       ✅ All UI navigation flows work correctly (customer -> /(tabs), provider -> /(provider)/dashboard).
       ✅ No critical bugs found. The user-reported issue was a test-ordering artifact, not an actual bug.
+
+
+  - agent: "testing"
+    message: >
+      PHASE 2 BACKEND API TESTING COMPLETE (2026-07-19): Tested Provider Reviews & Settings screens per review request. CRITICAL BUGS FOUND: (1) Edit Profile API (PUT /api/users/{id}) - Backend accepts city/country in request body but does NOT persist them (returns 200 but fields remain null). The 'name' field updates correctly, suggesting backend schema/validation issue with city/country fields. Users will see "success" alert but changes are silently lost. (2) Help & Support API (POST /api/support/tickets) - Category validation mismatch. Frontend uses ['general', 'payment', 'booking', 'technical', 'account'] but backend expects ['abuse_report', 'account', 'booking', 'other', 'payment', 'provider', 'technical_issue']. Form submission will fail with 400 error. Fix: Update /app/frontend/app/settings/help.tsx line 11 to use backend's enum values OR add mapping layer in supportService.createTicket. PASSED TESTS: (1) Provider Reviews API returns correct shape, (2) My Reviews Customer API works correctly, (3) Change Password uses Supabase Auth (no backend endpoint), (4) Terms/Privacy are static content. RECOMMENDATION: Main agent should fix the Help & Support category mismatch (simple frontend fix). Edit Profile city/country issue may require backend investigation or removing those fields from the form if backend doesn't support them.

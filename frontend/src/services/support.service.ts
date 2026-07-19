@@ -1,29 +1,22 @@
 import apiService from './api';
-import { SupportTicket, Report, PaginatedResponse } from '../types';
+import { Report } from '../types';
 
 export const supportService = {
-  // Create support ticket
+  // Create support ticket. Real production contract (verified via direct
+  // API probe): POST /support/tickets requires { name, email, category,
+  // subject, message } - NOT { subject, description, category }. There is
+  // no GET /support/tickets/me or GET /support/tickets/{id} on the
+  // production API (both 404) - this is a contact-form-style endpoint
+  // only, not a full ticket-thread system, so getMyTickets/getTicket below
+  // are intentionally not exposed to the UI.
   async createTicket(data: {
+    name: string;
+    email: string;
     subject: string;
-    description: string;
+    message: string;
     category: string;
-  }): Promise<SupportTicket> {
-    return await apiService.post<SupportTicket>('/support/tickets', data);
-  },
-
-  // Get user tickets
-  async getMyTickets(params?: {
-    page?: number;
-    per_page?: number;
-  }): Promise<PaginatedResponse<SupportTicket>> {
-    return await apiService.get<PaginatedResponse<SupportTicket>>('/support/tickets/me', {
-      params,
-    });
-  },
-
-  // Get ticket by ID
-  async getTicket(id: string): Promise<SupportTicket> {
-    return await apiService.get<SupportTicket>(`/support/tickets/${id}`);
+  }): Promise<{ status?: string; message?: string }> {
+    return await apiService.post('/support/tickets', data);
   },
 
   // Report user/content

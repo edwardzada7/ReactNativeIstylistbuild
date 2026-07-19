@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
-  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -95,14 +94,10 @@ export default function ProviderDashboard() {
   const quickActions = [
     { icon: 'time-outline', label: 'Availability', onPress: () => router.push('/(provider)/availability') },
     { icon: 'cut-outline', label: 'Services', onPress: () => router.push('/(provider)/services') },
-    { icon: 'calendar-outline', label: 'Calendar', onPress: () => router.push('/(provider)/availability') },
+    { icon: 'star-outline', label: 'Reviews', onPress: () => router.push('/(provider)/reviews') },
     { icon: 'wallet-outline', label: 'Wallet', onPress: () => router.push('/(provider)/wallet') },
     { icon: 'person-outline', label: 'Profile', onPress: () => router.push('/(provider)/profile') },
-    {
-      icon: 'bar-chart-outline',
-      label: 'Analytics',
-      onPress: () => Alert.alert('Coming soon', 'Analytics is being wired up in a later phase.'),
-    },
+    { icon: 'settings-outline', label: 'Settings', onPress: () => router.push('/settings') },
     { icon: 'cash-outline', label: 'Earnings', onPress: () => router.push('/(provider)/wallet') },
   ];
 

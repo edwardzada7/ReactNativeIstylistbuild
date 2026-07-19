@@ -45,16 +45,14 @@ export default function ProviderProfile() {
     { icon: 'cut-outline', label: 'My Services', onPress: () => router.push('/(provider)/services') },
     { icon: 'time-outline', label: 'Availability', onPress: () => router.push('/(provider)/availability') },
     { icon: 'calendar-outline', label: 'Bookings', onPress: () => router.push('/(provider)/bookings') },
+    { icon: 'star-outline', label: 'Reviews', onPress: () => router.push('/(provider)/reviews') },
     {
       icon: 'wallet-outline',
       label: 'Wallet',
       onPress: () => router.push('/(provider)/wallet'),
     },
-    {
-      icon: 'help-circle-outline',
-      label: 'Help Center',
-      onPress: () => Alert.alert('Coming soon', 'Support is being wired up in a later phase.'),
-    },
+    { icon: 'settings-outline', label: 'Settings', onPress: () => router.push('/settings') },
+    { icon: 'help-circle-outline', label: 'Help Center', onPress: () => router.push('/settings/help') },
   ];
 
   return (
@@ -85,10 +83,15 @@ export default function ProviderProfile() {
             <Text style={styles.statLabel}>Rating</Text>
           </View>
           <View style={styles.statDivider} />
-          <View style={styles.statItem}>
+          <TouchableOpacity
+            style={styles.statItem}
+            onPress={() => router.push('/(provider)/reviews')}
+            accessibilityRole="button"
+            accessibilityLabel="View reviews"
+          >
             <Text style={styles.statValue}>{profile?.review_count ?? 0}</Text>
             <Text style={styles.statLabel}>Reviews</Text>
-          </View>
+          </TouchableOpacity>
           <View style={styles.statDivider} />
           <View style={styles.statItem}>
             <Text style={styles.statValue}>{profile?.services.length ?? 0}</Text>

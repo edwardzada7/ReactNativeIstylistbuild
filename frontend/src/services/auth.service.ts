@@ -135,6 +135,22 @@ export const authService = {
     if (updateError) throw updateError;
   },
 
+  // Change password while already logged in (re-verifies the current
+  // password via a real sign-in call first, then updates via Supabase's
+  // own supabase.auth.updateUser - same underlying call resetPassword()
+  // already uses below, just without the OTP step since the user is
+  // already authenticated). No new/custom backend endpoint involved.
+  async changePassword(email: string, currentPassword: string, newPassword: string) {
+    const { error: verifyError } = await supabase.auth.signInWithPassword({
+      email,
+      password: currentPassword,
+    });
+    if (verifyError) throw verifyError;
+
+    const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
+    if (updateError) throw updateError;
+  },
+
   // Get current Supabase session
   async getSession() {
     const { data } = await supabase.auth.getSession();
