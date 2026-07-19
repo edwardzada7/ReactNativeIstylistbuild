@@ -2,14 +2,15 @@ import apiService from './api';
 import { Post, Comment, Review, CreateReviewRequest, PaginatedResponse } from '../types';
 
 export const feedService = {
-  // Get feed posts
+  // Get feed posts. Verified via direct probe against production API: GET
+  // /api/feed -> 404, GET /api/feed/posts -> 200 (returns { posts: [...] }).
   async getFeed(params?: { page?: number; per_page?: number }): Promise<PaginatedResponse<Post>> {
-    return await apiService.get<PaginatedResponse<Post>>('/feed', { params });
+    return await apiService.get<PaginatedResponse<Post>>('/feed/posts', { params });
   },
 
   // Create post
   async createPost(content: string, images?: string[]): Promise<Post> {
-    return await apiService.post<Post>('/feed', { content, images });
+    return await apiService.post<Post>('/feed/posts', { content, images });
   },
 
   // Like/unlike post

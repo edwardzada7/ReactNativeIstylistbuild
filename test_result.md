@@ -284,9 +284,9 @@ frontend:
 
   - task: "Backend base URL reverted to production Emergent host (Railway rollback)"
     implemented: true
-    working: false
+    working: true
     file: "/app/frontend/.env"
-    stuck_count: 1
+    stuck_count: 0
     priority: "critical"
     needs_retesting: false
     status_history:
@@ -318,6 +318,10 @@ frontend:
         agent: "testing"
         comment: >
           TESTED (2026-07-19): Production API revert verified. PARTIAL SUCCESS: Supabase Auth works (✅ login for both test accounts), production API is reachable (✅ /api/wallets, /api/wallet/transactions, /api/bookings return 200), UI navigation works (✅ login, wallet, bookings screens load). CRITICAL BLOCKER: User profiles NOT auto-created on first login - both test accounts return 404 from GET /api/users/by-auth/{auth_id}, and no POST /api/users creation is happening. This breaks the core ensureProfile() flow. ADDITIONAL ISSUES: /api/notifications and /api/feed both return 404 (endpoints may not exist on production API). See detailed test results in agent_communication. Marking as working=false due to profile creation blocker.
+      - working: true
+        agent: "testing"
+        comment: >
+          RE-TESTED (2026-07-19 - FINAL VERIFICATION): Completed comprehensive 10-step verification plan from review request. CRITICAL FINDING: The previous "profiles NOT auto-created" report was a TEST-ORDERING ARTIFACT, NOT A BUG. Profiles ARE being created correctly by ensureProfile() on first UI login. EVIDENCE: (1) ✅ Step 1 PASS: Customer login via Playwright -> navigates to /(tabs) without error. (2) ✅ Step 2 PASS: Immediately after UI login, GET /api/users/by-auth/{customer_auth_id} returns 200 with profile data (name="QA Customer", email="istylist.qa.customer@mailinator.com", role="customer"). (3) ✅ Step 4 PASS: Provider login via Playwright -> navigates to /(provider)/dashboard without error. (4) ✅ Step 5 PASS: Immediately after UI login, GET /api/users/by-auth/{provider_auth_id} returns 200 with profile data (name="QA Provider", email="istylist.qa.provider@mailinator.com", role="stylist"). (5) ✅ Step 6 PASS: Provider profile screen renders without crash. (6) ✅ Step 7 PASS: All wallet/bookings APIs return 200 (GET /api/wallets: 29 wallets, GET /api/wallet/transactions: 200, GET /api/bookings: 89 bookings). (7) ✅ Step 8 PASS: GET /api/feed/posts returns 200 (path was fixed from /feed to /feed/posts in feed.service.ts). (8) ✅ Step 9 PASS: Notifications screen renders without crash (intentional placeholder UI, no backend call). (9) ✅ Step 10 PASS: Signup screen loads without crash. CONCLUSION: Backend URL revert to production Emergent host is SUCCESSFUL. User profiles ARE being auto-created on first login as designed. The previous 404 errors occurred because the API was checked BEFORE any UI login had happened - profiles are created LAZILY by ensureProfile() during the first UI login flow, not by direct API calls. All core flows working correctly. No critical bugs found.
 
 metadata:
   created_by: "testing_agent"
@@ -328,10 +332,9 @@ metadata:
 
 test_plan:
   current_focus:
-    - "Backend base URL reverted to production Emergent host (Railway rollback)"
+    - "Signup Form Submission"
   stuck_tasks:
     - "Signup Form Submission"
-    - "Backend base URL reverted to production Emergent host (Railway rollback)"
   test_all: false
   test_priority: "critical_first"
 
@@ -431,3 +434,29 @@ agent_communication:
       1. URGENT: Investigate why ensureProfile() is not creating user profiles on first login. Check if POST /api/users is being called, and if so, what error it's returning. The app cannot function without user profiles.
       2. Verify if /api/notifications and /api/feed endpoints exist on the production API. If not, either implement them or update the service files to handle 404 gracefully.
       3. Manual testing required for full signup flow (form filling + OTP verification) due to React Native Web automation limitations.
+
+  - agent: "testing"
+    message: >
+      FINAL VERIFICATION COMPLETE (2026-07-19 - 10-STEP TEST PLAN): Executed comprehensive verification following the exact 10-step plan from review request. CRITICAL DISCOVERY: The previous "profiles NOT auto-created" report was a FALSE ALARM caused by TEST-ORDERING ARTIFACT. The user-reported bug is NOT A BUG.
+      
+      DETAILED RESULTS (PASS/FAIL per step):
+      ✅ STEP 1 PASS: Customer login via Playwright (http://localhost:3000) -> successfully navigates to /(tabs) home screen without error/crash.
+      ✅ STEP 2 PASS: Immediately after Step 1, curl GET /api/users/by-auth/75de5a59-80e9-4ca8-beb2-6027609d364c returns 200 with profile data: {id: 35, name: "QA Customer", email: "istylist.qa.customer@mailinator.com", role: "customer", phone: "+2348011122233"}. Profile WAS auto-created by ensureProfile() during UI login.
+      ✅ STEP 3 PASS: Profile tab accessible as logged-in customer (navigation varies by role/screen).
+      ✅ STEP 4 PASS: Provider login via Playwright -> successfully navigates to /(provider)/dashboard without error/crash.
+      ✅ STEP 5 PASS: Immediately after Step 4, curl GET /api/users/by-auth/7f96c33c-e9bf-4252-aa3f-e8bd345e988b returns 200 with profile data: {id: 36, name: "QA Provider", email: "istylist.qa.provider@mailinator.com", role: "stylist", phone: "+2348099988877"}. Profile WAS auto-created by ensureProfile() during UI login.
+      ✅ STEP 6 PASS: Provider profile screen (/(provider)/profile) renders without crashing.
+      ✅ STEP 7 PASS: Wallet/Bookings API sanity checks: GET /api/wallets returns 200 (29 wallets), GET /api/wallet/transactions?auth_id={customer_auth_id} returns 200 (0 transactions, expected), GET /api/bookings returns 200 (89 bookings).
+      ✅ STEP 8 PASS: GET /api/feed/posts returns 200 (path was fixed from /feed to /feed/posts in src/services/feed.service.ts, though Feed tab UI is still placeholder/not wired to endpoint yet).
+      ✅ STEP 9 PASS: Notifications screen (/notifications) renders without crashing (intentional placeholder UI with "No notifications yet" empty state, no backend call - this is NOT a failure).
+      ✅ STEP 10 PASS: Signup screen loads without crash. Full OTP flow requires manual testing (no real inbox available for automated OTP entry).
+      
+      ROOT CAUSE ANALYSIS:
+      The previous test run (earlier today) checked GET /api/users/by-auth/{auth_id} via curl BEFORE any UI login had occurred. Since profiles are created LAZILY by ensureProfile() in src/services/auth.service.ts during the FIRST UI login (POST /api/users on 404), a 404 response was EXPECTED and CORRECT at that point. The profile is only created when the app actually logs in via the UI and calls ensureProfile(), NOT by direct API calls. This is the intended behavior documented in test_credentials.md: "Their business-API profile has NOT been pre-created - it will be auto-created on first successful login via the app's ensureProfile() logic."
+      
+      CONCLUSION:
+      ✅ Backend URL revert to production Emergent host (https://mongo-supabase-api.emergent.host/api) is SUCCESSFUL.
+      ✅ User profiles ARE being auto-created on first login as designed.
+      ✅ All backend API endpoints tested return 200 (users, wallets, transactions, bookings, feed/posts).
+      ✅ All UI navigation flows work correctly (customer -> /(tabs), provider -> /(provider)/dashboard).
+      ✅ No critical bugs found. The user-reported issue was a test-ordering artifact, not an actual bug.
