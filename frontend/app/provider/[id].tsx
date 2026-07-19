@@ -25,6 +25,7 @@ export default function ProviderProfile() {
 
   const [provider, setProvider] = useState<Provider | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [portfolio, setPortfolio] = useState<string[]>([]);
   const [slots, setSlots] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -38,13 +39,15 @@ export default function ProviderProfile() {
       const profile = await providerService.getProviderFullProfile(id);
       const today = new Date().toISOString().slice(0, 10);
       const defaultDuration = profile.services[0]?.duration || 30;
-      const [reviewList, slotList] = await Promise.all([
+      const [reviewList, slotList, portfolioList] = await Promise.all([
         providerService.getProviderReviews(id).catch(() => []),
         providerService.getAvailableSlots(id, today, defaultDuration).catch(() => []),
+        providerService.getProviderPortfolio(id).catch(() => []),
       ]);
       setProvider(profile);
       setReviews(reviewList);
       setSlots(slotList);
+      setPortfolio(portfolioList);
       if (profile.services.length > 0) {
         setSelectedServiceId((prev) => prev || profile.services[0].id);
       }
@@ -211,11 +214,11 @@ export default function ProviderProfile() {
           </View>
 
           {/* Portfolio */}
-          {provider.images.length > 0 && (
+          {portfolio.length > 0 && (
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Portfolio</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {provider.images.map((img, idx) => (
+                {portfolio.map((img, idx) => (
                   <Image
                     key={`${img}-${idx}`}
                     source={{ uri: img }}

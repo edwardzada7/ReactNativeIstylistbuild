@@ -194,8 +194,31 @@ export default function BookingDetails() {
 
         {/* Person Info Card */}
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>{isProvider ? 'Customer' : 'Provider'}</Text>
-          <Text style={styles.personName}>{isProvider ? booking.customer_name || 'Customer' : booking.provider_name}</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <View>
+              <Text style={styles.cardTitle}>{isProvider ? 'Customer' : 'Provider'}</Text>
+              <Text style={styles.personName}>{isProvider ? booking.customer_name || 'Customer' : booking.provider_name}</Text>
+            </View>
+            {!!(isProvider ? booking.customer_auth_id : booking.provider_auth_id) && (
+              <TouchableOpacity
+                style={styles.messageBtn}
+                onPress={() =>
+                  router.push({
+                    pathname: '/chat/[counterpartAuthId]',
+                    params: {
+                      counterpartAuthId: (isProvider ? booking.customer_auth_id : booking.provider_auth_id) as string,
+                      counterpartName: isProvider ? booking.customer_name || 'Customer' : booking.provider_name,
+                      bookingId: booking.id,
+                    },
+                  })
+                }
+                accessibilityRole="button"
+                accessibilityLabel="Message"
+              >
+                <Ionicons name="chatbubble-outline" size={18} color={Colors.primary} />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
 
         {/* Date & Time Card */}
@@ -343,6 +366,14 @@ export default function BookingDetails() {
 }
 
 const styles = StyleSheet.create({
+  messageBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: `${Colors.primary}18`,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   container: { flex: 1, backgroundColor: Colors.background },
   centerState: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.xl, gap: Spacing.md },
   notFoundTitle: { fontSize: FontSizes.lg, fontWeight: '700', color: Colors.text, marginTop: Spacing.sm },

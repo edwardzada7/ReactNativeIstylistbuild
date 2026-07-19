@@ -1,12 +1,29 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Colors, FontSizes, Spacing } from '../../src/constants/theme';
+import { legalService } from '../../src/services/legal.service';
 
+/**
+ * Privacy Policy (Phase 3A). Real content fetched from the production
+ * `legal_pages` table via GET /api/legal/privacy - no more static content.
+ */
 export default function Privacy() {
   const router = useRouter();
+  const [content, setContent] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    legalService
+      .getPrivacy()
+      .then((page) => setContent(page.content.replace('{{TODAY}}', new Date().toLocaleDateString('en-NG', { day: 'numeric', month: 'long', year: 'numeric' }))))
+      .catch(() => setError(true))
+      .finally(() => setLoading(false));
+  }, []);
+
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
@@ -16,34 +33,32 @@ export default function Privacy() {
         <Text style={styles.title}>Privacy Policy</Text>
         <View style={{ width: 24 }} />
       </View>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={styles.paragraph}>
-          We collect the information you provide when creating an account (name, email, phone) and
-          the activity generated while using the app (bookings, wallet transactions, reviews) to
-          operate the service.
-        </Text>
-        <Text style={styles.heading}>How we use your data</Text>
-        <Text style={styles.paragraph}>
-          Your data is used to match you with providers/customers, process payments, send booking
-          and wallet notifications, and improve the platform. We do not sell your personal data.
-        </Text>
-        <Text style={styles.heading}>Data storage</Text>
-        <Text style={styles.paragraph}>
-          Account and authentication data is stored securely with our authentication provider.
-          Booking, wallet, and review data is stored on our production servers.
-        </Text>
-        <Text style={styles.heading}>Your choices</Text>
-        <Text style={styles.paragraph}>
-          You can update your profile information at any time from Settings, or contact support to
-          request account deletion.
-        </Text>
-      </ScrollView>
+      {loading ? (
+        <View style={styles.center}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+        </View>
+      ) : error ? (
+        <View style={styles.center}>
+          <Text style={styles.paragraph}>Could not load Privacy Policy. Please try again later.</Text>
+        </View>
+      ) : (
+        <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+          {content.split(/\r?\n/).map((line, i) => {
+            if (!line.trim()) return null;
+            if (line.startsWith('## ')) return <Text key={i} style={styles.heading2}>{line.replace('## ', '')}</Text>;
+            if (line.startsWith('# ')) return <Text key={i} style={styles.heading1}>{line.replace('# ', '')}</Text>;
+            if (line.startsWith('- ')) return <Text key={i} style={styles.bullet}>{'\u2022  '}{line.replace('- ', '')}</Text>;
+            return <Text key={i} style={styles.paragraph}>{line.replace(/^_|_$/g, '')}</Text>;
+          })}
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: Spacing.xl },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -53,6 +68,8 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: FontSizes.lg, fontWeight: 'bold', color: Colors.text },
   content: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xl },
-  heading: { fontSize: FontSizes.md, fontWeight: '700', color: Colors.text, marginTop: Spacing.lg, marginBottom: Spacing.sm },
-  paragraph: { fontSize: FontSizes.sm, color: Colors.textSecondary, lineHeight: 21 },
+  heading1: { fontSize: FontSizes.lg, fontWeight: '800', color: Colors.text, marginTop: Spacing.md, marginBottom: Spacing.sm },
+  heading2: { fontSize: FontSizes.md, fontWeight: '700', color: Colors.text, marginTop: Spacing.lg, marginBottom: Spacing.sm },
+  bullet: { fontSize: FontSizes.sm, color: Colors.textSecondary, lineHeight: 21, marginBottom: 4 },
+  paragraph: { fontSize: FontSizes.sm, color: Colors.textSecondary, lineHeight: 21, marginBottom: Spacing.sm },
 });

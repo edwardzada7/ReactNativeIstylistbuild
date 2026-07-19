@@ -1,7 +1,27 @@
 import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
+import Constants from 'expo-constants';
+import { Platform } from 'react-native';
 import { supabase } from '../lib/supabase';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8001/api';
+
+// This app's OWN local backend (this repo's backend/server.py) is reached
+// via the platform's standard ingress rule: any request to `<current
+// host>/api/*` is routed to the service on port 8001, on every
+// environment (dev preview or a real deployment) - not a hardcoded
+// URL/port, just the documented convention for this app. Used ONLY for
+// the 2 privileged Shop/Chat writes that Supabase RLS blocks directly;
+// everything else keeps using API_BASE_URL (the external production API)
+// or the Supabase client directly.
+const getLocalApiBase = (): string => {
+  if (Platform.OS === 'web') return '/api';
+  const hostUri = (Constants.expoConfig as any)?.hostUri || (Constants as any).expoGoConfig?.hostUri;
+  if (hostUri) {
+    const host = hostUri.split(':')[0];
+    return `https://${host}/api`;
+  }
+  return 'http://localhost:8001/api';
+};
 
 // The production business-logic API (mongo-supabase-api.emergent.host) is a
 // separate service from Supabase Auth. Authentication (signup/login/session/
@@ -117,3 +137,24 @@ class ApiService {
 
 export const apiService = new ApiService();
 export default apiService;
+
+// Minimal second client for the 2 privileged local endpoints (Shop order
+// creation, Chat message sending). Same auth-token interceptor pattern as
+// the main client, just a different base URL.
+class LocalApiService {
+  private client: AxiosInstance;
+  constructor() {
+    this.client = axios.create({ baseURL: getLocalApiBase(), timeout: 15000 });
+    this.client.interceptors.request.use(async (config) => {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      if (token) config.headers.Authorization = `Bearer ${token}`;
+      return config;
+    });
+  }
+  async post<T = any>(url: string, data?: any): Promise<T> {
+    const response = await this.client.post<T>(url, data);
+    return response.data;
+  }
+}
+export const localApiService = new LocalApiService();

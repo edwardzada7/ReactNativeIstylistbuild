@@ -37,6 +37,23 @@ export function mapProfile(raw: any): User {
   };
 }
 
+// Ensures a provider always has a matching `stylists` row (needed for
+// Portfolio, since stylists.portfolio is the official field per the Phase 3
+// backend audit). RLS-verified: a provider can insert/upsert their own row
+// (auth.uid() = auth_id on the new row). `ignoreDuplicates: true` makes
+// this a pure "create if missing" - it will NEVER touch an existing row's
+// portfolio/bio/rating on subsequent logins.
+async function ensureStylistRow(userId: string, authId: string) {
+  try {
+    const { error } = await supabase
+      .from('stylists')
+      .upsert({ user_id: Number(userId), auth_id: authId }, { onConflict: 'user_id', ignoreDuplicates: true });
+    if (error) console.warn('[ensureStylistRow] upsert failed:', error.message);
+  } catch (err) {
+    console.warn('[ensureStylistRow] unexpected error:', err);
+  }
+}
+
 export const authService = {
   /**
    * Fetches the business-API profile for a Supabase auth user, creating it
@@ -50,7 +67,9 @@ export const authService = {
   }): Promise<User> {
     try {
       const profile = await apiService.get(`/users/by-auth/${authUser.id}`);
-      return mapProfile(profile);
+      const mapped = mapProfile(profile);
+      if (mapped.role === 'provider') await ensureStylistRow(mapped.id, authUser.id);
+      return mapped;
     } catch (err: any) {
       if (err?.response?.status !== 404) throw err;
 
@@ -63,7 +82,9 @@ export const authService = {
         phone: meta.phone || undefined,
         role: backendRole,
       });
-      return mapProfile(created);
+      const mapped = mapProfile(created);
+      if (mapped.role === 'provider') await ensureStylistRow(mapped.id, authUser.id);
+      return mapped;
     }
   },
 

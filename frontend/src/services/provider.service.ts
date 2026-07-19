@@ -1,4 +1,5 @@
 import apiService from './api';
+import { supabase } from '../lib/supabase';
 import {
   Provider,
   Category,
@@ -199,5 +200,44 @@ export const providerService = {
   }): Promise<Service> {
     const raw = await apiService.post<any>('/provider-services', data);
     return normalizeService(raw);
+  },
+
+  // --- Portfolio (Phase 3A) ---------------------------------------------
+  // Reuses the EXISTING `stylists.portfolio` jsonb column (confirmed via
+  // direct DB audit - the official field for this, no new table). Read is
+  // public (anon key can read `stylists`, verified via probe - needed so
+  // customers can see a provider's portfolio on their profile page). Write
+  // is RLS-scoped to the row's own auth_id (verified: a provider can
+  // update their own row; a different authenticated user is blocked).
+  async getPortfolio(providerAuthId: string): Promise<string[]> {
+    const { data, error } = await supabase
+      .from('stylists')
+      .select('portfolio')
+      .eq('auth_id', providerAuthId)
+      .maybeSingle();
+    if (error) throw error;
+    return Array.isArray(data?.portfolio) ? data!.portfolio : [];
+  },
+
+  // Convenience wrapper for the customer-facing provider profile page,
+  // which only has the numeric providerId - mirrors getProviderReviews'
+  // existing auth_id-resolution pattern.
+  async getProviderPortfolio(providerId: string): Promise<string[]> {
+    try {
+      const authId = await this.resolveProviderAuthId(providerId);
+      if (!authId) return [];
+      return await this.getPortfolio(authId);
+    } catch (err) {
+      console.error('[provider-service] failed to load portfolio', err);
+      return [];
+    }
+  },
+
+  async updatePortfolio(providerAuthId: string, images: string[]): Promise<void> {
+    const { error } = await supabase
+      .from('stylists')
+      .update({ portfolio: images })
+      .eq('auth_id', providerAuthId);
+    if (error) throw error;
   },
 };
