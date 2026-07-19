@@ -298,6 +298,38 @@ test_plan:
   test_priority: "critical_first"
 
 agent_communication:
+  - agent: "main"
+    message: >
+      ENV CUTOVER (this round): Created /app/backend/.env (MONGO_URL, DB_NAME,
+      CORS_ORIGINS - fixes a backend crash-loop that predated this session,
+      confirmed via backend.err.log KeyError: 'MONGO_URL') and
+      /app/frontend/.env (EXPO_PUBLIC_API_BASE_URL now points to the new
+      Railway host https://updatedistylistbeauty-marketplace-production.up.railway.app/api
+      per explicit user instruction - endpoints/contract unchanged, only the
+      base host moved; EXPO_PUBLIC_SUPABASE_URL +
+      EXPO_PUBLIC_SUPABASE_ANON_KEY set from user-provided values, anon key
+      only, service role key correctly kept OUT of the mobile app).
+      Cleared stale Metro cache and restarted both services. VERIFIED via
+      screenshot: app boots, Supabase getSession() resolves cleanly (no
+      hang), onboarding -> Skip -> Login screen renders correctly.
+      FLAGGED ISSUE (not fixed by main agent, needs user's Railway
+      dashboard): direct curl to
+      https://updatedistylistbeauty-marketplace-production.up.railway.app/
+      and /api/users/by-auth/... both return Railway's own
+      `{"status":"error","code":404,"message":"Application not found"}` -
+      this is Railway's edge-level error (not a 404 from the app itself),
+      meaning no active deployment is currently bound to that hostname (DNS
+      resolves fine to Railway's shared IP, TLS handshake succeeds against
+      Railway's wildcard cert, but there's no service listening on that
+      Host header). Supabase Auth itself is fully reachable and unaffected
+      (signup/login/OTP will still work), but any call to the business API
+      (POST /api/users, GET /api/users/by-auth/{id}, /api/wallets,
+      /api/bookings, /api/payments/flutterwave/*, etc.) will fail until the
+      user confirms the Railway service is actually deployed/running and
+      the hostname is correct. AuthContext already has a graceful fallback
+      (uses Supabase session metadata) so this won't crash the app, but
+      profile creation, bookings, wallet, and feed will not work against
+      this backend until resolved.
   - agent: "testing"
     message: "CRITICAL ISSUE FOUND: The signup form has a fundamental bug where React Native Web TextInput components do not properly sync with React state when filled programmatically. Multiple approaches were attempted: (1) Standard Playwright fill/type methods, (2) DOM event dispatching, (3) React Fiber manipulation, (4) Direct onChangeText calls. All methods successfully set DOM values but failed to update React state, causing the visual display to show placeholders and form submission to fail with empty data. The email field is particularly problematic - it never updates visually even when its DOM value is confirmed to be set. This blocks all downstream auth flow testing (OTP verification, home screen, profile, logout, re-login). RECOMMENDATION: Fix the Input component in /app/frontend/src/components/common/Input.tsx to properly handle controlled input state, or investigate React Native Web configuration issues. The form works for some fields (name, phone, passwords show filled values) but not for email, suggesting an inconsistency in how different input types are handled."
   - agent: "testing"
