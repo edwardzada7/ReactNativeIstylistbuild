@@ -12,11 +12,12 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { providerService } from '../../src/services/provider.service';
+import { notificationService } from '../../src/services/notification.service';
 import { formatPriceRange } from '../../src/utils/currency';
 import { Category, Provider } from '../../src/types';
 
@@ -29,6 +30,16 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const refreshUnreadCount = useCallback(async () => {
+    try {
+      const res = await notificationService.getUnreadCount();
+      setUnreadCount(res.count || 0);
+    } catch (err) {
+      console.error('[home] failed to load unread count', err);
+    }
+  }, []);
 
   const loadData = useCallback(async () => {
     try {
@@ -39,6 +50,7 @@ export default function Home() {
       ]);
       setProviders(providerList);
       setCategories(categoryList);
+      await refreshUnreadCount();
     } catch (err: any) {
       console.error('[home] failed to load data', err);
       setError(err?.friendlyMessage || 'Could not load providers. Pull down to retry.');
@@ -46,11 +58,17 @@ export default function Home() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [refreshUnreadCount]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useFocusEffect(
+    useCallback(() => {
+      refreshUnreadCount();
+    }, [refreshUnreadCount])
+  );
 
   const handleRefresh = () => {
     setRefreshing(true);
@@ -159,7 +177,11 @@ export default function Home() {
               accessibilityLabel="Notifications"
             >
               <Ionicons name="notifications-outline" size={24} color={Colors.text} />
-              <View style={styles.badge} />
+              {unreadCount > 0 ? (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+                </View>
+              ) : null}
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.iconButton}
@@ -329,13 +351,17 @@ const styles = StyleSheet.create({
   },
   badge: {
     position: 'absolute',
-    top: 10,
-    right: 10,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    top: 8,
+    right: 8,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 4,
+    borderRadius: 9,
     backgroundColor: Colors.error,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
+  badgeText: { fontSize: 10, fontWeight: '700', color: '#fff' },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',

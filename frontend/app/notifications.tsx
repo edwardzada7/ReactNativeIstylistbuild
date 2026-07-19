@@ -50,6 +50,16 @@ export default function Notifications() {
   const [totalPages, setTotalPages] = useState(1);
   const [loadingMore, setLoadingMore] = useState(false);
   const [markingAll, setMarkingAll] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const refreshUnreadCount = useCallback(async () => {
+    try {
+      const res = await notificationService.getUnreadCount();
+      setUnreadCount(res.count || 0);
+    } catch (err) {
+      console.error('[notifications] unread count failed', err);
+    }
+  }, []);
 
   const loadData = useCallback(async (pageNum = 1, append = false) => {
     try {
@@ -69,7 +79,8 @@ export default function Notifications() {
   useFocusEffect(
     useCallback(() => {
       loadData(1);
-    }, [loadData])
+      refreshUnreadCount();
+    }, [loadData, refreshUnreadCount])
   );
 
   const handleRefresh = () => {
@@ -83,15 +94,50 @@ export default function Notifications() {
     loadData(page + 1, true);
   };
 
+  const navigateToNotification = useCallback(
+    (item: Notification) => {
+      const data = item?.data || {};
+      const explicitRoute = data.route || data.pathname || data.path || data.screen || data.target;
+      if (typeof explicitRoute === 'string' && explicitRoute.startsWith('/')) {
+        router.push(explicitRoute as any);
+        return;
+      }
+      if (data.booking_id) {
+        router.push(`/bookings/${String(data.booking_id)}`);
+        return;
+      }
+      if (data.provider_id) {
+        router.push(`/provider/${String(data.provider_id)}`);
+        return;
+      }
+      if (data.order_id) {
+        router.push('/shop/orders');
+        return;
+      }
+      if (data.feed_id || data.post_id || data.postId) {
+        router.push('/(tabs)/feed');
+        return;
+      }
+      if (item.type === 'booking') {
+        router.push('/(tabs)/bookings');
+        return;
+      }
+      router.push('/(tabs)');
+    },
+    [router]
+  );
+
   const handlePressItem = async (item: Notification) => {
     if (!item.is_read) {
       setItems((prev) => prev.map((n) => (n.id === item.id ? { ...n, is_read: true } : n)));
       try {
         await notificationService.markAsRead(item.id);
+        await refreshUnreadCount();
       } catch (err) {
         console.error('[notifications] mark-as-read failed', err);
       }
     }
+    navigateToNotification(item);
   };
 
   const handleMarkAllRead = async () => {
@@ -99,6 +145,7 @@ export default function Notifications() {
     try {
       await notificationService.markAllAsRead();
       setItems((prev) => prev.map((n) => ({ ...n, is_read: true })));
+      setUnreadCount(0);
     } catch (err) {
       console.error('[notifications] mark-all-read failed', err);
     } finally {
@@ -106,7 +153,7 @@ export default function Notifications() {
     }
   };
 
-  const hasUnread = items.some((n) => !n.is_read);
+  const hasUnread = items.some((n) => !n.is_read) || unreadCount > 0;
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>

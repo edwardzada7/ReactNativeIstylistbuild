@@ -15,6 +15,7 @@ import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/th
 import { useAuth } from '../../src/contexts/AuthContext';
 import { bookingService } from '../../src/services/booking.service';
 import { providerService } from '../../src/services/provider.service';
+import { notificationService } from '../../src/services/notification.service';
 import { formatCurrency } from '../../src/utils/currency';
 import { Booking, Provider } from '../../src/types';
 
@@ -39,6 +40,16 @@ export default function ProviderDashboard() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const refreshUnreadCount = useCallback(async () => {
+    try {
+      const res = await notificationService.getUnreadCount();
+      setUnreadCount(res.count || 0);
+    } catch (err) {
+      console.error('[provider-dashboard] failed to load unread count', err);
+    }
+  }, []);
 
   const loadData = useCallback(async () => {
     if (!providerId) return;
@@ -50,6 +61,7 @@ export default function ProviderDashboard() {
       ]);
       setBookings(bookingList);
       setProfile(providerProfile);
+      await refreshUnreadCount();
     } catch (err: any) {
       console.error('[provider-dashboard] failed to load', err);
       setError(err?.friendlyMessage || 'Could not load your dashboard.');
@@ -67,7 +79,8 @@ export default function ProviderDashboard() {
   useFocusEffect(
     useCallback(() => {
       loadData();
-    }, [loadData])
+      refreshUnreadCount();
+    }, [loadData, refreshUnreadCount])
   );
 
   const handleRefresh = () => {
@@ -133,7 +146,11 @@ export default function ProviderDashboard() {
               accessibilityLabel="Notifications"
             >
               <Ionicons name="notifications-outline" size={24} color={Colors.text} />
-              <View style={styles.badge} />
+              {unreadCount > 0 ? (
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+                </View>
+              ) : null}
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.iconButton}
@@ -268,13 +285,17 @@ const styles = StyleSheet.create({
   },
   badge: {
     position: 'absolute',
-    top: 10,
-    right: 10,
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    top: 8,
+    right: 8,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 4,
+    borderRadius: 9,
     backgroundColor: Colors.error,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
+  badgeText: { fontSize: 10, fontWeight: '700', color: '#fff' },
   greeting: { fontSize: FontSizes.xl, fontWeight: 'bold', color: Colors.text },
   subGreeting: { fontSize: FontSizes.sm, color: Colors.textSecondary, marginTop: 4 },
   errorBanner: {
