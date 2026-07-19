@@ -8,7 +8,21 @@ import { Button, Input } from '../../src/components/common';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { supportService } from '../../src/services/support.service';
 
-const CATEGORIES = ['general', 'payment', 'booking', 'technical', 'account'];
+// Real production category enum (verified via direct API probe against
+// POST /support/tickets - previously used ['general','payment','booking',
+// 'technical','account'] which does NOT match the backend's actual enum
+// and always failed with a 400 validation error).
+const CATEGORIES = ['account', 'booking', 'payment', 'technical_issue', 'provider', 'abuse_report', 'other'];
+
+const CATEGORY_LABELS: Record<string, string> = {
+  account: 'Account',
+  booking: 'Booking',
+  payment: 'Payment',
+  technical_issue: 'Technical',
+  provider: 'Provider',
+  abuse_report: 'Report Abuse',
+  other: 'Other',
+};
 
 /**
  * Help & Support (Phase 2). Real contract (verified via direct API probe):
@@ -72,7 +86,7 @@ export default function Help() {
                 accessibilityLabel={c}
               >
                 <Text style={[styles.categoryChipText, category === c && styles.categoryChipTextActive]}>
-                  {c.charAt(0).toUpperCase() + c.slice(1)}
+                  {CATEGORY_LABELS[c]}
                 </Text>
               </TouchableOpacity>
             ))}
