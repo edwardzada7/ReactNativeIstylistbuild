@@ -15,6 +15,7 @@ import {
   normalizeReview,
   deriveCategories,
 } from '../utils/normalize';
+import { getAllSubServicesCatalog } from '../constants/serviceCatalog';
 
 const asList = (raw: any): any[] => {
   if (Array.isArray(raw)) return raw;

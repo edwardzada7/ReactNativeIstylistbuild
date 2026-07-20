@@ -46,7 +46,6 @@ export default function ProviderProfile() {
     { icon: 'time-outline', label: 'Availability', onPress: () => router.push('/(provider)/availability') },
     { icon: 'calendar-outline', label: 'Bookings', onPress: () => router.push('/(provider)/bookings') },
     { icon: 'star-outline', label: 'Reviews', onPress: () => router.push('/(provider)/reviews') },
-    { icon: 'images-outline', label: 'Portfolio', onPress: () => router.push('/(provider)/portfolio') },
     {
       icon: 'wallet-outline',
       label: 'Wallet',

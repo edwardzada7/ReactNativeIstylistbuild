@@ -25,9 +25,9 @@ export default function ProviderTabsLayout() {
       <Tabs.Screen
         name="dashboard"
         options={{
-          title: 'Dashboard',
+          title: 'Home',
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="grid" size={size} color={color} />
+            <Ionicons name="home" size={size} color={color} />
           ),
         }}
       />
@@ -73,6 +73,10 @@ export default function ProviderTabsLayout() {
       <Tabs.Screen name="services" options={{ href: null }} />
       <Tabs.Screen name="profile" options={{ href: null }} />
       <Tabs.Screen name="withdraw" options={{ href: null }} />
+      {/* Phase 3 (2026-08): Portfolio consolidated into Feed. Reviews moved
+          off the tab bar and reached via the Provider Home quick actions. */}
+      <Tabs.Screen name="portfolio" options={{ href: null }} />
+      <Tabs.Screen name="reviews" options={{ href: null }} />
     </Tabs>
   );
 }
