@@ -9,6 +9,7 @@ interface AuthContextType {
   session: Session | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  isProvider: boolean;
   login: (credentials: { email: string; password: string }) => Promise<User | null>;
   signup: (data: {
     email: string;
@@ -151,6 +152,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         session,
         isLoading,
         isAuthenticated: !!user,
+        isProvider: user?.role === 'provider',
         login,
         signup,
         logout,

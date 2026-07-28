@@ -1,17 +1,20 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, FlatList, Image, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { providerService } from '../../src/services/provider.service';
-import { Provider } from '../../src/types';
+import { feedService } from '../../src/services/feed.service';
+import { Provider, Post } from '../../src/types';
 
 export default function ProviderProfile() {
   const router = useRouter();
   const { user, logout } = useAuth();
   const [profile, setProfile] = useState<Provider | null>(null);
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [loadingPosts, setLoadingPosts] = useState(false);
 
   const loadProfile = useCallback(async () => {
     if (!user?.id) return;
@@ -23,9 +26,41 @@ export default function ProviderProfile() {
     }
   }, [user?.id]);
 
+  const loadPosts = useCallback(async () => {
+    if (!user?.id) return;
+    setLoadingPosts(true);
+    try {
+      const response = await feedService.getFeed({ page: 1, per_page: 100 });
+      console.log('[provider-profile] user.id:', user.id, 'user.auth_id:', user.auth_id);
+      console.log('[provider-profile] total posts from API:', response.data?.length);
+      // Filter posts by this provider - try multiple possible fields
+      const providerPosts = (response.data || []).filter(
+        (post: Post) => {
+          const matches = 
+            post.provider_auth_id === user.auth_id ||
+            post.provider?.id === user.id ||
+            post.user_id === user.auth_id ||
+            post.provider?.auth_id === user.auth_id;
+          if (matches) {
+            console.log('[provider-profile] matched post:', post.id, 'provider_auth_id:', post.provider_auth_id, 'provider.id:', post.provider?.id);
+          }
+          return matches;
+        }
+      );
+      console.log('[provider-profile] filtered posts:', providerPosts.length);
+      setPosts(providerPosts);
+    } catch (err) {
+      console.error('[provider-profile] failed to load posts', err);
+      setPosts([]);
+    } finally {
+      setLoadingPosts(false);
+    }
+  }, [user?.id, user?.auth_id]);
+
   useEffect(() => {
     loadProfile();
-  }, [loadProfile]);
+    loadPosts();
+  }, [loadProfile, loadPosts]);
 
   const handleLogout = () => {
     Alert.alert('Logout', 'Are you sure you want to logout?', [
@@ -98,6 +133,44 @@ export default function ProviderProfile() {
             <Text style={styles.statLabel}>Services</Text>
           </View>
         </View>
+
+        {/* Posts Section */}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Posts</Text>
+        </View>
+        {loadingPosts ? (
+          <View style={styles.centerState}>
+            <ActivityIndicator size="small" color={Colors.primary} />
+          </View>
+        ) : posts.length === 0 ? (
+          <View style={styles.emptyPosts}>
+            <Ionicons name="images-outline" size={32} color={Colors.textMuted} />
+            <Text style={styles.emptyText}>No posts yet</Text>
+          </View>
+        ) : (
+          <FlatList
+            data={posts}
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            keyExtractor={(item) => String(item.id)}
+            renderItem={({ item }) => (
+              <TouchableOpacity
+                style={styles.postCard}
+                accessibilityRole="button"
+                accessibilityLabel="View post"
+              >
+                {item.image_url && (
+                  <Image source={{ uri: item.image_url }} style={styles.postImage} />
+                )}
+                <View style={styles.postMeta}>
+                  <Ionicons name="heart" size={14} color={Colors.error} />
+                  <Text style={styles.postMetaText}>{item.likes_count || 0}</Text>
+                </View>
+              </TouchableOpacity>
+            )}
+            contentContainerStyle={styles.postsList}
+          />
+        )}
 
         <View style={styles.menuItems}>
           {menuItems.map((item) => (
@@ -177,6 +250,53 @@ const styles = StyleSheet.create({
   statDivider: { width: 1, backgroundColor: Colors.border },
   statValue: { fontSize: FontSizes.xl, fontWeight: 'bold', color: Colors.text, marginBottom: 4 },
   statLabel: { fontSize: FontSizes.sm, color: Colors.textSecondary },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.lg,
+    marginTop: Spacing.lg,
+    marginBottom: Spacing.md,
+  },
+  sectionTitle: { fontSize: FontSizes.md, fontWeight: '700', color: Colors.text },
+  addPostButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  centerState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.md,
+  },
+  emptyPosts: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Spacing.xl,
+    marginHorizontal: Spacing.lg,
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.lg,
+  },
+  emptyText: { fontSize: FontSizes.sm, color: Colors.textSecondary, marginTop: Spacing.sm },
+  postsList: { paddingHorizontal: Spacing.lg, gap: Spacing.sm },
+  postCard: {
+    width: 120,
+    borderRadius: BorderRadius.md,
+    overflow: 'hidden',
+    backgroundColor: Colors.surface,
+  },
+  postImage: { width: '100%', height: 120 },
+  postMeta: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+  },
+  postMetaText: { fontSize: FontSizes.xs, color: Colors.textSecondary },
   menuItems: {
     backgroundColor: Colors.surface,
     marginHorizontal: Spacing.lg,

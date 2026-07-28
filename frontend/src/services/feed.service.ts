@@ -2,20 +2,38 @@ import apiService from './api';
 import { Post, Comment, PaginatedResponse } from '../types';
 
 export const feedService = {
-  // Get feed posts. Verified via direct probe against production API: GET
-  // /api/feed -> 404, GET /api/feed/posts -> 200 (returns { posts: [...] }).
+  // Get feed posts. Web backend returns { posts: [...], total, limit, offset }
   async getFeed(params?: { page?: number; per_page?: number }): Promise<PaginatedResponse<Post>> {
-    return await apiService.get<PaginatedResponse<Post>>('/feed/posts', { params });
+    const response = await apiService.get<any>('/feed/posts', { params });
+    // Transform web backend response to mobile format
+    return {
+      data: response.posts || [],
+      total: response.total || 0,
+      page: params?.page || 1,
+      per_page: params?.per_page || 20,
+      total_pages: Math.ceil((response.total || 0) / (params?.per_page || 20)),
+    };
   },
 
   // Create post
-  async createPost(content: string, images?: string[]): Promise<Post> {
-    return await apiService.post<Post>('/feed/posts', { content, images });
+  async createPost(caption: string, image_url: string): Promise<Post> {
+    const authId = await apiService.getAuthId();
+    if (!authId) throw new Error('Not authenticated');
+    return await apiService.post<Post>(`/feed/posts?auth_id=${authId}`, { caption, image_url });
   },
 
-  // Like/unlike post
-  async toggleLike(postId: string): Promise<void> {
-    return await apiService.post(`/feed/${postId}/like`);
+  // Like post
+  async likePost(postId: string): Promise<void> {
+    const authId = await apiService.getAuthId();
+    if (!authId) throw new Error('Not authenticated');
+    return await apiService.post(`/feed/posts/${postId}/like?auth_id=${authId}`);
+  },
+
+  // Unlike post
+  async unlikePost(postId: string): Promise<void> {
+    const authId = await apiService.getAuthId();
+    if (!authId) throw new Error('Not authenticated');
+    return await apiService.delete(`/feed/posts/${postId}/like?auth_id=${authId}`);
   },
 
   // Get post comments
@@ -35,7 +53,16 @@ export const feedService = {
 
   // Delete post
   async deletePost(postId: string): Promise<void> {
-    return await apiService.delete(`/feed/${postId}`);
+    const authId = await apiService.getAuthId();
+    if (!authId) throw new Error('Not authenticated');
+    return await apiService.delete(`/feed/posts/${postId}?auth_id=${authId}`);
+  },
+
+  // Update post
+  async updatePost(postId: string, caption: string, image_url: string): Promise<Post> {
+    const authId = await apiService.getAuthId();
+    if (!authId) throw new Error('Not authenticated');
+    return await apiService.put<Post>(`/feed/posts/${postId}?auth_id=${authId}`, { caption, image_url });
   },
 };
 

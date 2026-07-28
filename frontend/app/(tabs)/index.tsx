@@ -172,6 +172,14 @@ export default function Home() {
           <View style={styles.headerActions}>
             <TouchableOpacity
               style={styles.iconButton}
+              onPress={() => router.push('/chat/list')}
+              accessibilityRole="button"
+              accessibilityLabel="Chat"
+            >
+              <Ionicons name="chatbubble-outline" size={24} color={Colors.text} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.iconButton}
               onPress={() => router.push('/notifications')}
               accessibilityRole="button"
               accessibilityLabel="Notifications"

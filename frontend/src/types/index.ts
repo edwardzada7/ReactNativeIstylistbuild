@@ -17,7 +17,9 @@ export interface User {
   phone_verified?: boolean;
   profile_completed?: boolean;
   country?: string | null;
+  state?: string | null;
   city?: string | null;
+  address?: string | null;
   gender?: string | null;
   account_type?: string;
   created_at?: string;
@@ -91,6 +93,7 @@ export interface Service {
   description: string;
   price: number;
   duration: number; // in minutes
+  duration_minutes?: number; // alternative field name
   category?: string;
   is_active: boolean;
   in_store?: boolean;
@@ -222,11 +225,25 @@ export interface Post {
   id: string;
   user_id: string;
   user?: User;
-  content: string;
+  content?: string;
+  caption?: string;
   images?: string[];
+  image_url?: string;
   likes_count: number;
   comments_count: number;
-  is_liked: boolean;
+  is_liked?: boolean;
+  liked_by_me?: boolean;
+  is_active?: boolean;
+  provider_auth_id?: string;
+  provider?: {
+    id: string;
+    auth_id?: string;
+    name?: string;
+    display_name?: string;
+    business_name?: string;
+    full_name?: string;
+    photo_url?: string;
+  };
   created_at: string;
 }
 

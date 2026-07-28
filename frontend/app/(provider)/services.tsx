@@ -47,6 +47,7 @@ export default function ProviderServices() {
   const [modalVisible, setModalVisible] = useState(false);
   const [modalStep, setModalStep] = useState<ModalStep>('pick');
   const [selectedCatalogItem, setSelectedCatalogItem] = useState<CatalogSubService | null>(null);
+  const [editingService, setEditingService] = useState<Service | null>(null);
   const [form, setForm] = useState({ description: '', price: '', duration: '' });
 
   const loadServices = useCallback(async () => {
@@ -85,10 +86,22 @@ export default function ProviderServices() {
   const openAddModal = () => {
     setModalStep('pick');
     setSelectedCatalogItem(null);
+    setEditingService(null);
     setCatalogSearch('');
     setForm({ description: '', price: '', duration: '' });
     setModalVisible(true);
     if (catalog.length === 0) loadCatalog();
+  };
+
+  const openEditModal = (service: Service) => {
+    setEditingService(service);
+    setForm({
+      description: service.description || '',
+      price: String(service.price),
+      duration: String(service.duration_minutes),
+    });
+    setModalStep('details');
+    setModalVisible(true);
   };
 
   const existingNames = useMemo(
@@ -115,32 +128,62 @@ export default function ProviderServices() {
   };
 
   const handleAddService = async () => {
-    if (!providerId || !selectedCatalogItem) return;
+    if (!providerId) return;
     if (!form.price.trim() || !form.duration.trim()) {
       Alert.alert('Missing info', 'Please fill in price and duration.');
       return;
     }
     setSaving(true);
     try {
-      const created = await providerService.createProviderService({
-        provider_id: providerId,
-        sub_service_id: selectedCatalogItem.id,
-        sub_service_name: selectedCatalogItem.name,
-        service_id: selectedCatalogItem.service_id,
-        category_id: selectedCatalogItem.category_id,
-        description: form.description.trim() || undefined,
-        price: Number(form.price),
-        duration_minutes: Number(form.duration),
-      });
-      setServices((prev) => [...prev, created]);
+      if (editingService) {
+        // Update existing service
+        const updated = await providerService.updateProviderService(editingService.id, {
+          description: form.description.trim() || undefined,
+          price: Number(form.price),
+          duration_minutes: Number(form.duration),
+        });
+        setServices((prev) => prev.map((s) => (s.id === editingService.id ? { ...s, ...updated } : s)));
+      } else if (selectedCatalogItem) {
+        // Create new service from catalog
+        const created = await providerService.createProviderService({
+          provider_id: providerId,
+          sub_service_id: selectedCatalogItem.id,
+          sub_service_name: selectedCatalogItem.name,
+          service_id: selectedCatalogItem.service_id,
+          category_id: selectedCatalogItem.category_id,
+          description: form.description.trim() || undefined,
+          price: Number(form.price),
+          duration_minutes: Number(form.duration),
+        });
+        setServices((prev) => [...prev, created]);
+      }
       setModalVisible(false);
       setSelectedCatalogItem(null);
+      setEditingService(null);
       setForm({ description: '', price: '', duration: '' });
     } catch (err: any) {
-      Alert.alert('Error', err?.friendlyMessage || 'Could not add this service.');
+      Alert.alert('Error', err?.friendlyMessage || 'Could not save this service.');
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleDeleteService = (service: Service) => {
+    Alert.alert('Delete Service', `Remove "${service.name}" from your services?`, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await providerService.deleteProviderService(service.id);
+            setServices((prev) => prev.filter((s) => s.id !== service.id));
+          } catch (err: any) {
+            Alert.alert('Error', err?.friendlyMessage || 'Could not delete this service.');
+          }
+        },
+      },
+    ]);
   };
 
   return (
@@ -184,6 +227,14 @@ export default function ProviderServices() {
                   )}
                   <Text style={styles.serviceMeta}>{service.duration} min</Text>
                 </View>
+                <View style={styles.serviceActions}>
+                  <TouchableOpacity onPress={() => openEditModal(service)} accessibilityLabel="Edit service">
+                    <Ionicons name="create-outline" size={20} color={Colors.primary} />
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => handleDeleteService(service)} accessibilityLabel="Delete service">
+                    <Ionicons name="trash-outline" size={20} color={Colors.error} />
+                  </TouchableOpacity>
+                </View>
                 <Text style={styles.servicePrice}>{formatCurrency(service.price)}</Text>
               </View>
             ))
@@ -211,7 +262,7 @@ export default function ProviderServices() {
                 <View style={styles.modalBackButton} />
               )}
               <Text style={styles.modalTitle}>
-                {modalStep === 'pick' ? 'Choose a Service' : 'Set Price & Duration'}
+                {editingService ? 'Edit Service' : modalStep === 'pick' ? 'Choose a Service' : 'Set Price & Duration'}
               </Text>
               <TouchableOpacity
                 onPress={() => setModalVisible(false)}
@@ -349,6 +400,7 @@ const styles = StyleSheet.create({
   serviceName: { fontSize: FontSizes.sm, fontWeight: '700', color: Colors.text },
   serviceDescription: { fontSize: FontSizes.xs, color: Colors.textSecondary, marginTop: 2 },
   serviceMeta: { fontSize: FontSizes.xs, color: Colors.textMuted, marginTop: 2 },
+  serviceActions: { flexDirection: 'row', gap: Spacing.sm, marginRight: Spacing.sm },
   servicePrice: { fontSize: FontSizes.md, fontWeight: '700', color: Colors.primary },
   modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
   modalContent: {

@@ -16,6 +16,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { shopService, Product } from '../../src/services/shop.service';
 import { useCartStore } from '../../src/store/cartStore';
+import { useAuth } from '../../src/contexts/AuthContext';
 import { formatCurrency } from '../../src/utils/currency';
 
 /**
@@ -24,6 +25,7 @@ import { formatCurrency } from '../../src/utils/currency';
  */
 export default function CustomerShop() {
   const router = useRouter();
+  const { isProvider } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -54,16 +56,29 @@ export default function CustomerShop() {
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
         <Text style={styles.title}>Shop</Text>
-        <TouchableOpacity onPress={() => router.push('/shop/cart')} accessibilityRole="button" accessibilityLabel="Cart">
-          <View>
-            <Ionicons name="cart-outline" size={26} color={Colors.text} />
-            {cartCount > 0 && (
-              <View style={styles.cartBadge}>
-                <Text style={styles.cartBadgeText}>{cartCount}</Text>
-              </View>
-            )}
-          </View>
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          {isProvider && (
+            <TouchableOpacity
+              style={styles.manageButton}
+              onPress={() => router.push('/(provider)/shop')}
+              accessibilityRole="button"
+              accessibilityLabel="Manage products"
+            >
+              <Ionicons name="settings-outline" size={20} color={Colors.text} />
+              <Text style={styles.manageButtonText}>Manage</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity onPress={() => router.push('/shop/cart')} accessibilityRole="button" accessibilityLabel="Cart">
+            <View>
+              <Ionicons name="cart-outline" size={26} color={Colors.text} />
+              {cartCount > 0 && (
+                <View style={styles.cartBadge}>
+                  <Text style={styles.cartBadgeText}>{cartCount}</Text>
+                </View>
+              )}
+            </View>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.searchWrap}>
@@ -119,6 +134,19 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.lg, paddingTop: Spacing.md },
   title: { fontSize: FontSizes.xl, fontWeight: 'bold', color: Colors.text },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  manageButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 6,
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  manageButtonText: { fontSize: FontSizes.xs, fontWeight: '600', color: Colors.text },
   cartBadge: { position: 'absolute', top: -6, right: -8, backgroundColor: Colors.primary, borderRadius: 8, minWidth: 16, height: 16, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 3 },
   cartBadgeText: { color: '#fff', fontSize: 10, fontWeight: '700' },
   searchWrap: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: Colors.surface, borderRadius: BorderRadius.full, paddingHorizontal: Spacing.md, marginHorizontal: Spacing.lg, marginTop: Spacing.md, marginBottom: Spacing.sm, height: 44 },

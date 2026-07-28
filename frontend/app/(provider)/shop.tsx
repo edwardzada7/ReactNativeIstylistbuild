@@ -36,6 +36,7 @@ export default function ProviderShop() {
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [form, setForm] = useState({ name: '', description: '', price: '', stock: '', image: '' as string });
 
   const loadData = useCallback(async () => {
@@ -55,7 +56,22 @@ export default function ProviderShop() {
     }, [loadData])
   );
 
-  const resetForm = () => setForm({ name: '', description: '', price: '', stock: '', image: '' });
+  const resetForm = () => {
+    setForm({ name: '', description: '', price: '', stock: '', image: '' });
+    setEditingProduct(null);
+  };
+
+  const openEditModal = (product: Product) => {
+    setEditingProduct(product);
+    setForm({
+      name: product.name,
+      description: product.description || '',
+      price: String(product.price),
+      stock: String(product.stock),
+      image: product.image_urls?.[0] || '',
+    });
+    setModalVisible(true);
+  };
 
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -83,19 +99,26 @@ export default function ProviderShop() {
     }
     setSaving(true);
     try {
-      await shopService.createProduct({
+      const productData = {
         name: form.name.trim(),
         description: form.description.trim(),
         price,
         stock,
         image_urls: form.image ? [form.image] : undefined,
-      });
+      };
+
+      if (editingProduct) {
+        await shopService.updateProduct(editingProduct.id, productData);
+        Alert.alert('Product Updated', 'Your product was updated successfully.');
+      } else {
+        await shopService.createProduct(productData);
+        Alert.alert('Product Added', 'Your product was added and is pending approval.');
+      }
       setModalVisible(false);
       resetForm();
       await loadData();
-      Alert.alert('Product Added', 'Your product was added and is pending approval.');
     } catch (err: any) {
-      Alert.alert('Error', err?.message || 'Could not add this product.');
+      Alert.alert('Error', err?.message || 'Could not save this product.');
     } finally {
       setSaving(false);
     }
@@ -158,9 +181,14 @@ export default function ProviderShop() {
                   </Text>
                 </View>
               </View>
-              <TouchableOpacity onPress={() => handleDelete(product)} accessibilityLabel="Delete product">
-                <Ionicons name="trash-outline" size={20} color={Colors.error} />
-              </TouchableOpacity>
+              <View style={styles.cardActions}>
+                <TouchableOpacity onPress={() => openEditModal(product)} accessibilityLabel="Edit product">
+                  <Ionicons name="create-outline" size={20} color={Colors.primary} />
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => handleDelete(product)} accessibilityLabel="Delete product">
+                  <Ionicons name="trash-outline" size={20} color={Colors.error} />
+                </TouchableOpacity>
+              </View>
             </View>
           ))}
         </ScrollView>
@@ -173,7 +201,7 @@ export default function ProviderShop() {
               <TouchableOpacity onPress={() => setModalVisible(false)} accessibilityLabel="Close">
                 <Ionicons name="close" size={24} color={Colors.text} />
               </TouchableOpacity>
-              <Text style={styles.title}>Add Product</Text>
+              <Text style={styles.title}>{editingProduct ? 'Edit Product' : 'Add Product'}</Text>
               <View style={{ width: 24 }} />
             </View>
             <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -216,6 +244,7 @@ const styles = StyleSheet.create({
   cardPrice: { fontSize: FontSizes.xs, color: Colors.textSecondary, marginTop: 2 },
   badge: { alignSelf: 'flex-start', paddingHorizontal: 6, paddingVertical: 2, borderRadius: BorderRadius.full, marginTop: 4 },
   badgeText: { fontSize: 10, fontWeight: '700' },
+  cardActions: { flexDirection: 'row', gap: Spacing.sm },
   imagePicker: { width: 100, height: 100, borderRadius: BorderRadius.md, borderWidth: 1.5, borderColor: Colors.border, borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center', alignSelf: 'center', marginBottom: Spacing.lg, overflow: 'hidden' },
   imagePickerPreview: { width: '100%', height: '100%' },
   imagePickerText: { fontSize: FontSizes.xs, color: Colors.primary, fontWeight: '600', marginTop: 4 },

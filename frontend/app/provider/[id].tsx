@@ -8,6 +8,8 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
+  FlatList,
+  Image as RNImage,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -16,8 +18,9 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { Button } from '../../src/components/common';
 import { providerService } from '../../src/services/provider.service';
+import { feedService } from '../../src/services/feed.service';
 import { formatCurrency, formatPriceRange } from '../../src/utils/currency';
-import { Provider, Review } from '../../src/types';
+import { Provider, Review, Post } from '../../src/types';
 
 export default function ProviderProfile() {
   const router = useRouter();
@@ -27,6 +30,7 @@ export default function ProviderProfile() {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [portfolio, setPortfolio] = useState<string[]>([]);
   const [slots, setSlots] = useState<string[]>([]);
+  const [posts, setPosts] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,15 +43,34 @@ export default function ProviderProfile() {
       const profile = await providerService.getProviderFullProfile(id);
       const today = new Date().toISOString().slice(0, 10);
       const defaultDuration = profile.services[0]?.duration || 30;
-      const [reviewList, slotList, portfolioList] = await Promise.all([
+      const [reviewList, slotList, portfolioList, feedResponse] = await Promise.all([
         providerService.getProviderReviews(id).catch(() => []),
         providerService.getAvailableSlots(id, today, defaultDuration).catch(() => []),
         providerService.getProviderPortfolio(id).catch(() => []),
+        feedService.getFeed({ page: 1, per_page: 100 }).catch(() => ({ data: [] })),
       ]);
       setProvider(profile);
       setReviews(reviewList);
       setSlots(slotList);
       setPortfolio(portfolioList);
+      // Filter posts by this provider
+      console.log('[customer-provider-profile] profile.user_id:', profile.user_id, 'id param:', id);
+      console.log('[customer-provider-profile] total posts from API:', feedResponse.data?.length);
+      const providerPosts = (feedResponse.data || []).filter(
+        (post: Post) => {
+          const matches = 
+            post.provider_auth_id === profile.user_id ||
+            post.provider?.id === id ||
+            post.user_id === profile.user_id ||
+            post.provider?.auth_id === profile.user_id;
+          if (matches) {
+            console.log('[customer-provider-profile] matched post:', post.id, 'provider_auth_id:', post.provider_auth_id, 'provider.id:', post.provider?.id);
+          }
+          return matches;
+        }
+      );
+      console.log('[customer-provider-profile] filtered posts:', providerPosts.length);
+      setPosts(providerPosts);
       if (profile.services.length > 0) {
         setSelectedServiceId((prev) => prev || profile.services[0].id);
       }
@@ -266,6 +289,37 @@ export default function ProviderProfile() {
               ))
             )}
           </View>
+
+          {/* Feed Posts */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Feed Posts ({posts.length})</Text>
+            {posts.length === 0 ? (
+              <Text style={styles.emptyInline}>No posts yet.</Text>
+            ) : (
+              <FlatList
+                data={posts}
+                scrollEnabled={false}
+                keyExtractor={(item) => String(item.id)}
+                renderItem={({ item }) => (
+                  <View style={styles.postCard}>
+                    {item.image_url && (
+                      <RNImage source={{ uri: item.image_url }} style={styles.postImage} resizeMode="cover" />
+                    )}
+                    {item.caption && (
+                      <Text style={styles.postCaption} numberOfLines={3}>
+                        {item.caption}
+                      </Text>
+                    )}
+                    <View style={styles.postMeta}>
+                      <Text style={styles.postMetaText}>
+                        {item.likes_count || 0} likes · {item.comments_count || 0} comments
+                      </Text>
+                    </View>
+                  </View>
+                )}
+              />
+            )}
+          </View>
         </View>
       </ScrollView>
 
@@ -463,6 +517,31 @@ const styles = StyleSheet.create({
   },
   reviewComment: {
     fontSize: FontSizes.sm,
+    color: Colors.textSecondary,
+  },
+  postCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.md,
+    marginBottom: Spacing.sm,
+    overflow: 'hidden',
+  },
+  postImage: {
+    width: '100%',
+    height: 200,
+  },
+  postCaption: {
+    fontSize: FontSizes.sm,
+    color: Colors.text,
+    padding: Spacing.sm,
+    lineHeight: 20,
+  },
+  postMeta: {
+    flexDirection: 'row',
+    paddingHorizontal: Spacing.sm,
+    paddingBottom: Spacing.sm,
+  },
+  postMetaText: {
+    fontSize: FontSizes.xs,
     color: Colors.textSecondary,
   },
   footer: {

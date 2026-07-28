@@ -19,6 +19,34 @@ export interface ChatMessage {
  * (verified: Postgres error 42501).
  */
 export const chatService = {
+  async getConversations(): Promise<any[]> {
+    const authId = await apiService.getAuthId();
+    if (!authId) return [];
+    // Get all unique conversation partners
+    const { data, error } = await supabase
+      .from('chats')
+      .select('*, sender_auth_id, receiver_auth_id')
+      .or(`sender_auth_id.eq.${authId},receiver_auth_id.eq.${authId}`)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    // Group by counterpart and get latest message
+    const conversations = new Map();
+    for (const msg of data || []) {
+      const counterpartId = msg.sender_auth_id === authId ? msg.receiver_auth_id : msg.sender_auth_id;
+      if (!conversations.has(counterpartId)) {
+        conversations.set(counterpartId, {
+          id: counterpartId,
+          counterpart_auth_id: counterpartId,
+          last_message: msg,
+          unread_count: 0,
+        });
+      }
+    }
+    return Array.from(conversations.values());
+  },
+
   async getThread(counterpartAuthId: string): Promise<ChatMessage[]> {
     const authId = await apiService.getAuthId();
     if (!authId) return [];

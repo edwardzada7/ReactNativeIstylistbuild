@@ -10,6 +10,7 @@ export interface Product {
   image_urls: string[] | null;
   stylist_auth_id: string;
   approved: boolean;
+  category?: string | null;
   created_at: string;
 }
 

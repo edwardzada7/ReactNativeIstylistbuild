@@ -27,6 +27,10 @@ export default function EditProfile() {
   const [form, setForm] = useState({
     full_name: user?.full_name || '',
     phone: user?.phone || '',
+    country: user?.country || '',
+    state: user?.state || '',
+    city: user?.city || '',
+    address: user?.address || '',
   });
   const [gender, setGender] = useState<string | undefined>(user?.gender);
   const [saving, setSaving] = useState(false);
@@ -37,7 +41,14 @@ export default function EditProfile() {
   // real profile loads a moment later.
   useEffect(() => {
     if (user) {
-      setForm({ full_name: user.full_name || '', phone: user.phone || '' });
+      setForm({
+        full_name: user.full_name || '',
+        phone: user.phone || '',
+        country: user.country || '',
+        state: user.state || '',
+        city: user.city || '',
+        address: user.address || '',
+      });
       setGender(user.gender);
     }
   }, [user]);
@@ -54,6 +65,10 @@ export default function EditProfile() {
         name: form.full_name.trim(),
         phone: form.phone.trim() || undefined,
         gender,
+        country: form.country.trim() || undefined,
+        state: form.state.trim() || undefined,
+        city: form.city.trim() || undefined,
+        address: form.address.trim() || undefined,
       });
       await refreshUser();
       Alert.alert('Saved', 'Your profile has been updated.', [
@@ -92,6 +107,34 @@ export default function EditProfile() {
             placeholder="e.g. +2348011122233"
             keyboardType="phone-pad"
             icon="call-outline"
+          />
+          <Input
+            label="Country"
+            value={form.country}
+            onChangeText={(v) => setForm((f) => ({ ...f, country: v }))}
+            placeholder="e.g. Nigeria"
+            icon="globe-outline"
+          />
+          <Input
+            label="State/Province"
+            value={form.state}
+            onChangeText={(v) => setForm((f) => ({ ...f, state: v }))}
+            placeholder="e.g. Lagos"
+            icon="map-outline"
+          />
+          <Input
+            label="City"
+            value={form.city}
+            onChangeText={(v) => setForm((f) => ({ ...f, city: v }))}
+            placeholder="e.g. Ikeja"
+            icon="location-outline"
+          />
+          <Input
+            label="Address"
+            value={form.address}
+            onChangeText={(v) => setForm((f) => ({ ...f, address: v }))}
+            placeholder="Street address"
+            icon="home-outline"
           />
           <Text style={styles.label}>Gender</Text>
           <View style={styles.chipRow}>
