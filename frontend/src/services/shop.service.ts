@@ -86,29 +86,33 @@ export const shopService = {
   },
 
   async initializeFlutterwaveCheckout(input: {
-    items: { product_id: number; quantity: number }[];
     amount: number;
     email: string;
+    purpose: 'wallet_topup';
     name?: string;
     phone?: string;
-    public_key?: string;
     redirect_url?: string;
     currency?: string;
   }): Promise<{ status: boolean; authorization_url?: string; tx_ref?: string; message?: string }> {
-    return localApiService.post('/shop/payments/flutterwave/initialize', input);
+    return apiService.post('/payments/flutterwave/initialize', input);
   },
 
   async verifyFlutterwaveCheckout(input: {
     reference: string;
     transaction_id?: string | null;
-    items: { product_id: number; quantity: number }[];
-    amount: number;
+    items?: { product_id: number; quantity: number }[];
+    amount?: number;
     email?: string;
     name?: string;
     phone?: string;
     currency?: string;
   }): Promise<{ status: string; message?: string; order?: any }> {
-    return localApiService.post('/shop/payments/flutterwave/verify', input);
+    return apiService.get('/payments/flutterwave/verify', {
+      params: {
+        reference: input.reference,
+        ...(input.transaction_id ? { transaction_id: input.transaction_id } : {}),
+      },
+    });
   },
 
   async getMyOrders(): Promise<Order[]> {

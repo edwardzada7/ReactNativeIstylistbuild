@@ -11,7 +11,8 @@ import { shopService } from '../../src/services/shop.service';
 import { useCartStore } from '../../src/store/cartStore';
 import { formatCurrency } from '../../src/utils/currency';
 
-const REDIRECT_URL = 'https://example.com/shop/checkout/callback';
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8001/api';
+const REDIRECT_URL = `${API_BASE_URL.replace(/\/api\/?$/, '')}/wallet`;
 type CheckoutStep = 'cart' | 'checkout' | 'success' | 'failed' | 'cancelled';
 
 export default function Cart() {
@@ -45,12 +46,11 @@ export default function Cart() {
     setError(null);
     try {
       const response = await shopService.initializeFlutterwaveCheckout({
-        items,
         amount,
         email: user.email,
+        purpose: 'wallet_topup',
         name: user.full_name,
         phone: user.phone || undefined,
-        public_key: process.env.EXPO_PUBLIC_FLUTTERWAVE_PUBLIC_KEY || undefined,
         redirect_url: REDIRECT_URL,
         currency: 'NGN',
       });
@@ -96,23 +96,12 @@ export default function Cart() {
         setStep('failed');
         return false;
       }
-      if (!reference || !transactionId) {
-        setError('Payment confirmation was incomplete. Please try again.');
-        setStep('failed');
-        return false;
-      }
 
       setVerifying(true);
       shopService
         .verifyFlutterwaveCheckout({
-          reference,
+          reference: reference || '',
           transaction_id: transactionId,
-          items: pendingItems,
-          amount: pendingAmount || total(),
-          email: user?.email,
-          name: user?.full_name,
-          phone: user?.phone || undefined,
-          currency: 'NGN',
         })
         .then((res) => {
           if (res?.status === 'success') {
