@@ -232,9 +232,11 @@ export default function Feed() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Feed</Text>
-      </View>
+      {!isProvider && (
+        <View style={styles.header}>
+          <Text style={styles.title}>Feed</Text>
+        </View>
+      )}
 
       {loading ? (
         <View style={styles.centerState}>
