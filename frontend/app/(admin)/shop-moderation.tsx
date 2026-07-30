@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -30,8 +31,7 @@ export default function ShopModeration() {
   const loadProducts = useCallback(async () => {
     try {
       setLoading(true);
-      // Get all products (including non-approved for moderation)
-      const response = await shopService.getProducts();
+      const response = await shopService.getProducts({ includeUnapproved: true, includeOutOfStock: true });
       setProducts(response || []);
     } catch (err) {
       console.error('[shop-moderation] failed to load', err);
@@ -46,19 +46,17 @@ export default function ShopModeration() {
     loadProducts();
   }, [loadProducts]);
 
-  const handleAction = async (product: Product, action: 'approve' | 'reject' | 'delete') => {
+  const handleAction = async (product: Product, action: 'approve' | 'reject') => {
     setActioningId(product.id);
     try {
-      if (action === 'delete') {
-        await shopService.deleteProduct(product.id);
-        setProducts((prev) => prev.filter((p) => p.id !== product.id));
-      } else if (action === 'approve') {
-        await shopService.updateProduct(product.id, { approved: true });
-        setProducts((prev) => prev.map((p) => (p.id === product.id ? { ...p, approved: true } : p)));
-      } else if (action === 'reject') {
-        await shopService.updateProduct(product.id, { approved: false });
-        setProducts((prev) => prev.map((p) => (p.id === product.id ? { ...p, approved: false } : p)));
-      }
+      const nextApproved = action === 'approve';
+      const nextStatus = nextApproved ? 'approved' : 'rejected';
+      await shopService.updateProduct(product.id, {
+        approved: nextApproved,
+        moderation_status: nextStatus as 'pending' | 'approved' | 'rejected',
+        status: nextStatus,
+      });
+      setProducts((prev) => prev.map((p) => (p.id === product.id ? { ...p, approved: nextApproved, moderation_status: nextStatus as 'pending' | 'approved' | 'rejected', status: nextStatus } : p)));
     } catch (err: any) {
       Alert.alert('Error', err?.friendlyMessage || 'Could not perform this action.');
     } finally {
@@ -68,9 +66,9 @@ export default function ShopModeration() {
 
   const filteredProducts = products.filter((product) => {
     if (filter === 'all') return true;
-    if (filter === 'pending') return !product.approved;
-    if (filter === 'approved') return product.approved;
-    if (filter === 'rejected') return !product.approved;
+    if (filter === 'pending') return !product.approved && (product.moderation_status || 'pending') === 'pending';
+    if (filter === 'approved') return product.approved || (product.moderation_status || 'approved') === 'approved';
+    if (filter === 'rejected') return (product.moderation_status || 'rejected') === 'rejected';
     return true;
   });
 
@@ -114,6 +112,13 @@ export default function ShopModeration() {
           keyExtractor={(item) => String(item.id)}
           renderItem={({ item }) => (
             <View style={styles.card}>
+              {item.image_urls?.[0] ? (
+                <Image source={{ uri: item.image_urls[0] }} style={styles.cardImage} />
+              ) : (
+                <View style={styles.cardImagePlaceholder}>
+                  <Ionicons name="image-outline" size={28} color={Colors.textMuted} />
+                </View>
+              )}
               <View style={styles.cardContent}>
                 <Text style={styles.cardName}>{item.name}</Text>
                 <Text style={styles.cardDescription} numberOfLines={2}>
@@ -123,9 +128,12 @@ export default function ShopModeration() {
                   <Text style={styles.cardPrice}>{formatCurrency(item.price)}</Text>
                   <Text style={styles.cardStock}>{item.stock} in stock</Text>
                 </View>
+                <Text style={styles.cardMeta}>Category: {item.category || 'Uncategorized'}</Text>
+                <Text style={styles.cardMeta}>Seller: {item.stylist_auth_id || 'Unknown'}</Text>
+                <Text style={styles.cardMeta}>Created: {item.created_at ? new Date(item.created_at).toLocaleDateString() : 'Unknown'}</Text>
                 <View style={[styles.statusBadge, { backgroundColor: item.approved ? `${Colors.success}20` : `${Colors.warning}20` }]}>
                   <Text style={[styles.statusText, { color: item.approved ? Colors.success : Colors.warning }]}>
-                    {item.approved ? 'Approved' : 'Pending'}
+                    {item.approved ? 'Approved' : (item.moderation_status === 'rejected' ? 'Rejected' : 'Pending')}
                   </Text>
                 </View>
                 <View style={styles.cardActions}>
@@ -146,14 +154,6 @@ export default function ShopModeration() {
                   >
                     <Ionicons name="close" size={16} color="#fff" />
                     <Text style={styles.actionBtnText}>Reject</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.actionBtn, styles.deleteBtn]}
-                    onPress={() => handleAction(item, 'delete')}
-                    disabled={actioningId === item.id}
-                  >
-                    <Ionicons name="trash" size={16} color="#fff" />
-                    <Text style={styles.actionBtnText}>Delete</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -210,6 +210,13 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
     overflow: 'hidden',
   },
+  cardImage: { width: '100%', height: 180, resizeMode: 'cover' },
+  cardImagePlaceholder: {
+    height: 180,
+    backgroundColor: Colors.background,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   cardContent: { padding: Spacing.md },
   cardName: { fontSize: FontSizes.md, fontWeight: '600', color: Colors.text, marginBottom: 4 },
   cardDescription: { fontSize: FontSizes.sm, color: Colors.textSecondary, marginBottom: Spacing.sm },
@@ -240,6 +247,5 @@ const styles = StyleSheet.create({
   },
   actionBtnText: { fontSize: FontSizes.xs, fontWeight: '600', color: '#fff' },
   approveBtn: { backgroundColor: Colors.success },
-  rejectBtn: { backgroundColor: Colors.warning },
-  deleteBtn: { backgroundColor: Colors.error },
+  rejectBtn: { backgroundColor: Colors.error },
 });

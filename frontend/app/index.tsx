@@ -15,9 +15,9 @@ export default function Index() {
     if (!isLoading) {
       const timer = setTimeout(() => {
         if (isAuthenticated) {
-          // Route each role to its own dashboard. Admin has no dedicated
-          // mobile UI yet, so it falls back to the customer tabs.
-          if (user?.role === 'provider') {
+          if (user?.role === 'admin') {
+            router.replace('/(admin)/feed-moderation');
+          } else if (user?.role === 'provider') {
             router.replace('/(provider)/dashboard');
           } else {
             router.replace('/(tabs)');

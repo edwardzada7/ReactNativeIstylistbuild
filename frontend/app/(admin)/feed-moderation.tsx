@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Alert,
   RefreshControl,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -26,7 +27,7 @@ export default function FeedModeration() {
   const loadPosts = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await feedService.getFeed({ page: 1, per_page: 50 });
+      const response = await feedService.getModerationPosts({ page: 1, per_page: 50 });
       setPosts(response.data || []);
     } catch (err) {
       console.error('[feed-moderation] failed to load', err);
@@ -41,13 +42,11 @@ export default function FeedModeration() {
     loadPosts();
   }, [loadPosts]);
 
-  const handleAction = async (post: Post, action: 'delete') => {
+  const handleAction = async (post: Post, action: 'approve' | 'reject') => {
     setActioningId(String(post.id));
     try {
-      if (action === 'delete') {
-        await feedService.deletePost(String(post.id));
-        setPosts((prev) => prev.filter((p) => p.id !== post.id));
-      }
+      await feedService.updatePostModeration(String(post.id), action);
+      setPosts((prev) => prev.filter((p) => String(p.id) !== String(post.id)));
     } catch (err: any) {
       Alert.alert('Error', err?.friendlyMessage || 'Could not perform this action.');
     } finally {
@@ -56,7 +55,6 @@ export default function FeedModeration() {
   };
 
   const filteredPosts = posts.filter((post) => {
-    // Only show active posts since backend has no approve/reject workflow
     return post.is_active !== false;
   });
 
@@ -77,7 +75,7 @@ export default function FeedModeration() {
       ) : filteredPosts.length === 0 ? (
         <View style={styles.centerState}>
           <Ionicons name="images-outline" size={48} color={Colors.textMuted} />
-          <Text style={styles.emptyText}>No posts found</Text>
+          <Text style={styles.emptyText}>No posts pending moderation</Text>
         </View>
       ) : (
         <FlatList
@@ -85,9 +83,11 @@ export default function FeedModeration() {
           keyExtractor={(item) => String(item.id)}
           renderItem={({ item }) => (
             <View style={styles.card}>
-              {item.image_url && (
+              {item.image_url ? (
+                <Image source={{ uri: item.image_url }} style={styles.cardImage} />
+              ) : (
                 <View style={styles.cardImageContainer}>
-                  <Text style={styles.cardImagePlaceholder}>Image</Text>
+                  <Ionicons name="image-outline" size={28} color={Colors.textMuted} />
                 </View>
               )}
               <View style={styles.cardContent}>
@@ -95,16 +95,30 @@ export default function FeedModeration() {
                   {item.caption || 'No caption'}
                 </Text>
                 <Text style={styles.cardMeta}>
-                  By: {item.provider?.name || 'Unknown'} • {item.likes_count || 0} likes
+                  Author: {item.provider?.name || item.provider?.display_name || item.provider?.business_name || 'Unknown'}
                 </Text>
+                <Text style={styles.cardMeta}>
+                  Created: {item.created_at ? new Date(item.created_at).toLocaleDateString() : 'Unknown'}
+                </Text>
+                <View style={styles.statusBadge}>
+                  <Text style={styles.statusText}>Pending Review</Text>
+                </View>
                 <View style={styles.cardActions}>
                   <TouchableOpacity
-                    style={[styles.actionBtn, styles.deleteBtn]}
-                    onPress={() => handleAction(item, 'delete')}
+                    style={[styles.actionBtn, styles.approveBtn]}
+                    onPress={() => handleAction(item, 'approve')}
                     disabled={actioningId === String(item.id)}
                   >
-                    <Ionicons name="trash" size={16} color="#fff" />
-                    <Text style={styles.actionBtnText}>Delete</Text>
+                    <Ionicons name="checkmark" size={16} color="#fff" />
+                    <Text style={styles.actionBtnText}>Approve</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.actionBtn, styles.rejectBtn]}
+                    onPress={() => handleAction(item, 'reject')}
+                    disabled={actioningId === String(item.id)}
+                  >
+                    <Ionicons name="close" size={16} color="#fff" />
+                    <Text style={styles.actionBtnText}>Reject</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -144,16 +158,25 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
     overflow: 'hidden',
   },
+  cardImage: { width: '100%', height: 180, resizeMode: 'cover' },
   cardImageContainer: {
-    height: 150,
+    height: 180,
     backgroundColor: Colors.surfaceLight,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  cardImagePlaceholder: { fontSize: FontSizes.sm, color: Colors.textMuted },
   cardContent: { padding: Spacing.md },
   cardCaption: { fontSize: FontSizes.md, fontWeight: '600', color: Colors.text, marginBottom: Spacing.xs },
-  cardMeta: { fontSize: FontSizes.xs, color: Colors.textSecondary, marginBottom: Spacing.sm },
+  cardMeta: { fontSize: FontSizes.xs, color: Colors.textSecondary, marginBottom: Spacing.xs },
+  statusBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: `${Colors.warning}20`,
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.sm,
+    marginBottom: Spacing.sm,
+  },
+  statusText: { fontSize: FontSizes.xs, fontWeight: '700', color: Colors.warning },
   cardActions: { flexDirection: 'row', gap: Spacing.sm },
   actionBtn: {
     flex: 1,
@@ -165,5 +188,6 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.sm,
   },
   actionBtnText: { fontSize: FontSizes.xs, fontWeight: '600', color: '#fff' },
-  deleteBtn: { backgroundColor: Colors.error },
+  approveBtn: { backgroundColor: Colors.success },
+  rejectBtn: { backgroundColor: Colors.error },
 });

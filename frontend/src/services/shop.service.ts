@@ -11,6 +11,8 @@ export interface Product {
   stylist_auth_id: string;
   approved: boolean;
   category?: string | null;
+  moderation_status?: 'pending' | 'approved' | 'rejected';
+  status?: string;
   created_at: string;
 }
 
@@ -48,13 +50,18 @@ export interface Order {
  * `orders`/`order_items` (verified: Postgres error 42501).
  */
 export const shopService = {
-  async getProducts(): Promise<Product[]> {
-    const { data, error } = await supabase
-      .from('products')
-      .select('*')
-      .eq('approved', true)
-      .gt('stock', 0)
-      .order('created_at', { ascending: false });
+  async getProducts(params?: { includeUnapproved?: boolean; includeOutOfStock?: boolean }): Promise<Product[]> {
+    let query = supabase.from('products').select('*');
+
+    if (!params?.includeUnapproved) {
+      query = query.eq('approved', true);
+    }
+
+    if (!params?.includeOutOfStock) {
+      query = query.gt('stock', 0);
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: false });
     if (error) throw error;
     return data || [];
   },
@@ -87,7 +94,7 @@ export const shopService = {
     return data;
   },
 
-  async updateProduct(id: number, input: Partial<{ name: string; description: string; price: number; stock: number; image_urls: string[] }>): Promise<void> {
+  async updateProduct(id: number, input: Partial<{ name: string; description: string; price: number; stock: number; image_urls: string[]; approved: boolean; moderation_status: 'pending' | 'approved' | 'rejected' }>): Promise<void> {
     const { error } = await supabase.from('products').update(input).eq('id', id);
     if (error) throw error;
   },

@@ -57,7 +57,9 @@ export default function VerifyOTP() {
         {
           text: 'OK',
           onPress: () =>
-            router.replace(profile?.role === 'provider' ? '/(provider)/dashboard' : '/(tabs)'),
+            profile?.role === 'admin'
+              ? router.replace('/(admin)/feed-moderation')
+              : router.replace(profile?.role === 'provider' ? '/(provider)/dashboard' : '/(tabs)'),
         },
       ]);
     } catch (error: any) {

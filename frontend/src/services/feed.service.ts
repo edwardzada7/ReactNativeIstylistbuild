@@ -1,17 +1,41 @@
 import apiService from './api';
 import { Post, Comment, PaginatedResponse } from '../types';
 
+const normalizePostModeration = (post: Partial<Post> & { approved?: boolean; moderation_status?: string; status?: string }) => {
+  const candidate = (post.moderation_status || post.status || '').toLowerCase();
+  if (post.is_active === true || post.approved === true || candidate === 'approved') return 'approved';
+  if (post.is_active === false || post.approved === false || candidate === 'rejected') return 'rejected';
+  return 'pending';
+};
+
+const isPubliclyVisiblePost = (post: Partial<Post> & { approved?: boolean; moderation_status?: string; status?: string }) => {
+  return normalizePostModeration(post) === 'approved';
+};
+
 export const feedService = {
   // Get feed posts. Web backend returns { posts: [...], total, limit, offset }
   async getFeed(params?: { page?: number; per_page?: number }): Promise<PaginatedResponse<Post>> {
     const response = await apiService.get<any>('/feed/posts', { params });
-    // Transform web backend response to mobile format
+    const posts = Array.isArray(response?.posts) ? response.posts : Array.isArray(response?.data) ? response.data : [];
+    // Only show posts that are explicitly approved in the public UI.
     return {
-      data: response.posts || [],
-      total: response.total || 0,
+      data: posts.filter(isPubliclyVisiblePost),
+      total: response.total || posts.length || 0,
       page: params?.page || 1,
       per_page: params?.per_page || 20,
-      total_pages: Math.ceil((response.total || 0) / (params?.per_page || 20)),
+      total_pages: Math.ceil((response.total || posts.length || 0) / (params?.per_page || 20)),
+    };
+  },
+
+  async getModerationPosts(params?: { page?: number; per_page?: number }): Promise<PaginatedResponse<Post>> {
+    const response = await apiService.get<any>('/feed/posts', { params });
+    const posts = Array.isArray(response?.posts) ? response.posts : Array.isArray(response?.data) ? response.data : [];
+    return {
+      data: posts.filter((post) => normalizePostModeration(post as any) !== 'approved'),
+      total: response.total || posts.length || 0,
+      page: params?.page || 1,
+      per_page: params?.per_page || 20,
+      total_pages: Math.ceil((response.total || posts.length || 0) / (params?.per_page || 20)),
     };
   },
 
@@ -63,6 +87,17 @@ export const feedService = {
     const authId = await apiService.getAuthId();
     if (!authId) throw new Error('Not authenticated');
     return await apiService.put<Post>(`/feed/posts/${postId}?auth_id=${authId}`, { caption, image_url });
+  },
+
+  async updatePostModeration(postId: string, action: 'approve' | 'reject'): Promise<void> {
+    const authId = await apiService.getAuthId();
+    if (!authId) throw new Error('Not authenticated');
+    const nextStatus = action === 'approve' ? 'approved' : 'rejected';
+    await apiService.put(`/feed/posts/${postId}?auth_id=${authId}`, {
+      is_active: action === 'approve',
+      moderation_status: nextStatus,
+      status: nextStatus,
+    });
   },
 };
 

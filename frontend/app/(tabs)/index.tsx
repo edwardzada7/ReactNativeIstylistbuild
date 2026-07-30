@@ -84,21 +84,43 @@ export default function Home() {
   const goToCategory = (categoryName: string) =>
     router.push({ pathname: '/(tabs)/search', params: { category: categoryName } });
 
-  const renderCategoryCard = ({ item }: { item: Category }) => (
-    <TouchableOpacity
-      style={styles.categoryCard}
-      onPress={() => goToCategory(item.name)}
-      accessibilityRole="button"
-      accessibilityLabel={item.name}
-    >
-      <View style={styles.categoryIcon}>
-        <Ionicons name={item.icon as any} size={28} color={Colors.primary} />
-      </View>
-      <Text style={styles.categoryName} numberOfLines={1}>
-        {item.name}
-      </Text>
-    </TouchableOpacity>
-  );
+  const renderCategoryCard = ({ item }: { item: Category }) => {
+    const iconName = (() => {
+      switch (item.name) {
+        case 'Beauty & Grooming':
+          return 'sparkles';
+        case 'Body & Aesthetic':
+        case 'Body & Aesthetics':
+          return 'body-outline';
+        case 'Wellness & Care':
+          return 'heart-outline';
+        case 'Fashion & Bridal':
+          return 'diamond-outline';
+        case 'Events & Entertainment':
+          return 'calendar-outline';
+        case 'Classes & Learning':
+          return 'school-outline';
+        default:
+          return (item.icon as any) || 'grid-outline';
+      }
+    })();
+
+    return (
+      <TouchableOpacity
+        style={styles.categoryCard}
+        onPress={() => goToCategory(item.name)}
+        accessibilityRole="button"
+        accessibilityLabel={item.name}
+      >
+        <View style={styles.categoryIcon}>
+          <Ionicons name={iconName as any} size={28} color={Colors.primary} />
+        </View>
+        <Text style={styles.categoryName} numberOfLines={1}>
+          {item.name}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
 
   const renderProviderCard = (item: Provider) => (
     <TouchableOpacity

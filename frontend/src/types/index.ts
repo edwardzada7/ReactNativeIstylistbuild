@@ -234,6 +234,9 @@ export interface Post {
   is_liked?: boolean;
   liked_by_me?: boolean;
   is_active?: boolean;
+  approved?: boolean;
+  moderation_status?: 'pending' | 'approved' | 'rejected';
+  status?: string;
   provider_auth_id?: string;
   provider?: {
     id: string;

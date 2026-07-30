@@ -48,6 +48,7 @@ export default function RootLayout() {
           <Stack.Screen name="(auth)" />
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="(provider)" />
+          <Stack.Screen name="(admin)" />
         </Stack>
       </AuthProvider>
     </QueryClientProvider>

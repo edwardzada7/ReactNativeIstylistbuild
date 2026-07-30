@@ -76,7 +76,11 @@ export default function Signup() {
           params: { email: formData.email },
         });
       } else {
-        router.replace(newUser?.role === 'provider' ? '/(provider)/dashboard' : '/(tabs)');
+        if (newUser?.role === 'admin') {
+          router.replace('/(admin)/feed-moderation');
+        } else {
+          router.replace(newUser?.role === 'provider' ? '/(provider)/dashboard' : '/(tabs)');
+        }
       }
     } catch (error: any) {
       Alert.alert(

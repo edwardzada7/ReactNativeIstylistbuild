@@ -55,7 +55,11 @@ export default function Login() {
         Alert.alert('Login Failed', 'Could not load your account profile. Please try again.');
         return;
       }
-      router.replace(profile.role === 'provider' ? '/(provider)/dashboard' : '/(tabs)');
+      if (profile.role === 'admin') {
+        router.replace('/(admin)/feed-moderation');
+      } else {
+        router.replace(profile.role === 'provider' ? '/(provider)/dashboard' : '/(tabs)');
+      }
     } catch (error: any) {
       Alert.alert(
         'Login Failed',
