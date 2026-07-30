@@ -16,6 +16,7 @@ import { useAuth } from '../../src/contexts/AuthContext';
 import { bookingService } from '../../src/services/booking.service';
 import { providerService } from '../../src/services/provider.service';
 import { notificationService } from '../../src/services/notification.service';
+import { shopService, Order } from '../../src/services/shop.service';
 import { formatCurrency } from '../../src/utils/currency';
 import { Booking, Provider } from '../../src/types';
 
@@ -36,6 +37,7 @@ export default function ProviderDashboard() {
   const providerId = user?.id;
 
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [shopOrders, setShopOrders] = useState<Order[]>([]);
   const [profile, setProfile] = useState<Provider | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -59,7 +61,12 @@ export default function ProviderDashboard() {
         bookingService.getBookings({ role: 'provider' }),
         providerService.getProviderFullProfile(providerId).catch(() => null),
       ]);
+      let providerOrders: Order[] = [];
+      if (user?.auth_id) {
+        providerOrders = await shopService.getProviderOrders(user.auth_id).catch(() => []);
+      }
       setBookings(bookingList);
+      setShopOrders(providerOrders);
       setProfile(providerProfile);
       await refreshUnreadCount();
     } catch (err: any) {
@@ -69,7 +76,7 @@ export default function ProviderDashboard() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [providerId]);
+  }, [providerId, user?.auth_id, refreshUnreadCount]);
 
   // Refresh dashboard stats every time it regains focus - covers a
   // just-paid booking, a status change made on the Bookings tab, or an
@@ -103,6 +110,14 @@ export default function ProviderDashboard() {
     const pendingPayout = upcoming.reduce((sum, b) => sum + (b.total_amount || 0), 0);
     return { todays, pending, upcoming, completed, cancelled, totalEarnings, pendingPayout };
   }, [bookings]);
+
+  const orderStats = useMemo(() => {
+    const total = shopOrders.length;
+    const pending = shopOrders.filter((order) => ['pending', 'accepted'].includes((order.status || '').toLowerCase())).length;
+    const processing = shopOrders.filter((order) => ['processing', 'ready'].includes((order.status || '').toLowerCase())).length;
+    const delivered = shopOrders.filter((order) => (order.status || '').toLowerCase() === 'delivered').length;
+    return { total, pending, processing, delivered };
+  }, [shopOrders]);
 
   const quickActions = [
     { icon: 'time-outline', label: 'Availability', onPress: () => router.push('/(provider)/availability') },
@@ -216,6 +231,36 @@ export default function ProviderDashboard() {
             ))}
           </View>
         </View>
+
+        <TouchableOpacity
+          style={styles.ordersCard}
+          onPress={() => router.push('/(provider)/orders')}
+          accessibilityRole="button"
+          accessibilityLabel="Orders"
+        >
+          <View style={styles.ordersCardHeader}>
+            <Text style={styles.sectionTitle}>Orders</Text>
+            <Ionicons name="chevron-forward-outline" size={18} color={Colors.textSecondary} />
+          </View>
+          <View style={styles.ordersMetrics}>
+            <View style={styles.ordersMetricBlock}>
+              <Text style={styles.ordersMetricValue}>{orderStats.total}</Text>
+              <Text style={styles.ordersMetricLabel}>Total Orders</Text>
+            </View>
+            <View style={styles.ordersMetricBlock}>
+              <Text style={styles.ordersMetricValue}>{orderStats.pending}</Text>
+              <Text style={styles.ordersMetricLabel}>Pending Orders</Text>
+            </View>
+            <View style={styles.ordersMetricBlock}>
+              <Text style={styles.ordersMetricValue}>{orderStats.processing}</Text>
+              <Text style={styles.ordersMetricLabel}>Processing Orders</Text>
+            </View>
+            <View style={styles.ordersMetricBlock}>
+              <Text style={styles.ordersMetricValue}>{orderStats.delivered}</Text>
+              <Text style={styles.ordersMetricLabel}>Delivered Orders</Text>
+            </View>
+          </View>
+        </TouchableOpacity>
 
         {/* Booking summary rows */}
         {[
@@ -332,6 +377,41 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   section: { marginBottom: Spacing.lg, paddingHorizontal: Spacing.lg },
+  ordersCard: {
+    backgroundColor: Colors.surface,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.lg,
+  },
+  ordersCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Spacing.sm,
+  },
+  ordersMetrics: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+  },
+  ordersMetricBlock: {
+    flexBasis: '47%',
+    flexGrow: 1,
+    backgroundColor: Colors.background,
+    borderRadius: BorderRadius.sm,
+    padding: Spacing.sm,
+  },
+  ordersMetricValue: {
+    fontSize: FontSizes.md,
+    fontWeight: '700',
+    color: Colors.primary,
+  },
+  ordersMetricLabel: {
+    fontSize: FontSizes.xs,
+    color: Colors.textSecondary,
+    marginTop: 4,
+  },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
