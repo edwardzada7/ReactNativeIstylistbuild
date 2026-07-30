@@ -3,6 +3,7 @@ import {
   View,
   Text,
   StyleSheet,
+  Image,
   KeyboardAvoidingView,
   Platform,
   TouchableOpacity,
@@ -12,6 +13,7 @@ import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, FontSizes, Spacing } from '../../src/constants/theme';
+import { BrandAssets } from '../../src/constants/brand';
 import { Button, Input } from '../../src/components/common';
 import { authService } from '../../src/services/auth.service';
 
@@ -70,7 +72,7 @@ export default function ForgotPassword() {
 
           <View style={styles.header}>
             <View style={styles.iconContainer}>
-              <Ionicons name="lock-closed-outline" size={48} color={Colors.primary} />
+              <Image source={BrandAssets.logo} style={styles.logo} resizeMode="contain" />
             </View>
             <Text style={styles.title}>Forgot Password?</Text>
             <Text style={styles.subtitle}>
@@ -135,6 +137,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: Spacing.lg,
+  },
+  logo: {
+    width: 72,
+    height: 72,
   },
   title: {
     fontSize: FontSizes.xxl,

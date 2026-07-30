@@ -3,6 +3,7 @@ import {
   View,
   Text,
   StyleSheet,
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -12,6 +13,7 @@ import {
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, FontSizes, Spacing } from '../../src/constants/theme';
+import { BrandAssets } from '../../src/constants/brand';
 import { Button, Input } from '../../src/components/common';
 import { useAuth } from '../../src/contexts/AuthContext';
 
@@ -81,7 +83,10 @@ export default function Login() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.header}>
-            <Text style={styles.title}>Welcome Back! 👋</Text>
+            <View style={styles.logoWrap}>
+              <Image source={BrandAssets.logo} style={styles.logo} resizeMode="contain" />
+            </View>
+            <Text style={styles.title}>Welcome Back</Text>
             <Text style={styles.subtitle}>Sign in to continue</Text>
           </View>
 
@@ -156,6 +161,14 @@ const styles = StyleSheet.create({
   header: {
     marginTop: Spacing.xxl,
     marginBottom: Spacing.xl,
+    alignItems: 'center',
+  },
+  logoWrap: {
+    marginBottom: Spacing.lg,
+  },
+  logo: {
+    width: 96,
+    height: 96,
   },
   title: {
     fontSize: FontSizes.xxxl,

@@ -227,7 +227,7 @@ Scan the QR code with:
 - **Android**: Expo Go app
 
 ### Building for Production
-Use the Emergent publish button (top right) to build:
+Use the Expo publish workflow to build:
 - Android APK/AAB
 - iOS IPA
 
@@ -245,4 +245,4 @@ Private - iStylist Mobile App
 
 ---
 
-**Built with ❤️ using Emergent AI**
+**Built with ❤️ for iStylist**

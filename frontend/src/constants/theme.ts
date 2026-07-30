@@ -1,22 +1,23 @@
+import { BrandColors } from './brand';
+
 export const Colors = {
-  primary: '#6C5CE7',
-  secondary: '#A29BFE',
-  accent: '#FD79A8',
-  background: '#0A0A0A',
-  surface: '#1A1A1A',
-  surfaceLight: '#2A2A2A',
-  text: '#FFFFFF',
-  textSecondary: '#B0B0B0',
-  textMuted: '#707070',
-  border: '#2A2A2A',
-  success: '#00D9A6',
-  warning: '#FDB03B',
-  error: '#FF6B6B',
-  info: '#4ECFFF',
+  primary: BrandColors.primaryPink,
+  secondary: BrandColors.primaryPurple,
+  accent: BrandColors.accentCyan,
+  background: BrandColors.backgroundWhite,
+  surface: '#F8F8FC',
+  surfaceLight: '#FFFFFF',
+  text: BrandColors.textPrimary,
+  textSecondary: BrandColors.textSecondary,
+  textMuted: '#9CA3AF',
+  border: BrandColors.border,
+  success: '#10B981',
+  warning: '#F59E0B',
+  error: '#EF4444',
+  info: BrandColors.accentCyan,
   
-  // Dark mode (default)
   dark: {
-    background: '#0A0A0A',
+    background: BrandColors.dark,
     surface: '#1A1A1A',
     surfaceLight: '#2A2A2A',
     text: '#FFFFFF',
@@ -24,14 +25,13 @@ export const Colors = {
     border: '#2A2A2A',
   },
   
-  // Light mode
   light: {
-    background: '#FFFFFF',
-    surface: '#F5F5F5',
-    surfaceLight: '#FAFAFA',
-    text: '#0A0A0A',
-    textSecondary: '#505050',
-    border: '#E0E0E0',
+    background: BrandColors.backgroundWhite,
+    surface: '#F8F8FC',
+    surfaceLight: '#FFFFFF',
+    text: BrandColors.textPrimary,
+    textSecondary: BrandColors.textSecondary,
+    border: BrandColors.border,
   },
 };
 

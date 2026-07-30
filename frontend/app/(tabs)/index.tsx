@@ -15,6 +15,7 @@ import { Image } from 'expo-image';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
+import { BrandAssets, BrandColors } from '../../src/constants/brand';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { providerService } from '../../src/services/provider.service';
 import { notificationService } from '../../src/services/notification.service';
@@ -187,9 +188,12 @@ export default function Home() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <View>
-            <Text style={styles.greeting}>Hello {user?.full_name || 'there'}! 👋</Text>
-            <Text style={styles.subGreeting}>Find your perfect style today</Text>
+          <View style={styles.brandHeaderContent}>
+            <Image source={BrandAssets.logo} style={styles.brandLogo} resizeMode="contain" />
+            <View>
+              <Text style={styles.greeting}>Hello {user?.full_name || 'there'}! 👋</Text>
+              <Text style={styles.subGreeting}>Find your perfect style today</Text>
+            </View>
           </View>
           <View style={styles.headerActions}>
             <TouchableOpacity
@@ -237,7 +241,7 @@ export default function Home() {
 
         {/* Banner */}
         <LinearGradient
-          colors={[Colors.primary, Colors.secondary]}
+          colors={[BrandColors.primaryPink, BrandColors.primaryPurple]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.banner}
@@ -256,7 +260,7 @@ export default function Home() {
               <Text style={styles.bannerButtonText}>Book Now</Text>
             </TouchableOpacity>
           </View>
-          <Text style={styles.bannerEmoji}>🎉</Text>
+          <Image source={BrandAssets.logo} style={styles.bannerLogo} resizeMode="contain" />
         </LinearGradient>
 
         {error && (

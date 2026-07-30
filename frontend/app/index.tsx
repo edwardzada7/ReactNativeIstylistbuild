@@ -4,6 +4,7 @@ import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { Colors, FontSizes, Spacing } from '../src/constants/theme';
+import { BrandAssets, BrandColors } from '../src/constants/brand';
 import { useAuth } from '../src/contexts/AuthContext';
 import { Loading } from '../src/components/common';
 
@@ -37,7 +38,7 @@ export default function Index() {
 
   return (
     <LinearGradient
-      colors={[Colors.primary, Colors.secondary, Colors.accent]}
+      colors={[BrandColors.primaryPink, BrandColors.primaryPurple, BrandColors.accentCyan]}
       style={styles.container}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
@@ -48,7 +49,7 @@ export default function Index() {
         style={styles.content}
       >
         <View style={styles.logoContainer}>
-          <Text style={styles.logo}>💇</Text>
+          <Image source={BrandAssets.logo} style={styles.logo} resizeMode="contain" />
         </View>
         <Text style={styles.title}>iStylist</Text>
         <Text style={styles.tagline}>Your Beauty & Style Partner</Text>
@@ -76,7 +77,8 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.lg,
   },
   logo: {
-    fontSize: 64,
+    width: 112,
+    height: 112,
   },
   title: {
     fontSize: FontSizes.xxxl,

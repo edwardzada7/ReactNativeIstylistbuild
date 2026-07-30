@@ -3,6 +3,7 @@ import {
   View,
   Text,
   StyleSheet,
+  Image,
   FlatList,
   Dimensions,
   TouchableOpacity,
@@ -12,6 +13,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
+import { BrandAssets } from '../../src/constants/brand';
 import { Button } from '../../src/components/common';
 
 const { width } = Dimensions.get('window');
@@ -63,7 +65,11 @@ export default function Onboarding() {
   const renderItem = ({ item }: { item: typeof slides[0] }) => (
     <View style={styles.slide}>
       <View style={styles.iconContainer}>
-        <Ionicons name={item.icon} size={80} color={Colors.primary} />
+        {item.id === '1' ? (
+          <Image source={BrandAssets.logo} style={styles.brandLogo} resizeMode="contain" />
+        ) : (
+          <Ionicons name={item.icon} size={80} color={Colors.primary} />
+        )}
       </View>
       <Text style={styles.title}>{item.title}</Text>
       <Text style={styles.description}>{item.description}</Text>
@@ -143,6 +149,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: Spacing.xl,
+  },
+  brandLogo: {
+    width: 104,
+    height: 104,
   },
   title: {
     fontSize: FontSizes.xxl,

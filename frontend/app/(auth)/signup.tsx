@@ -3,6 +3,7 @@ import {
   View,
   Text,
   StyleSheet,
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -13,6 +14,7 @@ import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, FontSizes, Spacing } from '../../src/constants/theme';
+import { BrandAssets } from '../../src/constants/brand';
 import { Button, Input } from '../../src/components/common';
 import { useAuth } from '../../src/contexts/AuthContext';
 
@@ -112,7 +114,10 @@ export default function Signup() {
           </TouchableOpacity>
 
           <View style={styles.header}>
-            <Text style={styles.title}>Create Account 🎉</Text>
+            <View style={styles.logoWrap}>
+              <Image source={BrandAssets.logo} style={styles.logo} resizeMode="contain" />
+            </View>
+            <Text style={styles.title}>Create Account</Text>
             <Text style={styles.subtitle}>Join the iStylist community</Text>
           </View>
 
@@ -248,6 +253,14 @@ const styles = StyleSheet.create({
   },
   header: {
     marginBottom: Spacing.lg,
+    alignItems: 'center',
+  },
+  logoWrap: {
+    marginBottom: Spacing.md,
+  },
+  logo: {
+    width: 88,
+    height: 88,
   },
   title: {
     fontSize: FontSizes.xxxl,
