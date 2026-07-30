@@ -119,6 +119,11 @@ class ApiService {
     return response.data;
   }
 
+  async patch<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
+    const response = await this.client.patch<T>(url, data, config);
+    return response.data;
+  }
+
   async put<T = any>(url: string, data?: any, config?: AxiosRequestConfig): Promise<T> {
     const response = await this.client.put<T>(url, data, config);
     return response.data;
@@ -154,6 +159,11 @@ class LocalApiService {
   }
   async post<T = any>(url: string, data?: any): Promise<T> {
     const response = await this.client.post<T>(url, data);
+    return response.data;
+  }
+
+  async patch<T = any>(url: string, data?: any): Promise<T> {
+    const response = await this.client.patch<T>(url, data);
     return response.data;
   }
 }

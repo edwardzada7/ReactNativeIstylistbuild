@@ -103,10 +103,30 @@ export default function Cart() {
           reference: reference || '',
           transaction_id: transactionId,
         })
-        .then((res) => {
+        .then(async (res) => {
           if (res?.status === 'success') {
-            clear();
-            setStep('success');
+            try {
+              const orderItems = pendingItems.map((item) => ({ product_id: item.product_id, quantity: item.quantity }));
+              const providerAuthId = lines.find((line) => line.stylistAuthId)?.stylistAuthId;
+              const subtotal = pendingAmount ?? total();
+              await shopService.createOrder({
+                items: orderItems,
+                payment_reference: reference || transactionId || undefined,
+                payment_status: 'verified',
+                subtotal,
+                delivery_fee: 0,
+                total_amount: subtotal,
+                customer_name: user?.full_name || user?.email || undefined,
+                provider_auth_id: providerAuthId,
+                order_status: 'pending',
+              });
+              clear();
+              setStep('success');
+            } catch (orderErr: any) {
+              const message = orderErr?.friendlyMessage || orderErr?.response?.data?.detail || orderErr?.message || 'Your payment was verified, but the order could not be created.';
+              setError(message);
+              setStep('failed');
+            }
           } else {
             setError(res?.message || 'Payment could not be verified. Please try again.');
             setStep('failed');

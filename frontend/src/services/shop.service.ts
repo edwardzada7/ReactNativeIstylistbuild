@@ -14,12 +14,28 @@ export interface Product {
   created_at: string;
 }
 
+export interface OrderItemSummary {
+  id: number;
+  quantity: number;
+  price: number;
+  product_id?: number;
+  products?: { name?: string; image_urls?: string[] | null } | null;
+}
+
 export interface Order {
   id: number;
   customer_auth_id: string;
+  provider_auth_id?: string | null;
+  customer_name?: string | null;
   status: string;
   total_amount: number;
+  subtotal?: number | null;
+  delivery_fee?: number | null;
+  payment_reference?: string | null;
+  payment_status?: string | null;
   created_at: string;
+  items?: OrderItemSummary[];
+  provider_name?: string | null;
 }
 
 /**
@@ -81,8 +97,18 @@ export const shopService = {
     if (error) throw error;
   },
 
-  async createOrder(items: { product_id: number; quantity: number }[]): Promise<any> {
-    return await localApiService.post('/shop/orders', { items });
+  async createOrder(input: {
+    items: { product_id: number; quantity: number }[];
+    payment_reference?: string;
+    payment_status?: string;
+    subtotal?: number;
+    delivery_fee?: number;
+    total_amount?: number;
+    customer_name?: string;
+    provider_auth_id?: string;
+    order_status?: string;
+  }): Promise<any> {
+    return await localApiService.post('/shop/orders', input);
   },
 
   async initializeFlutterwaveCheckout(input: {
@@ -124,7 +150,49 @@ export const shopService = {
       .eq('customer_auth_id', authId)
       .order('created_at', { ascending: false });
     if (error) throw error;
-    return data || [];
+
+    const orders = (data || []) as Order[];
+    return await Promise.all(
+      orders.map(async (order) => {
+        const items = await this.getOrderItems(order.id);
+        let provider_name: string | null = null;
+        if (order.provider_auth_id) {
+          try {
+            const profile = await apiService.get<any>(`/users/by-auth/${order.provider_auth_id}`);
+            provider_name = profile?.name || profile?.full_name || null;
+          } catch (err) {
+            console.warn('[shop] failed to load provider profile', err);
+          }
+        }
+        return { ...order, items, provider_name };
+      })
+    );
+  },
+
+  async getProviderOrders(providerAuthId: string): Promise<Order[]> {
+    const { data, error } = await supabase
+      .from('orders')
+      .select('*')
+      .eq('provider_auth_id', providerAuthId)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+
+    const orders = (data || []) as Order[];
+    return await Promise.all(
+      orders.map(async (order) => {
+        const items = await this.getOrderItems(order.id);
+        let customer_name: string | null = null;
+        if (order.customer_auth_id) {
+          try {
+            const profile = await apiService.get<any>(`/users/by-auth/${order.customer_auth_id}`);
+            customer_name = profile?.name || profile?.full_name || null;
+          } catch (err) {
+            console.warn('[shop] failed to load customer profile', err);
+          }
+        }
+        return { ...order, items, customer_name };
+      })
+    );
   },
 
   async getOrderItems(orderId: number): Promise<any[]> {
@@ -134,5 +202,9 @@ export const shopService = {
       .eq('order_id', orderId);
     if (error) throw error;
     return data || [];
+  },
+
+  async updateOrderStatus(orderId: number, status: string): Promise<any> {
+    return await localApiService.patch(`/shop/orders/${orderId}`, { status });
   },
 };

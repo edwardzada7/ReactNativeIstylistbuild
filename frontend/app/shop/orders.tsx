@@ -9,8 +9,19 @@ import { formatCurrency } from '../../src/utils/currency';
 
 const STATUS_COLOR: Record<string, string> = {
   pending: Colors.warning,
-  completed: Colors.success,
+  accepted: Colors.primary,
+  processing: Colors.warning,
+  ready: Colors.success,
+  delivered: Colors.success,
   cancelled: Colors.error,
+};
+const STATUS_LABEL: Record<string, string> = {
+  pending: 'Pending',
+  accepted: 'Accepted',
+  processing: 'Processing',
+  ready: 'Ready',
+  delivered: 'Delivered',
+  cancelled: 'Cancelled',
 };
 
 export default function OrderHistory() {
@@ -74,6 +85,13 @@ export default function OrderHistory() {
                 {new Date(order.created_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })}
               </Text>
               <Text style={styles.orderTotal}>{formatCurrency(order.total_amount)}</Text>
+              {order.provider_name ? <Text style={styles.orderMeta}>Provider: {order.provider_name}</Text> : null}
+              {order.items?.length ? (
+                <Text style={styles.orderMeta}>
+                  Items: {order.items.map((item) => `${item.products?.name || 'Item'} ×${item.quantity}`).join(', ')}
+                </Text>
+              ) : null}
+              {order.payment_reference ? <Text style={styles.orderMeta}>Ref: {order.payment_reference}</Text> : null}
             </View>
           ))}
         </ScrollView>
@@ -96,4 +114,5 @@ const styles = StyleSheet.create({
   statusText: { fontSize: FontSizes.xs, fontWeight: '700' },
   orderDate: { fontSize: FontSizes.xs, color: Colors.textMuted, marginBottom: 4 },
   orderTotal: { fontSize: FontSizes.md, fontWeight: '800', color: Colors.text },
+  orderMeta: { fontSize: FontSizes.xs, color: Colors.textSecondary, marginTop: 2 },
 });
