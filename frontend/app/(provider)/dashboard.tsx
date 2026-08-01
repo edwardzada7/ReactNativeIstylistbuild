@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
+import { BrandLogo } from '../../src/components/branding';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { bookingService } from '../../src/services/booking.service';
 import { providerService } from '../../src/services/provider.service';
@@ -149,9 +150,12 @@ export default function ProviderDashboard() {
         }
       >
         <View style={styles.header}>
-          <View style={{ flex: 1, marginRight: Spacing.sm }}>
-            <Text style={styles.greeting}>Welcome back, {user?.full_name?.split(' ')[0] || 'there'} 👋</Text>
-            <Text style={styles.subGreeting}>Here is how your business is doing</Text>
+          <View style={styles.titleWrap}>
+            <BrandLogo size={36} />
+            <View style={{ flex: 1, marginRight: Spacing.sm }}>
+              <Text style={styles.greeting}>Welcome back, {user?.full_name?.split(' ')[0] || 'there'} 👋</Text>
+              <Text style={styles.subGreeting}>Here is how your business is doing</Text>
+            </View>
           </View>
           <View style={styles.headerActions}>
             <TouchableOpacity

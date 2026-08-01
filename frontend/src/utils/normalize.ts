@@ -1,4 +1,4 @@
-// Defensive normalizers for the production API (mongo-supabase-api.emergent.host).
+// Defensive normalizers for the production API.
 // Different endpoints occasionally use slightly different field names for the
 // same concept (e.g. business_name vs name vs stylist_name). These helpers
 // pick the first available value so the UI never crashes on a missing/renamed

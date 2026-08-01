@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -14,7 +13,7 @@ import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, FontSizes, Spacing } from '../../src/constants/theme';
-import { BrandAssets } from '../../src/constants/brand';
+import { BrandLogo } from '../../src/components/branding';
 import { Button, Input } from '../../src/components/common';
 import { useAuth } from '../../src/contexts/AuthContext';
 
@@ -115,7 +114,7 @@ export default function Signup() {
 
           <View style={styles.header}>
             <View style={styles.logoWrap}>
-              <Image source={BrandAssets.logo} style={styles.logo} resizeMode="contain" />
+              <BrandLogo size={88} />
             </View>
             <Text style={styles.title}>Create Account</Text>
             <Text style={styles.subtitle}>Join the iStylist community</Text>
@@ -257,10 +256,6 @@ const styles = StyleSheet.create({
   },
   logoWrap: {
     marginBottom: Spacing.md,
-  },
-  logo: {
-    width: 88,
-    height: 88,
   },
   title: {
     fontSize: FontSizes.xxxl,

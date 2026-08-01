@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../src/constants/theme';
+import { BrandLogo } from '../src/components/branding';
 import { notificationService } from '../src/services/notification.service';
 import { Notification } from '../src/types';
 
@@ -161,7 +162,10 @@ export default function Notifications() {
         <TouchableOpacity onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back">
           <Ionicons name="arrow-back" size={24} color={Colors.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>Notifications</Text>
+        <View style={styles.titleWrap}>
+          <BrandLogo size={24} />
+          <Text style={styles.title}>Notifications</Text>
+        </View>
         {hasUnread ? (
           <TouchableOpacity onPress={handleMarkAllRead} disabled={markingAll} accessibilityRole="button" accessibilityLabel="Mark all as read">
             {markingAll ? (
@@ -230,6 +234,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
   },
+  titleWrap: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   title: { fontSize: FontSizes.lg, fontWeight: 'bold', color: Colors.text },
   markAllText: { fontSize: FontSizes.sm, fontWeight: '600', color: Colors.primary },
   list: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xl },

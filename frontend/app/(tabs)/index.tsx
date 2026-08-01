@@ -15,7 +15,8 @@ import { Image } from 'expo-image';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
-import { BrandAssets, BrandColors } from '../../src/constants/brand';
+import { BrandColors } from '../../src/constants/brand';
+import { BrandLogo } from '../../src/components/branding';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { providerService } from '../../src/services/provider.service';
 import { notificationService } from '../../src/services/notification.service';
@@ -189,7 +190,7 @@ export default function Home() {
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.brandHeaderContent}>
-            <Image source={BrandAssets.logo} style={styles.brandLogo} resizeMode="contain" />
+            <BrandLogo size={40} />
             <View>
               <Text style={styles.greeting}>Hello {user?.full_name || 'there'}! 👋</Text>
               <Text style={styles.subGreeting}>Find your perfect style today</Text>
@@ -260,7 +261,7 @@ export default function Home() {
               <Text style={styles.bannerButtonText}>Book Now</Text>
             </TouchableOpacity>
           </View>
-          <Image source={BrandAssets.logo} style={styles.bannerLogo} resizeMode="contain" />
+          <BrandLogo size={56} />
         </LinearGradient>
 
         {error && (

@@ -1,10 +1,11 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, Image } from 'react-native';
+import { View, Text, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
 import { Colors, FontSizes, Spacing } from '../src/constants/theme';
-import { BrandAssets, BrandColors } from '../src/constants/brand';
+import { BrandColors } from '../src/constants/brand';
+import { BrandLogo } from '../src/components/branding';
 import { useAuth } from '../src/contexts/AuthContext';
 import { Loading } from '../src/components/common';
 
@@ -49,7 +50,7 @@ export default function Index() {
         style={styles.content}
       >
         <View style={styles.logoContainer}>
-          <Image source={BrandAssets.logo} style={styles.logo} resizeMode="contain" />
+          <BrandLogo size={112} />
         </View>
         <Text style={styles.title}>iStylist</Text>
         <Text style={styles.tagline}>Your Beauty & Style Partner</Text>
@@ -75,10 +76,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: Spacing.lg,
-  },
-  logo: {
-    width: 112,
-    height: 112,
   },
   title: {
     fontSize: FontSizes.xxxl,

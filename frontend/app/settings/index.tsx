@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
+import { BrandLogo } from '../../src/components/branding';
 import { useAuth } from '../../src/contexts/AuthContext';
 
 /**
@@ -54,7 +55,10 @@ export default function Settings() {
         <TouchableOpacity onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back">
           <Ionicons name="arrow-back" size={24} color={Colors.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>Settings</Text>
+        <View style={styles.titleWrap}>
+          <BrandLogo size={24} />
+          <Text style={styles.title}>Settings</Text>
+        </View>
         <View style={{ width: 24 }} />
       </View>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
@@ -101,6 +105,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
   },
+  titleWrap: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   title: { fontSize: FontSizes.lg, fontWeight: 'bold', color: Colors.text },
   content: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xl },
   accountEmail: { fontSize: FontSizes.sm, color: Colors.textSecondary, marginBottom: Spacing.lg },

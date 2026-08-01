@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  Image,
   TextInput,
   TouchableOpacity,
   Alert,
@@ -12,7 +11,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
-import { BrandAssets } from '../../src/constants/brand';
+import { BrandLogo } from '../../src/components/branding';
 import { Button } from '../../src/components/common';
 import { authService } from '../../src/services/auth.service';
 import { useAuth } from '../../src/contexts/AuthContext';
@@ -94,7 +93,7 @@ export default function VerifyOTP() {
       <View style={styles.content}>
         <View style={styles.header}>
           <View style={styles.iconContainer}>
-            <Image source={BrandAssets.logo} style={styles.logo} resizeMode="contain" />
+            <BrandLogo size={72} />
           </View>
           <Text style={styles.title}>Verify Your Email</Text>
           <Text style={styles.subtitle}>
@@ -169,10 +168,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: Spacing.lg,
-  },
-  logo: {
-    width: 72,
-    height: 72,
   },
   title: {
     fontSize: FontSizes.xxl,

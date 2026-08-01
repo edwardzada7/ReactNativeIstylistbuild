@@ -23,8 +23,9 @@ const getLocalApiBase = (): string => {
   return 'http://localhost:8001/api';
 };
 
-// The production business-logic API (mongo-supabase-api.emergent.host) is a
-// separate service from Supabase Auth. Authentication (signup/login/session/
+// The production business-logic API is a separate service from Supabase
+// Auth. Authentication (signup/login/session/refresh) is handled entirely
+// by Supabase (see src/lib/supabase.ts and src/services/auth.service.ts).
 // refresh) is handled entirely by Supabase (see src/lib/supabase.ts and
 // src/services/auth.service.ts). This client's only job is to attach the
 // current Supabase access token to every request so the backend can identify

@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
+import { BrandLogo } from '../../src/components/branding';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { bookingService } from '../../src/services/booking.service';
 import { Booking } from '../../src/types';
@@ -120,7 +121,7 @@ export default function Profile() {
         {/* Profile Header */}
         <View style={styles.profileHeader}>
           <View style={styles.avatarContainer}>
-            <Text style={styles.avatarText}>👤</Text>
+            <BrandLogo size={56} />
           </View>
           <Text style={styles.userName}>{user?.full_name || 'Guest User'}</Text>
           <Text style={styles.userEmail}>{user?.email || 'guest@example.com'}</Text>
