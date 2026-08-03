@@ -12,7 +12,7 @@ import { useCartStore } from '../../src/store/cartStore';
 import { formatCurrency } from '../../src/utils/currency';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8001/api';
-const REDIRECT_URL = `${API_BASE_URL.replace(/\/api\/?$/, '')}/wallet`;
+const REDIRECT_URL = `${API_BASE_URL.replace(/\/api\/?$/, '')}/shop/cart`;
 type CheckoutStep = 'cart' | 'checkout' | 'success' | 'failed' | 'cancelled';
 
 export default function Cart() {
@@ -45,10 +45,9 @@ export default function Cart() {
     setCheckingOut(true);
     setError(null);
     try {
-      const response = await shopService.initializeFlutterwaveCheckout({
+      const response = await shopService.initializePaystackCheckout({
         amount,
         email: user.email,
-        purpose: 'wallet_topup',
         name: user.full_name,
         phone: user.phone || undefined,
         redirect_url: REDIRECT_URL,
@@ -82,51 +81,38 @@ export default function Cart() {
 
       const query = url.split('?')[1] || '';
       const params = new URLSearchParams(query);
-      const reference = params.get('tx_ref') || params.get('reference') || params.get('trxref');
+      const reference = params.get('reference') || params.get('trxref') || params.get('tx_ref');
       const transactionId = params.get('transaction_id');
-      const flwStatus = params.get('status');
+      const paystackStatus = params.get('status');
 
       if (!reference && !transactionId) {
         setError('Payment was cancelled. No charge was made.');
         setStep('cancelled');
         return false;
       }
-      if (flwStatus && flwStatus !== 'successful' && flwStatus !== 'completed') {
-        setError(`Payment ${flwStatus}. No funds were deducted.`);
+      if (paystackStatus && paystackStatus.toLowerCase() !== 'success') {
+        setError(`Payment ${paystackStatus}. No funds were deducted.`);
         setStep('failed');
         return false;
       }
 
       setVerifying(true);
       shopService
-        .verifyFlutterwaveCheckout({
+        .verifyPaystackCheckout({
           reference: reference || '',
           transaction_id: transactionId,
+          items: pendingItems,
+          amount: pendingAmount ?? total(),
+          email: user?.email || undefined,
+          name: user?.full_name || undefined,
+          phone: user?.phone || undefined,
+          currency: 'NGN',
+          provider_auth_id: lines.find((line) => line.stylistAuthId)?.stylistAuthId,
         })
-        .then(async (res) => {
+        .then((res) => {
           if (res?.status === 'success') {
-            try {
-              const orderItems = pendingItems.map((item) => ({ product_id: item.product_id, quantity: item.quantity }));
-              const providerAuthId = lines.find((line) => line.stylistAuthId)?.stylistAuthId;
-              const subtotal = pendingAmount ?? total();
-              await shopService.createOrder({
-                items: orderItems,
-                payment_reference: reference || transactionId || undefined,
-                payment_status: 'verified',
-                subtotal,
-                delivery_fee: 0,
-                total_amount: subtotal,
-                customer_name: user?.full_name || user?.email || undefined,
-                provider_auth_id: providerAuthId,
-                order_status: 'pending',
-              });
-              clear();
-              setStep('success');
-            } catch (orderErr: any) {
-              const message = orderErr?.friendlyMessage || orderErr?.response?.data?.detail || orderErr?.message || 'Your payment was verified, but the order could not be created.';
-              setError(message);
-              setStep('failed');
-            }
+            clear();
+            setStep('success');
           } else {
             setError(res?.message || 'Payment could not be verified. Please try again.');
             setStep('failed');

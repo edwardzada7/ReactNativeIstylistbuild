@@ -118,19 +118,18 @@ export const shopService = {
     return await localApiService.post('/shop/orders', input);
   },
 
-  async initializeFlutterwaveCheckout(input: {
+  async initializePaystackCheckout(input: {
     amount: number;
     email: string;
-    purpose: 'wallet_topup';
     name?: string;
     phone?: string;
     redirect_url?: string;
     currency?: string;
-  }): Promise<{ status: boolean; authorization_url?: string; tx_ref?: string; message?: string }> {
-    return apiService.post('/payments/flutterwave/initialize', input);
+  }): Promise<{ status: boolean; authorization_url?: string; reference?: string; message?: string }> {
+    return apiService.post('/payments/paystack/shop/initialize', input);
   },
 
-  async verifyFlutterwaveCheckout(input: {
+  async verifyPaystackCheckout(input: {
     reference: string;
     transaction_id?: string | null;
     items?: { product_id: number; quantity: number }[];
@@ -139,11 +138,19 @@ export const shopService = {
     name?: string;
     phone?: string;
     currency?: string;
+    provider_auth_id?: string;
   }): Promise<{ status: string; message?: string; order?: any }> {
-    return apiService.get('/payments/flutterwave/verify', {
+    return apiService.get('/payments/paystack/shop/verify', {
       params: {
         reference: input.reference,
         ...(input.transaction_id ? { transaction_id: input.transaction_id } : {}),
+        ...(input.amount !== undefined ? { amount: input.amount } : {}),
+        ...(input.currency ? { currency: input.currency } : {}),
+        ...(input.email ? { email: input.email } : {}),
+        ...(input.name ? { name: input.name } : {}),
+        ...(input.phone ? { phone: input.phone } : {}),
+        ...(input.provider_auth_id ? { provider_auth_id: input.provider_auth_id } : {}),
+        ...(input.items ? { items: JSON.stringify(input.items) } : {}),
       },
     });
   },
