@@ -159,18 +159,23 @@ class LocalApiService {
     });
   }
 
+  private normalizeUrl(url: string): string {
+    if (!url.startsWith('/')) return url;
+    return url.replace(/^\/+/, '');
+  }
+
   async get<T = any>(url: string, config?: AxiosRequestConfig): Promise<T> {
-    const response = await this.client.get<T>(url, config);
+    const response = await this.client.get<T>(this.normalizeUrl(url), config);
     return response.data;
   }
 
   async post<T = any>(url: string, data?: any): Promise<T> {
-    const response = await this.client.post<T>(url, data);
+    const response = await this.client.post<T>(this.normalizeUrl(url), data);
     return response.data;
   }
 
   async patch<T = any>(url: string, data?: any): Promise<T> {
-    const response = await this.client.patch<T>(url, data);
+    const response = await this.client.patch<T>(this.normalizeUrl(url), data);
     return response.data;
   }
 }
