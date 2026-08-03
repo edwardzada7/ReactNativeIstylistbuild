@@ -158,6 +158,12 @@ class LocalApiService {
       return config;
     });
   }
+
+  async get<T = any>(url: string, config?: AxiosRequestConfig): Promise<T> {
+    const response = await this.client.get<T>(url, config);
+    return response.data;
+  }
+
   async post<T = any>(url: string, data?: any): Promise<T> {
     const response = await this.client.post<T>(url, data);
     return response.data;

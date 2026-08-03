@@ -126,7 +126,7 @@ export const shopService = {
     redirect_url?: string;
     currency?: string;
   }): Promise<{ status: boolean; authorization_url?: string; reference?: string; message?: string }> {
-    return apiService.post('/payments/paystack/shop/initialize', input);
+    return localApiService.post('/payments/paystack/shop/initialize', input);
   },
 
   async verifyPaystackCheckout(input: {
@@ -140,7 +140,7 @@ export const shopService = {
     currency?: string;
     provider_auth_id?: string;
   }): Promise<{ status: string; message?: string; order?: any }> {
-    return apiService.get('/payments/paystack/shop/verify', {
+    return localApiService.get('/payments/paystack/shop/verify', {
       params: {
         reference: input.reference,
         ...(input.transaction_id ? { transaction_id: input.transaction_id } : {}),
