@@ -1,18 +1,21 @@
-from fastapi import FastAPI, APIRouter, Header, HTTPException
+from fastapi import FastAPI, APIRouter, Header, HTTPException, Path, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
 import requests
-from pathlib import Path
+from pathlib import Path as PathlibPath
 from pydantic import BaseModel, Field
 from typing import List, Optional
 import uuid
+import json
 from datetime import datetime
 
 
-ROOT_DIR = Path(__file__).parent
+ROOT_DIR = PathlibPath(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
 # MongoDB connection
@@ -23,6 +26,8 @@ db = client[os.environ['DB_NAME']]
 # Supabase - used ONLY for the two privileged write endpoints below.
 SUPABASE_URL = os.environ.get('SUPABASE_URL', '')
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get('SUPABASE_SERVICE_ROLE_KEY', '')
+PAYSTACK_SECRET_KEY = os.environ.get('PAYSTACK_SECRET_KEY', '')
+PAYSTACK_BASE_URL = 'https://api.paystack.co'
 
 # Create the main app without a prefix
 app = FastAPI()
@@ -107,6 +112,218 @@ class OrderItemInput(BaseModel):
 
 class CreateOrderInput(BaseModel):
     items: List[OrderItemInput]
+    payment_reference: Optional[str] = None
+    payment_status: Optional[str] = None
+    subtotal: Optional[float] = None
+    delivery_fee: Optional[float] = None
+    total_amount: Optional[float] = None
+    customer_name: Optional[str] = None
+    provider_auth_id: Optional[str] = None
+    order_status: Optional[str] = None
+
+
+class UpdateOrderStatusInput(BaseModel):
+    status: str
+
+
+class PaystackShopInitializeInput(BaseModel):
+    amount: float
+    email: str
+    name: Optional[str] = None
+    phone: Optional[str] = None
+    redirect_url: Optional[str] = None
+    currency: Optional[str] = 'NGN'
+
+
+def _paystack_headers():
+    return {
+        'Authorization': f'Bearer {PAYSTACK_SECRET_KEY}',
+        'Content-Type': 'application/json',
+    }
+
+
+def _insert_notification(auth_id: str, title: str, message: str, notification_type: str, metadata: Optional[dict] = None):
+    try:
+        requests.post(
+            f"{SUPABASE_URL}/rest/v1/notifications",
+            headers=_supabase_headers(),
+            json={
+                "auth_id": auth_id,
+                "title": title,
+                "message": message,
+                "type": notification_type,
+                "metadata": metadata or {},
+                "read": False,
+                "created_at": datetime.utcnow().isoformat(),
+            },
+            timeout=10,
+        )
+    except Exception as exc:
+        logger.warning("failed to create notification for %s: %s", auth_id, exc)
+
+
+def _insert_chat_message(sender_auth_id: str, receiver_auth_id: str, message: str, booking_id: Optional[int] = None):
+    try:
+        requests.post(
+            f"{SUPABASE_URL}/rest/v1/chats",
+            headers=_supabase_headers(),
+            json={
+                "sender_auth_id": sender_auth_id,
+                "receiver_auth_id": receiver_auth_id,
+                "message": message,
+                "booking_id": booking_id,
+            },
+            timeout=10,
+        )
+    except Exception as exc:
+        logger.warning("failed to create chat message for %s -> %s: %s", sender_auth_id, receiver_auth_id, exc)
+
+
+@api_router.post("/payments/paystack/shop/initialize")
+async def initialize_paystack_shop_checkout(request: Request, payload: PaystackShopInitializeInput, authorization: Optional[str] = Header(None)):
+    """Initialize a hosted Paystack checkout for shop purchases only."""
+    try:
+        raw_body = await request.body()
+        logger.info("[paystack-init] incoming body=%s", raw_body.decode('utf-8', errors='replace'))
+    except Exception as body_exc:
+        logger.exception("[paystack-init] failed to read request body: %s", body_exc)
+
+    logger.info("[paystack-init] parsed payload=%s", payload.dict())
+
+    if not PAYSTACK_SECRET_KEY:
+        raise HTTPException(status_code=500, detail="Paystack is not configured")
+
+    try:
+        _verify_supabase_user(authorization)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("[paystack-init] auth verification failed: %s", exc)
+        raise HTTPException(status_code=500, detail="Could not verify user session") from exc
+
+    amount_kobo = int(round(float(payload.amount) * 100))
+    if amount_kobo <= 0:
+        raise HTTPException(status_code=400, detail="Amount must be greater than zero")
+
+    reference = f"shop_{uuid.uuid4().hex[:12]}"
+    paystack_payload = {
+        "email": payload.email,
+        "amount": amount_kobo,
+        "reference": reference,
+        "currency": (payload.currency or 'NGN').upper(),
+        "callback_url": payload.redirect_url,
+        "metadata": {
+            "name": payload.name or '',
+            "phone": payload.phone or '',
+            "purpose": 'shop_checkout',
+        },
+    }
+    logger.info("[paystack-init] outbound payload=%s", paystack_payload)
+
+    try:
+        resp = requests.post(
+            f"{PAYSTACK_BASE_URL}/transaction/initialize",
+            headers=_paystack_headers(),
+            json=paystack_payload,
+            timeout=20,
+        )
+        logger.info("[paystack-init] paystack response status=%s body=%s", resp.status_code, resp.text[:2000])
+    except requests.RequestException as exc:
+        logger.exception("[paystack-init] Paystack request exception: %s", exc)
+        raise HTTPException(status_code=502, detail=f"Paystack request failed: {exc}") from exc
+
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail=f"Paystack initialization failed: {resp.text[:500]}")
+
+    data = resp.json()
+    if not data.get('status'):
+        raise HTTPException(status_code=502, detail=data.get('message', 'Paystack initialization failed'))
+
+    transaction_data = data.get('data', {})
+    return {
+        "status": True,
+        "authorization_url": transaction_data.get('authorization_url'),
+        "reference": transaction_data.get('reference', reference),
+        "message": 'Checkout initialized',
+    }
+
+
+@api_router.get("/payments/paystack/shop/verify")
+def verify_paystack_shop_checkout(
+    reference: str,
+    transaction_id: Optional[str] = None,
+    amount: Optional[float] = None,
+    currency: Optional[str] = None,
+    items: Optional[str] = None,
+    email: Optional[str] = None,
+    name: Optional[str] = None,
+    phone: Optional[str] = None,
+    provider_auth_id: Optional[str] = None,
+    authorization: Optional[str] = Header(None),
+):
+    """Verify a Paystack transaction and create the shop order only when payment succeeds."""
+    if not PAYSTACK_SECRET_KEY:
+        raise HTTPException(status_code=500, detail="Paystack is not configured")
+    if not reference:
+        raise HTTPException(status_code=400, detail="Missing payment reference")
+
+    auth_id = _verify_supabase_user(authorization)
+
+    existing_resp = requests.get(
+        f"{SUPABASE_URL}/rest/v1/orders?payment_reference=eq.{reference}&select=id,payment_reference",
+        headers=_supabase_headers(),
+        timeout=10,
+    )
+    if existing_resp.status_code == 200 and existing_resp.json():
+        return {"status": "success", "message": "Payment already verified", "order": existing_resp.json()[0]}
+
+    verify_resp = requests.get(
+        f"{PAYSTACK_BASE_URL}/transaction/verify/{reference}",
+        headers=_paystack_headers(),
+        timeout=20,
+    )
+    if verify_resp.status_code != 200:
+        raise HTTPException(status_code=502, detail="Could not verify Paystack payment")
+
+    verify_payload = verify_resp.json()
+    if not verify_payload.get('status'):
+        raise HTTPException(status_code=502, detail=verify_payload.get('message', 'Paystack verification failed'))
+
+    transaction = verify_payload.get('data', {})
+    if transaction.get('status') != 'success':
+        return {"status": "failed", "message": "Payment was not completed successfully"}
+
+    if transaction.get('reference') != reference:
+        raise HTTPException(status_code=400, detail="Reference mismatch")
+
+    expected_amount = int(round(float(amount) * 100)) if amount is not None else None
+    if expected_amount is not None and transaction.get('amount') is not None and int(transaction['amount']) != expected_amount:
+        raise HTTPException(status_code=400, detail="Amount mismatch")
+
+    if currency and (transaction.get('currency') or '').upper() != currency.upper():
+        raise HTTPException(status_code=400, detail="Currency mismatch")
+
+    parsed_items = []
+    if items:
+        try:
+            parsed_items = json.loads(items)
+        except json.JSONDecodeError as exc:
+            raise HTTPException(status_code=400, detail='Invalid checkout items') from exc
+    if not parsed_items:
+        raise HTTPException(status_code=400, detail='No checkout items provided')
+
+    order_payload = CreateOrderInput(
+        items=[OrderItemInput(product_id=item['product_id'], quantity=item['quantity']) for item in parsed_items],
+        payment_reference=reference,
+        payment_status='verified',
+        subtotal=float(amount or 0.0),
+        delivery_fee=0.0,
+        total_amount=float(amount or 0.0),
+        customer_name=name or email or auth_id,
+        provider_auth_id=provider_auth_id,
+        order_status='pending',
+    )
+    return create_order(order_payload, authorization=authorization)
 
 
 @api_router.post("/shop/orders")
@@ -122,7 +339,7 @@ def create_order(payload: CreateOrderInput, authorization: Optional[str] = Heade
 
     product_ids = ",".join(str(i.product_id) for i in payload.items)
     resp = requests.get(
-        f"{SUPABASE_URL}/rest/v1/products?id=in.({product_ids})&select=id,price,stock,name,approved",
+        f"{SUPABASE_URL}/rest/v1/products?id=in.({product_ids})&select=id,price,stock,name,approved,stylist_auth_id",
         headers=_supabase_headers(),
         timeout=10,
     )
@@ -130,21 +347,59 @@ def create_order(payload: CreateOrderInput, authorization: Optional[str] = Heade
         raise HTTPException(status_code=502, detail="Could not verify products")
     products = {p["id"]: p for p in resp.json()}
 
-    total = 0.0
+    subtotal = 0.0
     for item in payload.items:
         product = products.get(item.product_id)
         if not product:
             raise HTTPException(status_code=404, detail=f"Product {item.product_id} not found")
         if product.get("stock", 0) < item.quantity:
             raise HTTPException(status_code=400, detail=f"Not enough stock for {product['name']}")
-        total += float(product["price"]) * item.quantity
+        subtotal += float(product["price"]) * item.quantity
+
+    delivery_fee = float(payload.delivery_fee or 0.0)
+    total = float(payload.total_amount if payload.total_amount is not None else subtotal + delivery_fee)
+    provider_auth_id = payload.provider_auth_id or next(
+        (p.get("stylist_auth_id") for p in products.values() if p.get("stylist_auth_id")),
+        None,
+    )
+
+    order_payload = {
+        "customer_auth_id": auth_id,
+        "status": (payload.order_status or "pending").lower(),
+        "total_amount": round(total, 2),
+        "subtotal": round(subtotal, 2),
+        "delivery_fee": round(delivery_fee, 2),
+        "payment_status": (payload.payment_status or "verified").lower(),
+        "created_at": datetime.utcnow().isoformat(),
+    }
+    if provider_auth_id:
+        order_payload["provider_auth_id"] = provider_auth_id
+    if payload.payment_reference:
+        order_payload["payment_reference"] = payload.payment_reference
+    if payload.customer_name:
+        order_payload["customer_name"] = payload.customer_name
 
     order_resp = requests.post(
         f"{SUPABASE_URL}/rest/v1/orders",
         headers=_supabase_headers(),
-        json={"customer_auth_id": auth_id, "status": "pending", "total_amount": total},
+        json=order_payload,
         timeout=10,
     )
+    if order_resp.status_code not in (200, 201):
+        fallback_payload = {
+            "customer_auth_id": auth_id,
+            "status": "pending",
+            "total_amount": round(total, 2),
+            "subtotal": round(subtotal, 2),
+            "delivery_fee": round(delivery_fee, 2),
+            "created_at": datetime.utcnow().isoformat(),
+        }
+        order_resp = requests.post(
+            f"{SUPABASE_URL}/rest/v1/orders",
+            headers=_supabase_headers(),
+            json=fallback_payload,
+            timeout=10,
+        )
     if order_resp.status_code not in (200, 201):
         raise HTTPException(status_code=502, detail="Could not create order")
     order = order_resp.json()[0]
@@ -176,7 +431,61 @@ def create_order(payload: CreateOrderInput, authorization: Optional[str] = Heade
             timeout=10,
         )
 
-    return {"order": order, "items": items_resp.json()}
+    provider_ids = sorted({p.get("stylist_auth_id") for p in products.values() if p.get("stylist_auth_id")})
+    notification_payload = {
+        "order_id": order["id"],
+        "customer_name": payload.customer_name or "A customer",
+        "total_amount": round(total, 2),
+        "items_count": len(payload.items),
+    }
+    for provider_id in provider_ids:
+        _insert_notification(
+            provider_id,
+            "New Shop Order",
+            "You have received a new order.",
+            "system",
+            notification_payload,
+        )
+        _insert_chat_message(
+            auth_id,
+            provider_id,
+            f"New shop order #{order['id']} was placed. Please review.",
+            order["id"],
+        )
+
+    _insert_notification(
+        auth_id,
+        "Payment Successful",
+        "Your order has been placed successfully.",
+        "payment",
+        notification_payload,
+    )
+
+    return {"status": "success", "order": order, "items": items_resp.json()}
+
+
+@api_router.patch("/shop/orders/{order_id}")
+def update_order_status(order_id: int = Path(..., ge=1), payload: UpdateOrderStatusInput = None, authorization: Optional[str] = Header(None)):
+    """Allows a provider to update the order status using the shared orders table."""
+    _verify_supabase_user(authorization)
+    if not payload:
+        raise HTTPException(status_code=400, detail="No status supplied")
+
+    status_value = payload.status.strip().lower()
+    resp = requests.patch(
+        f"{SUPABASE_URL}/rest/v1/orders?id=eq.{order_id}",
+        headers=_supabase_headers(),
+        json={"status": status_value},
+        timeout=10,
+    )
+    if resp.status_code not in (200, 201, 204):
+        raise HTTPException(status_code=502, detail="Could not update order status")
+
+    try:
+        updated = resp.json()[0]
+    except Exception:
+        updated = {"id": order_id, "status": status_value}
+    return {"order": updated}
 
 
 class SendMessageInput(BaseModel):
@@ -208,6 +517,18 @@ def send_chat_message(payload: SendMessageInput, authorization: Optional[str] = 
 
 # Include the router in the main app
 app.include_router(api_router)
+
+@app.exception_handler(RequestValidationError)
+async def handle_validation_error(request: Request, exc: RequestValidationError):
+    body_text = ""
+    try:
+        body_bytes = await request.body()
+        body_text = body_bytes.decode('utf-8', errors='replace')
+    except Exception as body_exc:
+        logger.exception("[paystack-init] failed to read body for validation failure: %s", body_exc)
+
+    logger.error("[paystack-init] validation failed method=%s path=%s body=%s errors=%s", request.method, request.url.path, body_text or '<empty>', exc.errors())
+    return JSONResponse(status_code=422, content={"detail": exc.errors()})
 
 app.add_middleware(
     CORSMiddleware,
