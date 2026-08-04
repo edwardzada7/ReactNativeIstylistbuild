@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
+import { SHOP_CATEGORIES } from '../../src/constants/shopCategories';
 import { Button, Input } from '../../src/components/common';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { shopService, Product } from '../../src/services/shop.service';
@@ -36,7 +37,15 @@ export default function ProviderShop() {
   const [modalVisible, setModalVisible] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  const [form, setForm] = useState({ name: '', description: '', price: '', stock: '', image: '' as string });
+  const [form, setForm] = useState({
+    name: '',
+    description: '',
+    price: '',
+    stock: '',
+    image: '' as string,
+    mainCategory: 'beauty',
+    subcategory: 'hair-care',
+  });
 
   const loadData = useCallback(async () => {
     if (!authId) return;
@@ -61,11 +70,14 @@ export default function ProviderShop() {
   );
 
   const resetForm = () => {
-    setForm({ name: '', description: '', price: '', stock: '', image: '' });
+    setForm({ name: '', description: '', price: '', stock: '', image: '', mainCategory: 'beauty', subcategory: 'hair-care' });
     setEditingProduct(null);
   };
 
   const openEditModal = (product: Product) => {
+    const productCategory = SHOP_CATEGORIES.find((category) => category.name === product.main_category || category.name === product.category);
+    const fallbackCategory = productCategory ?? SHOP_CATEGORIES[0];
+    const fallbackSubcategory = fallbackCategory.subcategories.find((subcategory) => subcategory.name === product.subcategory) ?? fallbackCategory.subcategories[0];
     setEditingProduct(product);
     setForm({
       name: product.name,
@@ -73,9 +85,13 @@ export default function ProviderShop() {
       price: String(product.price),
       stock: String(product.stock),
       image: product.image_urls?.[0] || '',
+      mainCategory: fallbackCategory?.slug || 'beauty',
+      subcategory: fallbackSubcategory?.id || 'hair-care',
     });
     setModalVisible(true);
   };
+
+  const selectedCategory = useMemo(() => SHOP_CATEGORIES.find((category) => category.slug === form.mainCategory) ?? SHOP_CATEGORIES[0], [form.mainCategory]);
 
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -103,12 +119,15 @@ export default function ProviderShop() {
     }
     setSaving(true);
     try {
+      const selectedSubcategory = selectedCategory.subcategories.find((subcategory) => subcategory.id === form.subcategory) ?? selectedCategory.subcategories[0];
       const productData = {
         name: form.name.trim(),
         description: form.description.trim(),
         price,
         stock,
         image_urls: form.image ? [form.image] : undefined,
+        main_category: selectedCategory.name,
+        subcategory: selectedSubcategory?.name,
       };
 
       if (editingProduct) {
@@ -225,6 +244,9 @@ export default function ProviderShop() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.cardName} numberOfLines={1}>{product.name}</Text>
                 <Text style={styles.cardPrice}>{formatCurrency(product.price)} &middot; {product.stock} in stock</Text>
+                {product.main_category || product.category ? (
+                  <Text style={styles.cardMeta}>{product.subcategory || product.main_category || product.category}</Text>
+                ) : null}
                 {view === 'my-products' ? (
                   <View style={[styles.badge, { backgroundColor: product.approved ? `${Colors.success}20` : `${Colors.warning}20` }]}>
                     <Text style={[styles.badgeText, { color: product.approved ? Colors.success : Colors.warning }]}>
@@ -275,6 +297,30 @@ export default function ProviderShop() {
               <Input label="Description" value={form.description} onChangeText={(v) => setForm((f) => ({ ...f, description: v }))} placeholder="Describe your product" multiline numberOfLines={3} style={{ minHeight: 80, textAlignVertical: 'top' }} />
               <Input label="Price (NGN)" value={form.price} onChangeText={(v) => setForm((f) => ({ ...f, price: v }))} placeholder="0.00" keyboardType="decimal-pad" />
               <Input label="Stock Quantity" value={form.stock} onChangeText={(v) => setForm((f) => ({ ...f, stock: v }))} placeholder="0" keyboardType="number-pad" />
+              <Text style={styles.inputLabel}>Main Category</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+                {SHOP_CATEGORIES.map((category) => (
+                  <TouchableOpacity
+                    key={category.slug}
+                    style={[styles.chip, form.mainCategory === category.slug && styles.chipActive]}
+                    onPress={() => setForm((f) => ({ ...f, mainCategory: category.slug, subcategory: category.subcategories[0]?.id || '' }))}
+                  >
+                    <Text style={[styles.chipText, form.mainCategory === category.slug && styles.chipTextActive]}>{category.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              <Text style={styles.inputLabel}>Subcategory</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+                {selectedCategory.subcategories.map((subcategory) => (
+                  <TouchableOpacity
+                    key={subcategory.id}
+                    style={[styles.chip, form.subcategory === subcategory.id && styles.chipActive]}
+                    onPress={() => setForm((f) => ({ ...f, subcategory: subcategory.id }))}
+                  >
+                    <Text style={[styles.chipText, form.subcategory === subcategory.id && styles.chipTextActive]}>{subcategory.name}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
               <Button title={editingProduct ? 'Save Changes' : 'Add Product'} onPress={handleCreate} loading={saving} fullWidth size="large" />
             </ScrollView>
           </KeyboardAvoidingView>
@@ -308,10 +354,17 @@ const styles = StyleSheet.create({
   cardImagePlaceholder: { backgroundColor: Colors.background, justifyContent: 'center', alignItems: 'center' },
   cardName: { fontSize: FontSizes.sm, fontWeight: '700', color: Colors.text },
   cardPrice: { fontSize: FontSizes.xs, color: Colors.textSecondary, marginTop: 2 },
+  cardMeta: { fontSize: 11, color: Colors.textSecondary, marginTop: 4 },
   badge: { alignSelf: 'flex-start', paddingHorizontal: 6, paddingVertical: 2, borderRadius: BorderRadius.full, marginTop: 4 },
   badgeText: { fontSize: 10, fontWeight: '700' },
   cardActions: { flexDirection: 'row', gap: Spacing.sm },
   imagePicker: { width: 100, height: 100, borderRadius: BorderRadius.md, borderWidth: 1.5, borderColor: Colors.border, borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center', alignSelf: 'center', marginBottom: Spacing.lg, overflow: 'hidden' },
   imagePickerPreview: { width: '100%', height: '100%' },
   imagePickerText: { fontSize: FontSizes.xs, color: Colors.primary, fontWeight: '600', marginTop: 4 },
+  inputLabel: { fontSize: FontSizes.sm, color: Colors.text, fontWeight: '700', marginTop: Spacing.md, marginBottom: Spacing.xs },
+  chipRow: { flexDirection: 'row', gap: Spacing.sm, paddingVertical: 4 },
+  chip: { paddingHorizontal: Spacing.md, paddingVertical: 8, borderRadius: BorderRadius.full, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border },
+  chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  chipText: { fontSize: FontSizes.xs, color: Colors.textSecondary, fontWeight: '600' },
+  chipTextActive: { color: '#fff' },
 });

@@ -1,3 +1,4 @@
+import { normalizeShopCategoryMetadata } from '../constants/shopCategories';
 import { supabase } from '../lib/supabase';
 import apiService, { localApiService } from './api';
 
@@ -11,6 +12,9 @@ export interface Product {
   stylist_auth_id: string;
   approved: boolean;
   category?: string | null;
+  main_category?: string | null;
+  subcategory?: string | null;
+  featured_collection?: string | null;
   moderation_status?: 'pending' | 'approved' | 'rejected';
   status?: string;
   created_at: string;
@@ -40,6 +44,27 @@ export interface Order {
   provider_name?: string | null;
 }
 
+function normalizeProductCategoryMetadata(product: Partial<Product>): Product {
+  const normalized = normalizeShopCategoryMetadata({
+    category: product.main_category || product.category,
+    subcategory: product.subcategory,
+    main_category: product.main_category || product.category,
+  });
+
+  return {
+    ...(product as Product),
+    category: normalized.category ?? product.category ?? null,
+    main_category: normalized.main_category ?? product.main_category ?? product.category ?? null,
+    subcategory: normalized.subcategory ?? product.subcategory ?? null,
+    featured_collection: product.featured_collection ?? null,
+  } as Product;
+}
+
+function isColumnMissingError(error: any): boolean {
+  const message = `${error?.message || ''}`.toLowerCase();
+  return message.includes('column') && (message.includes('does not exist') || message.includes('not exist') || message.includes('unknown'));
+}
+
 /**
  * Shop (Phase 3A). Reuses the EXISTING `products`, `orders`, `order_items`
  * tables exactly as confirmed via the backend audit - no new tables. Reads
@@ -63,13 +88,13 @@ export const shopService = {
 
     const { data, error } = await query.order('created_at', { ascending: false });
     if (error) throw error;
-    return data || [];
+    return (data || []).map((product) => normalizeProductCategoryMetadata(product as Product));
   },
 
   async getProduct(id: number): Promise<Product | null> {
     const { data, error } = await supabase.from('products').select('*').eq('id', id).maybeSingle();
     if (error) throw error;
-    return data;
+    return data ? normalizeProductCategoryMetadata(data as Product) : null;
   },
 
   async getProviderProducts(stylistAuthId: string): Promise<Product[]> {
@@ -79,24 +104,74 @@ export const shopService = {
       .eq('stylist_auth_id', stylistAuthId)
       .order('created_at', { ascending: false });
     if (error) throw error;
-    return data || [];
+    return (data || []).map((product) => normalizeProductCategoryMetadata(product as Product));
   },
 
-  async createProduct(input: { name: string; description: string; price: number; stock: number; image_urls?: string[] }): Promise<Product> {
+  async createProduct(input: {
+    name: string;
+    description: string;
+    price: number;
+    stock: number;
+    image_urls?: string[];
+    category?: string | null;
+    main_category?: string | null;
+    subcategory?: string | null;
+    featured_collection?: string | null;
+  }): Promise<Product> {
     const authId = await apiService.getAuthId();
     if (!authId) throw new Error('Not authenticated');
-    const { data, error } = await supabase
-      .from('products')
-      .insert({ ...input, stylist_auth_id: authId, approved: false })
-      .select()
-      .single();
-    if (error) throw error;
-    return data;
+
+    const payload = {
+      name: input.name,
+      description: input.description,
+      price: input.price,
+      stock: input.stock,
+      image_urls: input.image_urls,
+      stylist_auth_id: authId,
+      approved: false,
+      moderation_status: 'pending' as const,
+      ...(input.category ? { category: input.category } : {}),
+      ...(input.main_category ? { main_category: input.main_category } : {}),
+      ...(input.subcategory ? { subcategory: input.subcategory } : {}),
+      ...(input.featured_collection ? { featured_collection: input.featured_collection } : {}),
+    };
+
+    try {
+      const { data, error } = await supabase.from('products').insert(payload).select().single();
+      if (error) throw error;
+      return normalizeProductCategoryMetadata(data as Product);
+    } catch (error) {
+      if (!isColumnMissingError(error)) throw error;
+      const { main_category, subcategory, featured_collection, ...fallbackPayload } = payload;
+      const { data, error: fallbackError } = await supabase.from('products').insert(fallbackPayload).select().single();
+      if (fallbackError) throw fallbackError;
+      return normalizeProductCategoryMetadata(data as Product);
+    }
   },
 
-  async updateProduct(id: number, input: Partial<{ name: string; description: string; price: number; stock: number; image_urls: string[]; approved: boolean; moderation_status: 'pending' | 'approved' | 'rejected' }>): Promise<void> {
-    const { error } = await supabase.from('products').update(input).eq('id', id);
-    if (error) throw error;
+  async updateProduct(id: number, input: Partial<{
+    name: string;
+    description: string;
+    price: number;
+    stock: number;
+    image_urls: string[];
+    approved: boolean;
+    moderation_status: 'pending' | 'approved' | 'rejected';
+    category: string | null;
+    main_category: string | null;
+    subcategory: string | null;
+    featured_collection: string | null;
+  }>): Promise<void> {
+    const payload = { ...input };
+    try {
+      const { error } = await supabase.from('products').update(payload).eq('id', id);
+      if (error) throw error;
+    } catch (error) {
+      if (!isColumnMissingError(error)) throw error;
+      const { main_category, subcategory, featured_collection, ...fallbackPayload } = payload;
+      const { error: fallbackError } = await supabase.from('products').update(fallbackPayload).eq('id', id);
+      if (fallbackError) throw fallbackError;
+    }
   },
 
   async deleteProduct(id: number): Promise<void> {

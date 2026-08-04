@@ -87,6 +87,13 @@ export default function ProductDetail() {
         <Text style={styles.name}>{product.name}</Text>
         <Text style={styles.price}>{formatCurrency(product.price)}</Text>
         <Text style={styles.stock}>{product.stock > 0 ? `${product.stock} in stock` : 'Out of stock'}</Text>
+        {(product.main_category || product.category) ? (
+          <View style={styles.metaBox}>
+            <Text style={styles.metaLabel}>Category</Text>
+            <Text style={styles.metaValue}>{product.main_category || product.category}</Text>
+            {product.subcategory ? <Text style={styles.metaValue}>{product.subcategory}</Text> : null}
+          </View>
+        ) : null}
         {!!product.description && <Text style={styles.description}>{product.description}</Text>}
       </ScrollView>
       <View style={styles.footer}>
@@ -113,6 +120,9 @@ const styles = StyleSheet.create({
   name: { fontSize: FontSizes.xl, fontWeight: '800', color: Colors.text },
   price: { fontSize: FontSizes.lg, fontWeight: '700', color: Colors.primary, marginTop: Spacing.xs },
   stock: { fontSize: FontSizes.sm, color: Colors.textSecondary, marginTop: Spacing.xs, marginBottom: Spacing.md },
+  metaBox: { backgroundColor: Colors.surface, padding: Spacing.sm, borderRadius: BorderRadius.md, marginBottom: Spacing.md },
+  metaLabel: { fontSize: FontSizes.xs, color: Colors.primary, fontWeight: '700' },
+  metaValue: { fontSize: FontSizes.sm, color: Colors.text, marginTop: 2 },
   description: { fontSize: FontSizes.sm, color: Colors.textSecondary, lineHeight: 21 },
   footer: { padding: Spacing.lg, borderTopWidth: 1, borderTopColor: Colors.border },
 });
