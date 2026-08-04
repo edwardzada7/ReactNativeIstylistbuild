@@ -48,6 +48,7 @@ export default function Cart() {
       const response = await shopService.initializePaystackCheckout({
         amount,
         email: user.email,
+        items,
         name: user.full_name,
         phone: user.phone || undefined,
         redirect_url: REDIRECT_URL,
