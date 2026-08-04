@@ -121,6 +121,7 @@ export const shopService = {
   async initializePaystackCheckout(input: {
     amount: number;
     email: string;
+    items?: { product_id: number; quantity: number }[];
     name?: string;
     phone?: string;
     redirect_url?: string;
