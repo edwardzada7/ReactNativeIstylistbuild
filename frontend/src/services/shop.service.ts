@@ -1,5 +1,6 @@
 import { normalizeShopCategoryMetadata } from '../constants/shopCategories';
 import { supabase } from '../lib/supabase';
+import { ProductReview, ProductReviewsResponse } from '../types';
 import apiService, { localApiService } from './api';
 
 export interface Product {
@@ -296,5 +297,27 @@ export const shopService = {
 
   async updateOrderStatus(orderId: number, status: string): Promise<any> {
     return await localApiService.patch(`/shop/orders/${orderId}`, { status });
+  },
+
+  async getProductReviews(productId: number): Promise<ProductReviewsResponse> {
+    return await localApiService.get<ProductReviewsResponse>(`/shop/products/${productId}/reviews`);
+  },
+
+  async createProductReview(productId: number, input: { rating: number; review_text: string }): Promise<ProductReview> {
+    const authId = await apiService.getAuthId();
+    if (!authId) throw new Error('Not authenticated');
+    return await localApiService.post<ProductReview>(`/shop/products/${productId}/reviews`, input);
+  },
+
+  async updateProductReview(productId: number, reviewId: number, input: { rating: number; review_text: string }): Promise<ProductReview> {
+    const authId = await apiService.getAuthId();
+    if (!authId) throw new Error('Not authenticated');
+    return await localApiService.patch<ProductReview>(`/shop/products/${productId}/reviews/${reviewId}`, input);
+  },
+
+  async deleteProductReview(productId: number, reviewId: number): Promise<void> {
+    const authId = await apiService.getAuthId();
+    if (!authId) throw new Error('Not authenticated');
+    await localApiService.delete(`/shop/products/${productId}/reviews/${reviewId}`);
   },
 };

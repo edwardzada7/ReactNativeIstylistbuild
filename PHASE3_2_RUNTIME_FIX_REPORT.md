@@ -5,7 +5,7 @@ Scope: **runtime bug fixes only**, no new features, no UI redesign. Verified via
 bundle restart (1395 modules, compiled cleanly, no red-box errors).
 
 Root causes were found by inspecting the **real** production API
-(`https://mongo-supabase-api.emergent.host/api`) directly (read-only GET probes
+(the local development API endpoint) directly (read-only GET probes
 + empty-body POST probes that only trigger Pydantic validation errors, never
 create real records). **No new endpoints were invented and the backend was not
 modified.**

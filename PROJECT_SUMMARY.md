@@ -237,7 +237,7 @@ The app is configured and ready for:
 - ✅ OTA updates via Expo
 - ✅ EAS Build integration
 
-**To build**: Use the Emergent publish button (top right corner)
+**To build**: Use the Expo publish workflow from the project root
 
 ## 🎯 What's Next (Phase 2 Recommendations)
 
@@ -349,7 +349,7 @@ Scan QR code with:
 - Android: Expo Go app
 
 ### For Building
-Use Emergent publish button to create:
+Use the Expo publish workflow to create:
 - Android APK/AAB
 - iOS IPA
 
@@ -379,7 +379,7 @@ Q: How do I test on my phone?
 A: Install Expo Go app and scan QR code
 
 Q: How do I build for app stores?
-A: Use Emergent publish button
+A: Use the Expo publish workflow
 
 ## ✨ Summary
 
@@ -396,4 +396,4 @@ This is a **complete, production-ready mobile app foundation** that:
 
 ---
 
-Built with ❤️ using Emergent AI
+Built with ❤️ for iStylist

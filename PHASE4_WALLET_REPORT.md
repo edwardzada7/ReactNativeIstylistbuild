@@ -5,7 +5,7 @@ new/changed files), and a Metro bundle restart (1460 modules, compiled
 cleanly). No Playwright/browser automation, no test accounts/bookings created.
 
 All endpoints below were confirmed by directly inspecting the real production
-API (`https://mongo-supabase-api.emergent.host/api`) with read-only GET probes
+API (the local development API endpoint) with read-only GET probes
 and empty-body POST probes (which only trigger validation errors, never
 create records) before writing any code. **No backend changes. No invented
 endpoints.**

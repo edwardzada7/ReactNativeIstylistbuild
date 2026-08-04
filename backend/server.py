@@ -126,6 +126,16 @@ class UpdateOrderStatusInput(BaseModel):
     status: str
 
 
+class ProductReviewCreateInput(BaseModel):
+    rating: int = Field(ge=1, le=5)
+    review_text: str = Field(default='')
+
+
+class ProductReviewUpdateInput(BaseModel):
+    rating: int = Field(ge=1, le=5)
+    review_text: str = Field(default='')
+
+
 class PaystackShopInitializeInput(BaseModel):
     amount: float
     email: str
@@ -178,6 +188,53 @@ def _insert_chat_message(sender_auth_id: str, receiver_auth_id: str, message: st
         )
     except Exception as exc:
         logger.warning("failed to create chat message for %s -> %s: %s", sender_auth_id, receiver_auth_id, exc)
+
+
+def _get_supabase_user_details(authorization: Optional[str]):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    token = authorization.split(" ", 1)[1]
+    resp = requests.get(
+        f"{SUPABASE_URL}/auth/v1/user",
+        headers={"Authorization": f"Bearer {token}", "apikey": SUPABASE_SERVICE_ROLE_KEY},
+        timeout=10,
+    )
+    if resp.status_code != 200:
+        raise HTTPException(status_code=401, detail="Invalid or expired session")
+    return resp.json()
+
+
+async def _user_has_purchased_product(auth_id: str, product_id: int) -> bool:
+    try:
+        response = requests.get(
+            f"{SUPABASE_URL}/rest/v1/orders?select=id,customer_auth_id,payment_status,status&customer_auth_id=eq.{auth_id}",
+            headers=_supabase_headers(),
+            timeout=10,
+        )
+        if response.status_code != 200:
+            return False
+        orders = response.json() or []
+        if not orders:
+            return False
+        order_ids = ",".join(str(order["id"]) for order in orders if order.get("id"))
+        if not order_ids:
+            return False
+        items_resp = requests.get(
+            f"{SUPABASE_URL}/rest/v1/order_items?select=order_id,product_id&order_id=in.({order_ids})",
+            headers=_supabase_headers(),
+            timeout=10,
+        )
+        if items_resp.status_code != 200:
+            return False
+        items = items_resp.json() or []
+        purchased = any(item.get("product_id") == product_id for item in items)
+        if not purchased:
+            return False
+        verified_orders = [order for order in orders if order.get("payment_status") == "verified" or order.get("status") in {"delivered", "completed", "confirmed"}]
+        return bool(verified_orders)
+    except Exception as exc:
+        logger.warning("failed to resolve verified purchase for %s/%s: %s", auth_id, product_id, exc)
+        return False
 
 
 def _validate_shop_checkout_items(items: List[OrderItemInput], amount: Optional[float] = None, delivery_fee: float = 0.0):
@@ -320,6 +377,135 @@ def _finalize_verified_shop_order(order_id: int, auth_id: str, items: List[Order
         "payment",
         notification_payload,
     )
+
+
+@api_router.get("/shop/products/{product_id}/reviews")
+async def get_product_reviews(product_id: int, authorization: Optional[str] = Header(None)):
+    try:
+        resp = requests.get(
+            f"{SUPABASE_URL}/rest/v1/product_reviews?product_id=eq.{product_id}&select=*&order=created_at.desc",
+            headers=_supabase_headers(),
+            timeout=10,
+        )
+        if resp.status_code != 200:
+            raise HTTPException(status_code=502, detail="Could not load product reviews")
+        reviews = resp.json() or []
+        average_rating = round(sum(review.get("rating", 0) for review in reviews) / len(reviews), 1) if reviews else 0.0
+        return {
+            "reviews": reviews,
+            "average_rating": average_rating,
+            "review_count": len(reviews),
+        }
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("failed to load product reviews for %s: %s", product_id, exc)
+        raise HTTPException(status_code=500, detail="Could not load product reviews") from exc
+
+
+@api_router.post("/shop/products/{product_id}/reviews")
+async def create_product_review(product_id: int, payload: ProductReviewCreateInput, authorization: Optional[str] = Header(None)):
+    user = _get_supabase_user_details(authorization)
+    auth_id = user["id"]
+    user_meta = user.get("user_metadata") or {}
+    full_name = user_meta.get("full_name") or user_meta.get("name") or user.get("email") or "Customer"
+    avatar = user_meta.get("avatar_url") or user_meta.get("avatar") or None
+    verified_purchase = await _user_has_purchased_product(auth_id, product_id)
+
+    existing_resp = requests.get(
+        f"{SUPABASE_URL}/rest/v1/product_reviews?product_id=eq.{product_id}&user_id=eq.{auth_id}&select=id",
+        headers=_supabase_headers(),
+        timeout=10,
+    )
+    if existing_resp.status_code != 200:
+        raise HTTPException(status_code=502, detail="Could not check existing review")
+    existing_reviews = existing_resp.json() or []
+
+    review_payload = {
+        "product_id": product_id,
+        "user_id": auth_id,
+        "user_full_name": full_name,
+        "user_avatar": avatar,
+        "rating": payload.rating,
+        "review_text": payload.review_text,
+        "created_at": datetime.utcnow().isoformat(),
+        "verified_purchase": verified_purchase,
+    }
+
+    if existing_reviews:
+        review_id = existing_reviews[0]["id"]
+        update_resp = requests.patch(
+            f"{SUPABASE_URL}/rest/v1/product_reviews?id=eq.{review_id}",
+            headers=_supabase_headers(),
+            json=review_payload,
+            timeout=10,
+        )
+        if update_resp.status_code not in (200, 201):
+            raise HTTPException(status_code=502, detail="Could not update review")
+        return update_resp.json()[0]
+
+    create_resp = requests.post(
+        f"{SUPABASE_URL}/rest/v1/product_reviews",
+        headers=_supabase_headers(),
+        json=review_payload,
+        timeout=10,
+    )
+    if create_resp.status_code not in (200, 201):
+        raise HTTPException(status_code=502, detail="Could not create review")
+    return create_resp.json()[0]
+
+
+@api_router.patch("/shop/products/{product_id}/reviews/{review_id}")
+async def update_product_review(product_id: int, review_id: int, payload: ProductReviewUpdateInput, authorization: Optional[str] = Header(None)):
+    user = _get_supabase_user_details(authorization)
+    auth_id = user["id"]
+    existing_resp = requests.get(
+        f"{SUPABASE_URL}/rest/v1/product_reviews?id=eq.{review_id}&product_id=eq.{product_id}&user_id=eq.{auth_id}&select=id",
+        headers=_supabase_headers(),
+        timeout=10,
+    )
+    if existing_resp.status_code != 200:
+        raise HTTPException(status_code=502, detail="Could not verify review ownership")
+    if not existing_resp.json():
+        raise HTTPException(status_code=404, detail="Review not found")
+
+    update_resp = requests.patch(
+        f"{SUPABASE_URL}/rest/v1/product_reviews?id=eq.{review_id}",
+        headers=_supabase_headers(),
+        json={
+            "rating": payload.rating,
+            "review_text": payload.review_text,
+            "updated_at": datetime.utcnow().isoformat(),
+        },
+        timeout=10,
+    )
+    if update_resp.status_code not in (200, 201):
+        raise HTTPException(status_code=502, detail="Could not update review")
+    return update_resp.json()[0]
+
+
+@api_router.delete("/shop/products/{product_id}/reviews/{review_id}")
+async def delete_product_review(product_id: int, review_id: int, authorization: Optional[str] = Header(None)):
+    user = _get_supabase_user_details(authorization)
+    auth_id = user["id"]
+    existing_resp = requests.get(
+        f"{SUPABASE_URL}/rest/v1/product_reviews?id=eq.{review_id}&product_id=eq.{product_id}&user_id=eq.{auth_id}&select=id",
+        headers=_supabase_headers(),
+        timeout=10,
+    )
+    if existing_resp.status_code != 200:
+        raise HTTPException(status_code=502, detail="Could not verify review ownership")
+    if not existing_resp.json():
+        raise HTTPException(status_code=404, detail="Review not found")
+
+    delete_resp = requests.delete(
+        f"{SUPABASE_URL}/rest/v1/product_reviews?id=eq.{review_id}",
+        headers=_supabase_headers(),
+        timeout=10,
+    )
+    if delete_resp.status_code not in (200, 201, 204):
+        raise HTTPException(status_code=502, detail="Could not delete review")
+    return {"deleted": True}
 
 
 @api_router.post("/payments/paystack/shop/initialize")

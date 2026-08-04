@@ -281,6 +281,24 @@ export interface CreateReviewRequest {
   images?: string[];
 }
 
+export interface ProductReview {
+  id: number;
+  product_id: number;
+  user_id: string;
+  user_full_name: string;
+  user_avatar?: string | null;
+  rating: number;
+  review_text: string;
+  created_at: string;
+  verified_purchase: boolean;
+}
+
+export interface ProductReviewsResponse {
+  reviews: ProductReview[];
+  average_rating: number;
+  review_count: number;
+}
+
 // Availability Types
 export interface DayAvailability {
   day: 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';

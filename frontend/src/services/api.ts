@@ -178,5 +178,10 @@ class LocalApiService {
     const response = await this.client.patch<T>(this.normalizeUrl(url), data);
     return response.data;
   }
+
+  async delete<T = any>(url: string): Promise<T> {
+    const response = await this.client.delete<T>(this.normalizeUrl(url));
+    return response.data;
+  }
 }
 export const localApiService = new LocalApiService();
