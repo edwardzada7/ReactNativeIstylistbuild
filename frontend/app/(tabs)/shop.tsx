@@ -33,7 +33,7 @@ export default function CustomerShop() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<ShopMainCategorySlug | null>(null);
+  const [selectedCategory, setSelectedCategory] = useState<ShopMainCategorySlug | null>('beauty');
   const [selectedSubcategory, setSelectedSubcategory] = useState<string | null>(null);
   const cartCount = useCartStore((s) => s.lines.reduce((n, l) => n + l.quantity, 0));
 
@@ -64,13 +64,22 @@ export default function CustomerShop() {
       const productCategorySlug = getShopCategoryBySlug(product.main_category || product.category || '')?.slug ?? null;
       const matchesCategory = !selectedCategory || productCategorySlug === selectedCategory;
       const productSubcategory = product.subcategory || null;
-      const matchesSubcategory = !selectedSubcategory || !!activeCategory?.subcategories.find((subcategory) => subcategory.name === productSubcategory || subcategory.id === productSubcategory);
+      const matchesSubcategory = !selectedSubcategory || activeCategory?.subcategories.some((subcategory) => subcategory.name === productSubcategory || subcategory.id === productSubcategory) || false;
       return matchesQuery && matchesCategory && matchesSubcategory;
     });
   }, [activeCategory?.subcategories, products, search, selectedCategory, selectedSubcategory]);
 
   const handleCategorySelection = (categorySlug: ShopMainCategorySlug | null) => {
     setSelectedCategory(categorySlug);
+    setSelectedSubcategory(null);
+  };
+
+  const hasActiveFilters = Boolean(search.trim() || selectedCategory || selectedSubcategory);
+  const resultsLabel = `${filtered.length} ${filtered.length === 1 ? 'Product' : 'Products'}`;
+
+  const resetFilters = () => {
+    setSearch('');
+    setSelectedCategory('beauty');
     setSelectedSubcategory(null);
   };
 
@@ -115,18 +124,20 @@ export default function CustomerShop() {
       </View>
 
       <View style={styles.categorySection}>
-        <Text style={styles.sectionTitle}>Browse by category</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-          <TouchableOpacity style={[styles.chip, !selectedCategory && styles.chipActive]} onPress={() => handleCategorySelection(null)}>
-            <Text style={[styles.chipText, !selectedCategory && styles.chipTextActive]}>All</Text>
+        <Text style={styles.sectionTitle}>Explore by category</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cardRow}>
+          <TouchableOpacity style={[styles.categoryCard, !selectedCategory && styles.categoryCardActive]} onPress={() => handleCategorySelection(null)}>
+            <Text style={styles.categoryCardIcon}>🛍</Text>
+            <Text style={[styles.categoryCardText, !selectedCategory && styles.categoryCardTextActive]}>All</Text>
           </TouchableOpacity>
           {SHOP_CATEGORIES.map((category) => (
             <TouchableOpacity
               key={category.slug}
-              style={[styles.chip, selectedCategory === category.slug && styles.chipActive]}
+              style={[styles.categoryCard, selectedCategory === category.slug && styles.categoryCardActive]}
               onPress={() => handleCategorySelection(category.slug)}
             >
-              <Text style={[styles.chipText, selectedCategory === category.slug && styles.chipTextActive]}>{category.name}</Text>
+              <Text style={styles.categoryCardIcon}>{category.icon}</Text>
+              <Text style={[styles.categoryCardText, selectedCategory === category.slug && styles.categoryCardTextActive]}>{category.name}</Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -154,36 +165,50 @@ export default function CustomerShop() {
         </View>
       ) : filtered.length === 0 ? (
         <View style={styles.centerState}>
-          <Ionicons name="bag-handle-outline" size={32} color={Colors.textMuted} />
-          <Text style={styles.emptyText}>
-            {products.length === 0 ? 'No products available yet.' : 'No products match your current filters.'}
-          </Text>
+          <View style={styles.emptyStateCard}>
+            <Ionicons name="sparkles-outline" size={34} color={Colors.primary} />
+            <Text style={styles.emptyTitle}>No products found</Text>
+            <Text style={styles.emptyText}>
+              {products.length === 0 ? 'No products are available yet.' : 'Try adjusting your category, subcategory, or search terms.'}
+            </Text>
+            {hasActiveFilters ? (
+              <TouchableOpacity style={styles.clearButton} onPress={resetFilters}>
+                <Text style={styles.clearButtonText}>Clear Filters</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
         </View>
       ) : (
-        <FlatList
-          data={filtered}
-          keyExtractor={(item) => String(item.id)}
-          numColumns={2}
-          contentContainerStyle={styles.grid}
-          columnWrapperStyle={{ gap: Spacing.sm }}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={Colors.primary} />}
-          renderItem={({ item }) => (
-            <TouchableOpacity style={styles.card} onPress={() => router.push(`/shop/${item.id}`)} accessibilityRole="button" accessibilityLabel={item.name}>
-              {item.image_urls?.[0] ? (
-                <Image source={{ uri: item.image_urls[0] }} style={styles.cardImage} />
-              ) : (
-                <View style={[styles.cardImage, styles.cardImagePlaceholder]}>
-                  <Ionicons name="image-outline" size={28} color={Colors.textMuted} />
-                </View>
-              )}
-              <Text style={styles.cardName} numberOfLines={1}>{item.name}</Text>
-              <Text style={styles.cardPrice}>{formatCurrency(item.price)}</Text>
-              {item.main_category || item.category ? (
-                <Text style={styles.cardMeta} numberOfLines={1}>{item.subcategory || item.main_category || item.category}</Text>
-              ) : null}
-            </TouchableOpacity>
-          )}
-        />
+        <>
+          <View style={styles.resultsBar}>
+            <Text style={styles.resultsText}>{resultsLabel}</Text>
+            <Text style={styles.resultsHint}>Updated as you browse</Text>
+          </View>
+          <FlatList
+            data={filtered}
+            keyExtractor={(item) => String(item.id)}
+            numColumns={2}
+            contentContainerStyle={styles.grid}
+            columnWrapperStyle={{ gap: Spacing.sm }}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={Colors.primary} />}
+            renderItem={({ item }) => (
+              <TouchableOpacity style={styles.card} onPress={() => router.push(`/shop/${item.id}`)} accessibilityRole="button" accessibilityLabel={item.name}>
+                {item.image_urls?.[0] ? (
+                  <Image source={{ uri: item.image_urls[0] }} style={styles.cardImage} />
+                ) : (
+                  <View style={[styles.cardImage, styles.cardImagePlaceholder]}>
+                    <Ionicons name="image-outline" size={28} color={Colors.textMuted} />
+                  </View>
+                )}
+                <Text style={styles.cardName} numberOfLines={1}>{item.name}</Text>
+                <Text style={styles.cardPrice}>{formatCurrency(item.price)}</Text>
+                {item.main_category || item.category ? (
+                  <Text style={styles.cardMeta} numberOfLines={1}>{item.subcategory || item.main_category || item.category}</Text>
+                ) : null}
+              </TouchableOpacity>
+            )}
+          />
+        </>
       )}
     </SafeAreaView>
   );
@@ -212,17 +237,26 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, fontSize: FontSizes.sm, color: Colors.text },
   categorySection: { marginHorizontal: Spacing.lg, marginBottom: Spacing.sm },
   sectionTitle: { fontSize: FontSizes.sm, fontWeight: '700', color: Colors.text, marginBottom: Spacing.xs },
+  cardRow: { flexDirection: 'row', gap: Spacing.sm, paddingVertical: 4 },
+  categoryCard: { width: 128, minHeight: 98, backgroundColor: Colors.surface, borderRadius: BorderRadius.lg, padding: Spacing.sm, justifyContent: 'center', borderWidth: 1, borderColor: Colors.border },
+  categoryCardActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  categoryCardIcon: { fontSize: 22, marginBottom: 6 },
+  categoryCardText: { fontSize: FontSizes.xs, color: Colors.text, fontWeight: '700' },
+  categoryCardTextActive: { color: '#fff' },
   chipRow: { flexDirection: 'row', gap: Spacing.sm, paddingVertical: 4 },
-  chip: { paddingHorizontal: Spacing.md, paddingVertical: 8, borderRadius: BorderRadius.full, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border },
-  chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  chipText: { fontSize: FontSizes.xs, color: Colors.textSecondary, fontWeight: '600' },
-  chipTextActive: { color: '#fff' },
   subchip: { paddingHorizontal: Spacing.sm, paddingVertical: 7, borderRadius: BorderRadius.full, backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border },
   subchipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   subchipText: { fontSize: 11, color: Colors.textSecondary, fontWeight: '600' },
   subchipTextActive: { color: '#fff' },
+  resultsBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginHorizontal: Spacing.lg, marginBottom: Spacing.sm },
+  resultsText: { fontSize: FontSizes.sm, fontWeight: '700', color: Colors.text },
+  resultsHint: { fontSize: FontSizes.xs, color: Colors.textSecondary },
   centerState: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: Spacing.sm, paddingHorizontal: Spacing.xl },
-  emptyText: { fontSize: FontSizes.sm, color: Colors.textSecondary, textAlign: 'center' },
+  emptyStateCard: { width: '100%', alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.surface, borderRadius: BorderRadius.xl, padding: Spacing.xl, borderWidth: 1, borderColor: Colors.border },
+  emptyTitle: { fontSize: FontSizes.lg, fontWeight: '700', color: Colors.text, marginTop: Spacing.sm },
+  emptyText: { fontSize: FontSizes.sm, color: Colors.textSecondary, textAlign: 'center', marginTop: Spacing.xs },
+  clearButton: { marginTop: Spacing.md, backgroundColor: Colors.primary, paddingHorizontal: Spacing.md, paddingVertical: 10, borderRadius: BorderRadius.full },
+  clearButtonText: { color: '#fff', fontSize: FontSizes.sm, fontWeight: '700' },
   grid: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xl, gap: Spacing.sm },
   card: { flex: 1, backgroundColor: Colors.surface, borderRadius: BorderRadius.md, padding: Spacing.sm, marginBottom: Spacing.sm },
   cardImage: { width: '100%', height: 120, borderRadius: BorderRadius.sm, marginBottom: Spacing.sm },
