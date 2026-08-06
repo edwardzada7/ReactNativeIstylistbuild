@@ -20,7 +20,9 @@ import { useAuth } from '../../src/contexts/AuthContext';
 import { walletService } from '../../src/services/wallet.service';
 import { formatCurrency } from '../../src/utils/currency';
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8001/api';
+const API_BASE_URL =
+  process.env.EXPO_PUBLIC_API_BASE_URL ||
+  'https://updatedistylistbeauty-marketplace-production.up.railway.app/api';
 // Same-origin redirect target (mirrors web's `${window.location.origin}/wallet`)
 // - not an invented external domain, just the app's own known backend origin.
 const REDIRECT_URL = `${API_BASE_URL.replace(/\/api\/?$/, '')}/wallet`;

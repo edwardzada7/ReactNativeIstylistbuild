@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase';
-import apiService, { localApiService } from './api';
+import apiService from './api';
 
 export interface ChatMessage {
   id: number;
@@ -62,7 +62,7 @@ export const chatService = {
   },
 
   async sendMessage(receiverAuthId: string, message: string, bookingId?: number): Promise<ChatMessage> {
-    return await localApiService.post('/chat/messages', {
+    return await apiService.post('/chat/messages', {
       receiver_auth_id: receiverAuthId,
       message,
       booking_id: bookingId,

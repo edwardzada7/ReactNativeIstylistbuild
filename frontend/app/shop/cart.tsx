@@ -11,7 +11,9 @@ import { shopService } from '../../src/services/shop.service';
 import { useCartStore } from '../../src/store/cartStore';
 import { formatCurrency } from '../../src/utils/currency';
 
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'http://localhost:8001/api';
+const API_BASE_URL =
+  process.env.EXPO_PUBLIC_API_BASE_URL ||
+  'https://updatedistylistbeauty-marketplace-production.up.railway.app/api';
 const REDIRECT_URL = `${API_BASE_URL.replace(/\/api\/?$/, '')}/shop/cart`;
 type CheckoutStep = 'cart' | 'checkout' | 'success' | 'failed' | 'cancelled';
 
