@@ -31,17 +31,26 @@ export default function ProductDetail() {
 
   const loadProduct = async () => {
     if (!id) return;
+
     try {
-      const [productData, reviewData] = await Promise.all([
-        shopService.getProduct(Number(id)),
-        shopService.getProductReviews(Number(id)),
-      ]);
+      const productData = await shopService.getProduct(Number(id));
       setProduct(productData);
-      setReviews(reviewData.reviews);
-      setAverageRating(reviewData.average_rating);
-      setReviewCount(reviewData.review_count);
+
+      if (productData) {
+        try {
+          const reviewData = await shopService.getProductReviews(Number(id));
+          setReviews(reviewData.reviews);
+          setAverageRating(reviewData.average_rating);
+          setReviewCount(reviewData.review_count);
+        } catch (err) {
+          console.error('[product-detail] failed to load reviews', err);
+          setReviews([]);
+          setAverageRating(0);
+          setReviewCount(0);
+        }
+      }
     } catch (err) {
-      console.error('[product-detail] failed to load', err);
+      console.error('[product-detail] failed to load product', err);
     } finally {
       setLoading(false);
     }
