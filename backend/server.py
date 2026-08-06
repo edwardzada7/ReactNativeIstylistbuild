@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, Header, HTTPException, Path, Request
+from fastapi import FastAPI, APIRouter, Header, HTTPException, Path, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
@@ -28,6 +28,7 @@ SUPABASE_URL = os.environ.get('SUPABASE_URL', '')
 SUPABASE_SERVICE_ROLE_KEY = os.environ.get('SUPABASE_SERVICE_ROLE_KEY', '')
 PAYSTACK_SECRET_KEY = os.environ.get('PAYSTACK_SECRET_KEY', '')
 PAYSTACK_BASE_URL = 'https://api.paystack.co'
+PRIMARY_BACKEND_URL = 'https://updatedistylistbeauty-marketplace-production.up.railway.app'
 
 # Create the main app without a prefix
 app = FastAPI()
@@ -188,6 +189,106 @@ def _insert_chat_message(sender_auth_id: str, receiver_auth_id: str, message: st
         )
     except Exception as exc:
         logger.warning("failed to create chat message for %s -> %s: %s", sender_auth_id, receiver_auth_id, exc)
+
+
+def _proxy_request_headers(request: Request):
+    excluded = {
+        'host',
+        'content-length',
+        'accept-encoding',
+        'connection',
+        'keep-alive',
+        'proxy-authenticate',
+        'proxy-authorization',
+        'te',
+        'trailer',
+        'transfer-encoding',
+        'upgrade',
+    }
+    return {k: v for k, v in request.headers.items() if k.lower() not in excluded}
+
+
+def _proxy_response(response: requests.Response):
+    excluded = {
+        'content-encoding',
+        'content-length',
+        'transfer-encoding',
+        'connection',
+        'keep-alive',
+        'proxy-authenticate',
+        'proxy-authorization',
+        'te',
+        'trailer',
+        'upgrade',
+    }
+    headers = {k: v for k, v in response.headers.items() if k.lower() not in excluded}
+    media_type = response.headers.get('Content-Type')
+    return Response(content=response.content, status_code=response.status_code, headers=headers, media_type=media_type)
+
+
+async def _proxy_to_primary(request: Request, upstream_path: str, path_params: Optional[dict] = None):
+    path_params = path_params or {}
+    formatted_path = upstream_path.format(**path_params)
+    if not formatted_path.startswith('/'):
+        formatted_path = '/' + formatted_path
+    if not formatted_path.startswith('/api'):
+        formatted_path = '/api' + formatted_path
+    url = PRIMARY_BACKEND_URL.rstrip('/') + formatted_path
+    headers = _proxy_request_headers(request)
+    try:
+        resp = requests.request(
+            request.method,
+            url,
+            headers=headers,
+            params=dict(request.query_params),
+            data=await request.body(),
+            timeout=20,
+        )
+    except requests.RequestException as exc:
+        logger.exception("Primary backend proxy request failed: %s", exc)
+        raise HTTPException(status_code=502, detail="Failed to reach primary backend") from exc
+    return _proxy_response(resp)
+
+
+def _make_proxy_endpoint(upstream_path: str, method: str):
+    async def proxy_endpoint(request: Request, **path_params):
+        return await _proxy_to_primary(request, upstream_path, path_params)
+    proxy_endpoint.__name__ = f"proxy_{method}_{upstream_path.lstrip('/').replace('/', '_').replace('{', '').replace('}', '') or 'root'}"
+    return proxy_endpoint
+
+
+def _register_primary_proxy_routes():
+    try:
+        resp = requests.get(f"{PRIMARY_BACKEND_URL.rstrip('/')}/openapi.json", timeout=20)
+        resp.raise_for_status()
+        openapi = resp.json()
+    except Exception as exc:
+        logger.warning("Could not fetch primary backend OpenAPI spec from %s: %s", PRIMARY_BACKEND_URL, exc)
+        return
+
+    primary_paths = openapi.get('paths', {}) or {}
+    local_paths = {
+        route.path[len(api_router.prefix):] if route.path.startswith(api_router.prefix) else route.path
+        for route in api_router.routes
+    }
+    for raw_path, operations in primary_paths.items():
+        if not raw_path.startswith('/api'):
+            continue
+        router_path = raw_path[len('/api'):] or '/'
+        if router_path in local_paths:
+            continue
+        for method_name, operation in operations.items():
+            method = method_name.upper()
+            if method not in {'GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS', 'HEAD'}:
+                continue
+            proxy_handler = _make_proxy_endpoint(raw_path, method)
+            api_router.add_api_route(
+                router_path,
+                proxy_handler,
+                methods=[method],
+                name=proxy_handler.__name__,
+                include_in_schema=True,
+            )
 
 
 def _get_supabase_user_details(authorization: Optional[str]):
@@ -878,6 +979,10 @@ def send_chat_message(payload: SendMessageInput, authorization: Optional[str] = 
 
 
 # Include the router in the main app
+@app.on_event('startup')
+async def startup_register_proxy_routes():
+    _register_primary_proxy_routes()
+
 app.include_router(api_router)
 
 @app.exception_handler(RequestValidationError)
