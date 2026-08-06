@@ -618,6 +618,7 @@ async def initialize_paystack_shop_checkout(request: Request, payload: PaystackS
     except Exception as body_exc:
         logger.exception("[paystack-init] failed to read request body: %s", body_exc)
 
+    logger.info("Initialize payload: %s", payload.dict())
     logger.info("[paystack-init] parsed payload=%s", payload.dict())
 
     if not PAYSTACK_SECRET_KEY:
@@ -694,7 +695,7 @@ async def initialize_paystack_shop_checkout(request: Request, payload: PaystackS
 
 @api_router.get("/payments/paystack/shop/verify")
 def verify_paystack_shop_checkout(
-    reference: str,
+    reference: Optional[str] = None,
     transaction_id: Optional[str] = None,
     amount: Optional[float] = None,
     currency: Optional[str] = None,
@@ -706,6 +707,14 @@ def verify_paystack_shop_checkout(
     authorization: Optional[str] = Header(None),
 ):
     """Verify a Paystack transaction and finalize the shop order only when payment succeeds."""
+    logger.info(
+        "Verify request: reference=%s transaction_id=%s amount=%s items=%s",
+        reference,
+        transaction_id,
+        amount,
+        items,
+    )
+
     if not PAYSTACK_SECRET_KEY:
         raise HTTPException(status_code=500, detail="Paystack is not configured")
     if not reference:
@@ -994,8 +1003,18 @@ async def handle_validation_error(request: Request, exc: RequestValidationError)
     except Exception as body_exc:
         logger.exception("[paystack-init] failed to read body for validation failure: %s", body_exc)
 
-    logger.error("[paystack-init] validation failed method=%s path=%s body=%s errors=%s", request.method, request.url.path, body_text or '<empty>', exc.errors())
-    return JSONResponse(status_code=422, content={"detail": exc.errors()})
+    formatted_errors = []
+    for error in exc.errors():
+        loc = list(error.get("loc", []))
+        formatted_errors.append({
+            "loc": loc,
+            "msg": "Field required" if error.get("type") == "missing" else error.get("msg"),
+            "type": error.get("type"),
+            "input": error.get("input"),
+        })
+
+    logger.error("[paystack-init] validation failed method=%s path=%s body=%s errors=%s", request.method, request.url.path, body_text or '<empty>', formatted_errors)
+    return JSONResponse(status_code=422, content={"detail": formatted_errors})
 
 app.add_middleware(
     CORSMiddleware,
