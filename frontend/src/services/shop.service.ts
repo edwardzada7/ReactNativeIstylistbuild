@@ -130,7 +130,6 @@ export const shopService = {
       image_urls: input.image_urls,
       stylist_auth_id: authId,
       approved: false,
-      moderation_status: 'pending' as const,
       ...(input.category ? { category: input.category } : {}),
       ...(input.main_category ? { main_category: input.main_category } : {}),
       ...(input.subcategory ? { subcategory: input.subcategory } : {}),
@@ -157,7 +156,6 @@ export const shopService = {
     stock: number;
     image_urls: string[];
     approved: boolean;
-    moderation_status: 'pending' | 'approved' | 'rejected';
     category: string | null;
     main_category: string | null;
     subcategory: string | null;
