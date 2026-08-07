@@ -201,7 +201,17 @@ export const shopService = {
     redirect_url?: string;
     currency?: string;
   }): Promise<{ status: boolean; authorization_url?: string; reference?: string; message?: string }> {
-    return apiService.post('/payments/paystack/shop/initialize', input);
+    // Ensure required backend fields are present and serialised predictably
+    const body = {
+      amount: Number(input.amount),
+      email: input.email || '',
+      items: input.items && input.items.length > 0 ? input.items : undefined,
+      name: input.name ?? undefined,
+      phone: input.phone ?? undefined,
+      redirect_url: input.redirect_url ?? undefined,
+      currency: input.currency ?? undefined,
+    };
+    return apiService.post('/payments/paystack/shop/initialize', body);
   },
 
   async verifyPaystackCheckout(input: {
