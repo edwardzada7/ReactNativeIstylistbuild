@@ -11,6 +11,7 @@ export interface User {
   name?: string;
   phone?: string;
   avatar?: string;
+  profile_image_url?: string | null;
   role: 'customer' | 'provider' | 'admin';
   role_raw?: string;
   is_verified: boolean;
@@ -20,6 +21,10 @@ export interface User {
   state?: string | null;
   city?: string | null;
   address?: string | null;
+  location?: string | null;
+  location_address?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   gender?: string | null;
   account_type?: string;
   created_at?: string;
@@ -64,6 +69,7 @@ export interface Provider {
   review_count: number;
   price_range: string;
   location: string;
+  location_address?: string | null;
   latitude?: number;
   longitude?: number;
   images: string[];
@@ -74,6 +80,7 @@ export interface Provider {
   completion_rate?: number;
   created_at: string;
   avatar?: string;
+  profile_image_url?: string | null;
 }
 
 // Category Types
@@ -246,6 +253,8 @@ export interface Post {
     business_name?: string;
     full_name?: string;
     photo_url?: string;
+    profile_image_url?: string | null;
+    avatar?: string;
   };
   created_at: string;
 }

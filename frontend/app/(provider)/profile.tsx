@@ -3,24 +3,34 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, FlatList, 
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { providerService } from '../../src/services/provider.service';
 import { feedService } from '../../src/services/feed.service';
+import { resolveCurrentLocation } from '../../src/services/location.service';
+import { supabase } from '../../src/lib/supabase';
 import { Provider, Post } from '../../src/types';
 
 export default function ProviderProfile() {
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, logout, refreshUser } = useAuth();
   const [profile, setProfile] = useState<Provider | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(false);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [locationStatus, setLocationStatus] = useState<'idle' | 'detecting' | 'updated' | 'permission-required' | 'unavailable'>('idle');
+  const [locationLabel, setLocationLabel] = useState('');
 
   const loadProfile = useCallback(async () => {
     if (!user?.id) return;
     try {
       const data = await providerService.getProviderFullProfile(user.id);
       setProfile(data);
+      const nextLocation = data.location_address || data.location || '';
+      setLocationLabel(nextLocation);
+      setLocationStatus(nextLocation ? 'updated' : 'idle');
     } catch (err) {
       console.error('[provider-profile-tab] failed to load', err);
     }
@@ -58,9 +68,111 @@ export default function ProviderProfile() {
   }, [user?.id, user?.auth_id]);
 
   useEffect(() => {
+    setAvatarUrl(user?.profile_image_url || user?.avatar || null);
+    const nextLocation = user?.location_address || [user?.city, user?.state, user?.country].filter(Boolean).join(', ') || '';
+    setLocationLabel(nextLocation);
+    setLocationStatus(nextLocation ? 'updated' : 'idle');
     loadProfile();
     loadPosts();
-  }, [loadProfile, loadPosts]);
+  }, [loadProfile, loadPosts, user?.profile_image_url, user?.avatar, user?.location_address, user?.city, user?.state, user?.country]);
+
+  const handlePickAvatar = async (source: 'camera' | 'library') => {
+    if (!user?.auth_id) return;
+
+    try {
+      const permission =
+        source === 'camera'
+          ? await ImagePicker.requestCameraPermissionsAsync()
+          : await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      if (permission.status !== 'granted') {
+        Alert.alert('Permission required', 'Please allow access to your photos to update your profile image.');
+        return;
+      }
+
+      const result =
+        source === 'camera'
+          ? await ImagePicker.launchCameraAsync({ allowsEditing: true, quality: 0.8, mediaTypes: ImagePicker.MediaTypeOptions.Images })
+          : await ImagePicker.launchImageLibraryAsync({ allowsEditing: true, quality: 0.8, mediaTypes: ImagePicker.MediaTypeOptions.Images });
+
+      if (result.canceled || !result.assets?.[0]) return;
+
+      const asset = result.assets[0];
+      const response = await fetch(asset.uri);
+      const arrayBuffer = await response.arrayBuffer();
+      if (arrayBuffer.byteLength > 2 * 1024 * 1024) {
+        Alert.alert('Image too large', 'Please choose an image smaller than 2 MB.');
+        return;
+      }
+      const mimeType = 'image/jpeg';
+      const path = `providers/${user.auth_id}/profile.jpg`;
+
+      const { error: uploadError } = await supabase.storage.from('profile-images').upload(path, arrayBuffer, {
+        contentType: mimeType,
+        upsert: true,
+      });
+
+      if (uploadError) throw uploadError;
+
+      const { data: publicUrlData } = supabase.storage.from('profile-images').getPublicUrl(path);
+      const publicUrl = publicUrlData.publicUrl;
+
+      const { error: updateError } = await supabase.from('stylists').update({ profile_image_url: publicUrl }).eq('auth_id', user.auth_id);
+      if (updateError) throw updateError;
+
+      setAvatarUrl(publicUrl);
+      await refreshUser();
+      Alert.alert('Success', 'Your profile image has been updated.');
+    } catch (err) {
+      console.error('[provider-avatar] upload failed', err);
+      Alert.alert('Upload failed', 'Could not update your profile image right now.');
+    }
+  };
+
+  const handleAvatarPress = () => {
+    Alert.alert('Profile photo', 'Choose how you want to update your profile image.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Take Photo', onPress: () => handlePickAvatar('camera') },
+      { text: 'Choose from Gallery', onPress: () => handlePickAvatar('library') },
+    ]);
+  };
+
+  const handleDetectLocation = async () => {
+    if (!user?.auth_id) return;
+
+    setLocationLoading(true);
+    setLocationStatus('detecting');
+    try {
+      const result = await resolveCurrentLocation();
+      if (!result.success) {
+        setLocationStatus(result.error === 'permission-denied' ? 'permission-required' : 'unavailable');
+        setLocationLabel('');
+        Alert.alert('Location unavailable', result.message || 'We could not determine your location right now.');
+        return;
+      }
+
+      const nextLocationLabel = result.location_address || 'Location updated';
+      setLocationLabel(nextLocationLabel);
+      const { error } = await supabase.from('stylists').update({
+        location_address: result.location_address || null,
+        latitude: result.latitude ?? null,
+        longitude: result.longitude ?? null,
+      }).eq('auth_id', user.auth_id);
+
+      if (error) throw error;
+
+      await refreshUser();
+      await loadProfile();
+      setLocationStatus('updated');
+      Alert.alert('Location updated', 'Your current location has been saved to your profile.');
+    } catch (err) {
+      console.error('[provider-location] detect failed', err);
+      setLocationStatus('unavailable');
+      Alert.alert('Location unavailable', 'We could not detect your current location right now.');
+    } finally {
+      setLocationLoading(false);
+    }
+  };
 
   const handleLogout = () => {
     Alert.alert('Logout', 'Are you sure you want to logout?', [
@@ -101,15 +213,43 @@ export default function ProviderProfile() {
       </View>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         <View style={styles.profileHeader}>
-          <View style={styles.avatarContainer}>
-            <Ionicons name="storefront" size={40} color={Colors.primary} />
-          </View>
+          <TouchableOpacity onPress={handleAvatarPress} accessibilityRole="button" accessibilityLabel="Update profile image">
+            <View style={styles.avatarContainer}>
+              {avatarUrl ? (
+                <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
+              ) : (
+                <Ionicons name="storefront" size={40} color={Colors.primary} />
+              )}
+            </View>
+          </TouchableOpacity>
           <Text style={styles.userName}>{user?.full_name || profile?.business_name || 'Provider'}</Text>
           <Text style={styles.userEmail}>{user?.email}</Text>
           <View style={styles.badge}>
             <Ionicons name="briefcase" size={14} color={Colors.primary} />
             <Text style={styles.badgeText}>Service Provider</Text>
           </View>
+        </View>
+
+        <View style={styles.locationCard}>
+          <Text style={styles.sectionTitle}>Your Location</Text>
+          <Text style={styles.locationSummary} numberOfLines={2}>
+            {locationLabel || 'Location not provided'}
+          </Text>
+          <Text style={styles.locationStatusText}>
+            {locationLoading
+              ? 'Detecting location...'
+              : locationStatus === 'updated'
+                ? 'Location updated'
+                : locationStatus === 'permission-required'
+                  ? 'Permission required'
+                  : locationStatus === 'unavailable'
+                    ? 'Unable to determine location'
+                    : 'Use your current location to add it to your profile'}
+          </Text>
+          <TouchableOpacity style={styles.locationButton} onPress={handleDetectLocation} disabled={locationLoading}>
+            {locationLoading ? <ActivityIndicator color={Colors.primary} /> : <Ionicons name="locate-outline" size={18} color={Colors.primary} />}
+            <Text style={styles.locationButtonText}>{locationLoading ? 'Detecting...' : locationStatus === 'permission-required' || locationStatus === 'unavailable' ? 'Retry' : 'Use My Current Location'}</Text>
+          </TouchableOpacity>
         </View>
 
         <View style={styles.statsContainer}>
@@ -224,9 +364,48 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: Spacing.md,
+    overflow: 'hidden',
+  },
+  avatarImage: {
+    width: 88,
+    height: 88,
   },
   userName: { fontSize: FontSizes.xl, fontWeight: 'bold', color: Colors.text, marginBottom: 4 },
   userEmail: { fontSize: FontSizes.md, color: Colors.textSecondary },
+  locationCard: {
+    backgroundColor: Colors.surface,
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.lg,
+    padding: Spacing.lg,
+    borderRadius: BorderRadius.lg,
+  },
+  locationButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.xs,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.primary,
+    marginTop: Spacing.sm,
+  },
+  locationButtonText: {
+    fontSize: FontSizes.sm,
+    color: Colors.primary,
+    fontWeight: '600',
+  },
+  locationSummary: {
+    fontSize: FontSizes.md,
+    color: Colors.text,
+    marginTop: Spacing.xs,
+    fontWeight: '600',
+  },
+  locationStatusText: {
+    fontSize: FontSizes.sm,
+    color: Colors.textSecondary,
+    marginTop: Spacing.xs,
+  },
   badge: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -167,8 +167,11 @@ export default function Feed() {
           accessibilityRole="button"
         >
           <View style={styles.avatar}>
-            {item.provider?.photo_url ? (
-              <Image source={{ uri: item.provider.photo_url }} style={styles.avatarImage} />
+            {item.provider?.photo_url || item.provider?.profile_image_url || item.provider?.avatar ? (
+              <Image
+                source={{ uri: item.provider?.photo_url || item.provider?.profile_image_url || item.provider?.avatar }}
+                style={styles.avatarImage}
+              />
             ) : (
               <Text style={styles.avatarText}>
                 {(item.provider?.display_name || item.provider?.name || 'P').charAt(0).toUpperCase()}

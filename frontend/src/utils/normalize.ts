@@ -39,10 +39,11 @@ export function normalizeProvider(raw: any): Provider {
   const servicesRaw =
     pick(raw, ['services', 'provider_services', 'catalog_services'], []) || [];
   const images = pick(raw, ['portfolio_images', 'images', 'gallery', 'photos'], []) || [];
-  const avatar = pick(raw, ['profile_image', 'avatar', 'photo', 'image', 'profile_photo']);
+  const avatar = pick(raw, ['profile_image_url', 'profile_image', 'avatar', 'photo', 'image', 'profile_photo']);
   const city = pick(raw, ['city']);
   const country = pick(raw, ['country']);
-  const location = pick(raw, ['location', 'address']) || [city, country].filter(Boolean).join(', ');
+  const locationAddress = pick(raw, ['location_address', 'address', 'location']);
+  const location = locationAddress || [city, country].filter(Boolean).join(', ');
 
   return {
     id: String(pick(raw, ['id', 'provider_id'], '')),
@@ -59,6 +60,7 @@ export function normalizeProvider(raw: any): Provider {
     review_count: Number(pick(raw, ['review_count', 'reviews_count', 'total_reviews'], 0)),
     price_range: pick(raw, ['price_range', 'price_level'], '\u20A6\u20A6'),
     location: location || 'Location not set',
+    location_address: locationAddress || location || null,
     latitude: pick(raw, ['latitude', 'lat']),
     longitude: pick(raw, ['longitude', 'lng']),
     images: Array.isArray(images) ? images : [],

@@ -185,12 +185,14 @@ export default function ProviderProfile() {
                 {provider.rating ? provider.rating.toFixed(1) : 'New'} ({provider.review_count})
               </Text>
             </View>
-            <View style={styles.metaItem}>
-              <Ionicons name="location-outline" size={16} color={Colors.textSecondary} />
-              <Text style={styles.metaText} numberOfLines={1}>
-                {provider.location}
-              </Text>
-            </View>
+            {(provider.location_address || provider.location) && provider.location !== 'Location not set' ? (
+              <View style={styles.metaItem}>
+                <Ionicons name="location-outline" size={16} color={Colors.textSecondary} />
+                <Text style={styles.metaText} numberOfLines={1}>
+                  {provider.location_address || provider.location}
+                </Text>
+              </View>
+            ) : null}
           </View>
 
           {!!provider.bio && (
