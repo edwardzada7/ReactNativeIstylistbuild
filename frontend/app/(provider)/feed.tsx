@@ -13,7 +13,9 @@ export default function ProviderFeed() {
   return (
     <>
       <View style={providerStyles.header}>
-        <Text style={providerStyles.title}>Feed</Text>
+        <View style={providerStyles.titleWrap}>
+          <Text style={providerStyles.title}>Feed</Text>
+        </View>
         <TouchableOpacity
           style={providerStyles.addButton}
           onPress={() => router.push('/(provider)/create-post')}
@@ -37,9 +39,14 @@ const providerStyles = {
     paddingVertical: Spacing.md,
     backgroundColor: Colors.background,
   },
+  titleWrap: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    flex: 1,
+  },
   title: {
     fontSize: FontSizes.lg,
-    fontWeight: 'bold',
+    fontWeight: '700' as const,
     color: Colors.text,
   },
   addButton: {

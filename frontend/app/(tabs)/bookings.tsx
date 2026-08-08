@@ -193,7 +193,9 @@ export default function Bookings() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.title}>My Bookings</Text>
+        <View style={styles.titleWrap}>
+          <Text style={styles.title}>My Bookings</Text>
+        </View>
       </View>
 
       <View style={styles.tabs}>
@@ -432,6 +434,11 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
+  },
+  titleWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
   },
   title: {
     fontSize: FontSizes.xxl,

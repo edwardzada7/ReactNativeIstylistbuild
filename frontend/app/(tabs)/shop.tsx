@@ -86,7 +86,9 @@ export default function CustomerShop() {
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.title}>Shop</Text>
+        <View style={styles.titleWrap}>
+          <Text style={styles.title}>Shop</Text>
+        </View>
         <View style={styles.headerActions}>
           {isProvider && (
             <TouchableOpacity
@@ -217,6 +219,7 @@ export default function CustomerShop() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.lg, paddingTop: Spacing.md },
+  titleWrap: { flexDirection: 'row', alignItems: 'center', flex: 1 },
   title: { fontSize: FontSizes.xl, fontWeight: 'bold', color: Colors.text },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   manageButton: {

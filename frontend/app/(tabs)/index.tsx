@@ -189,9 +189,9 @@ export default function Home() {
       >
         {/* Header */}
         <View style={styles.header}>
-          <View style={styles.brandHeaderContent}>
+          <View style={styles.titleWrap}>
             <BrandLogo size={40} />
-            <View>
+            <View style={{ flex: 1 }}>
               <Text style={styles.greeting}>Hello {user?.full_name || 'there'}! 👋</Text>
               <Text style={styles.subGreeting}>Find your perfect style today</Text>
             </View>
@@ -375,10 +375,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.sm,
   },
-  brandHeaderContent: {
+  titleWrap: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
+    flex: 1,
   },
   iconButton: {
     width: 44,

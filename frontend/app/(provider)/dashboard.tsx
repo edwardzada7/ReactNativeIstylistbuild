@@ -152,7 +152,7 @@ export default function ProviderDashboard() {
         <View style={styles.header}>
           <View style={styles.titleWrap}>
             <BrandLogo size={36} />
-            <View style={{ flex: 1, marginRight: Spacing.sm }}>
+            <View style={{ flex: 1 }}>
               <Text style={styles.greeting}>Welcome back, {user?.full_name?.split(' ')[0] || 'there'} 👋</Text>
               <Text style={styles.subGreeting}>Here is how your business is doing</Text>
             </View>
@@ -322,6 +322,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
+  },
+  titleWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    flex: 1,
   },
   iconButton: {
     width: 44,

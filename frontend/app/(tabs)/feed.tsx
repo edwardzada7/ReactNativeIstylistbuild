@@ -237,7 +237,9 @@ export default function Feed() {
     <SafeAreaView style={styles.container} edges={['top']}>
       {!isProvider && (
         <View style={styles.header}>
-          <Text style={styles.title}>Feed</Text>
+          <View style={styles.titleWrap}>
+            <Text style={styles.title}>Feed</Text>
+          </View>
         </View>
       )}
 
@@ -286,6 +288,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
+  },
+  titleWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
   },
   title: {
     fontSize: FontSizes.xxl,
