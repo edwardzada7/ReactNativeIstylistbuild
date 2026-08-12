@@ -17,11 +17,13 @@ import { useRouter } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { feedService } from '../../src/services/feed.service';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { useTheme } from '../../src/contexts/ThemeContext';
 import { Post } from '../../src/types';
 
 export default function Feed() {
   const router = useRouter();
   const { user, isProvider } = useAuth();
+  const { colors } = useTheme();
   const [feedData, setFeedData] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -159,33 +161,33 @@ export default function Feed() {
   };
 
   const renderPost = ({ item }: { item: Post }) => (
-    <View style={styles.postCard}>
+    <View style={[styles.postCard, { backgroundColor: colors.surface }]}>
       <View style={styles.postHeader}>
         <TouchableOpacity 
           style={styles.userInfo}
           onPress={() => item.provider?.id && router.push(`/provider/${item.provider.id}`)}
           accessibilityRole="button"
         >
-          <View style={styles.avatar}>
+          <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
             {item.provider?.photo_url || item.provider?.profile_image_url || item.provider?.avatar ? (
               <Image
                 source={{ uri: item.provider?.photo_url || item.provider?.profile_image_url || item.provider?.avatar }}
                 style={styles.avatarImage}
               />
             ) : (
-              <Text style={styles.avatarText}>
+              <Text style={[styles.avatarText, { color: '#fff' }]}>
                 {(item.provider?.display_name || item.provider?.name || 'P').charAt(0).toUpperCase()}
               </Text>
             )}
           </View>
           <View>
-            <Text style={styles.userName}>
+            <Text style={[styles.userName, { color: colors.text }]}>
               {item.provider?.display_name || 
                item.provider?.business_name || 
                item.provider?.name || 
                'Provider'}
             </Text>
-            <Text style={styles.timestamp}>{item.created_at ? new Date(item.created_at).toLocaleDateString() : ''}</Text>
+            <Text style={[styles.timestamp, { color: colors.textSecondary }]}>{item.created_at ? new Date(item.created_at).toLocaleDateString() : ''}</Text>
           </View>
         </TouchableOpacity>
         {(item.provider_auth_id === user?.auth_id || item.user_id === user?.auth_id || item.provider?.auth_id === user?.auth_id) && (
@@ -195,7 +197,7 @@ export default function Feed() {
             accessibilityRole="button"
             accessibilityLabel="Manage post"
           >
-            <Ionicons name="ellipsis-horizontal" size={20} color={Colors.textSecondary} />
+            <Ionicons name="ellipsis-horizontal" size={20} color={colors.textSecondary} />
           </TouchableOpacity>
         )}
       </View>
@@ -205,10 +207,10 @@ export default function Feed() {
       )}
 
       {item.caption && (
-        <Text style={styles.postContent}>{item.caption}</Text>
+        <Text style={[styles.postContent, { color: colors.text }]}>{item.caption}</Text>
       )}
 
-      <View style={styles.postActions}>
+      <View style={[styles.postActions, { borderTopColor: colors.border }]}>
         <TouchableOpacity
           style={styles.actionButton}
           onPress={() => toggleLike(String(item.id))}
@@ -216,41 +218,41 @@ export default function Feed() {
           <Ionicons
             name={item.liked_by_me ? 'heart' : 'heart-outline'}
             size={22}
-            color={item.liked_by_me ? Colors.error : Colors.textSecondary}
+            color={item.liked_by_me ? colors.error : colors.textSecondary}
           />
-          <Text style={styles.actionText}>{item.likes_count || 0}</Text>
+          <Text style={[styles.actionText, { color: colors.textSecondary }]}>{item.likes_count || 0}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.actionButton} onPress={handleComment}>
-          <Ionicons name="chatbubble-outline" size={20} color={Colors.textSecondary} />
-          <Text style={styles.actionText}>{item.comments_count || 0}</Text>
+          <Ionicons name="chatbubble-outline" size={20} color={colors.textSecondary} />
+          <Text style={[styles.actionText, { color: colors.textSecondary }]}>{item.comments_count || 0}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.actionButton} onPress={() => handleShare(item)}>
-          <Ionicons name="share-social-outline" size={20} color={Colors.textSecondary} />
+          <Ionicons name="share-social-outline" size={20} color={colors.textSecondary} />
         </TouchableOpacity>
       </View>
     </View>
   );
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       {!isProvider && (
         <View style={styles.header}>
           <View style={styles.titleWrap}>
-            <Text style={styles.title}>Feed</Text>
+            <Text style={[styles.title, { color: colors.text }]}>Feed</Text>
           </View>
         </View>
       )}
 
       {loading ? (
         <View style={styles.centerState}>
-          <ActivityIndicator size="large" color={Colors.primary} />
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
       ) : feedData.length === 0 ? (
         <View style={styles.centerState}>
-          <Ionicons name="images-outline" size={48} color={Colors.textMuted} />
-          <Text style={styles.emptyText}>
+          <Ionicons name="images-outline" size={48} color={colors.textMuted} />
+          <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
             {isProvider ? 'No posts yet. Tap + to create your first post!' : 'No posts yet. Check back soon!'}
           </Text>
         </View>
@@ -268,7 +270,7 @@ export default function Feed() {
                 setRefreshing(true);
                 loadFeed();
               }}
-              tintColor={Colors.primary}
+              tintColor={colors.primary}
             />
           }
         />
@@ -280,7 +282,6 @@ export default function Feed() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -297,13 +298,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: FontSizes.xxl,
     fontWeight: 'bold',
-    color: Colors.text,
   },
   addButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: Colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -316,7 +315,6 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: FontSizes.sm,
-    color: Colors.textSecondary,
     textAlign: 'center',
     paddingHorizontal: Spacing.xl,
   },
@@ -325,7 +323,6 @@ const styles = StyleSheet.create({
     paddingBottom: Spacing.xl,
   },
   postCard: {
-    backgroundColor: Colors.surface,
     borderRadius: BorderRadius.lg,
     padding: Spacing.md,
     marginBottom: Spacing.md,
@@ -349,7 +346,6 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: Colors.surfaceLight,
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
@@ -364,11 +360,9 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: FontSizes.md,
     fontWeight: '600',
-    color: Colors.text,
   },
   timestamp: {
     fontSize: FontSizes.xs,
-    color: Colors.textSecondary,
   },
   postImage: {
     width: '100%',
@@ -378,7 +372,6 @@ const styles = StyleSheet.create({
   },
   postContent: {
     fontSize: FontSizes.md,
-    color: Colors.text,
     lineHeight: 22,
     marginBottom: Spacing.md,
   },
@@ -387,7 +380,6 @@ const styles = StyleSheet.create({
     gap: Spacing.lg,
     paddingTop: Spacing.sm,
     borderTopWidth: 1,
-    borderTopColor: Colors.border,
   },
   actionButton: {
     flexDirection: 'row',
@@ -396,7 +388,6 @@ const styles = StyleSheet.create({
   },
   actionText: {
     fontSize: FontSizes.sm,
-    color: Colors.textSecondary,
     fontWeight: '600',
   },
 });

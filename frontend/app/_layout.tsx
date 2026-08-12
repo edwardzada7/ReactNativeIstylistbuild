@@ -5,6 +5,7 @@ import { useEffect } from 'react';
 import { LogBox } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider } from '@/src/contexts/AuthContext';
+import { ThemeProvider } from '@/src/contexts/ThemeContext';
 import { useIconFonts } from '@/src/hooks/use-icon-fonts';
 
 // Disable logbox errors etc so that users can see the app
@@ -41,16 +42,18 @@ export default function RootLayout() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="index" />
-          <Stack.Screen name="(onboarding)" />
-          <Stack.Screen name="(auth)" />
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="(provider)" />
-          <Stack.Screen name="(admin)" />
-        </Stack>
-      </AuthProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="index" />
+            <Stack.Screen name="(onboarding)" />
+            <Stack.Screen name="(auth)" />
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="(provider)" />
+            <Stack.Screen name="(admin)" />
+          </Stack>
+        </AuthProvider>
+      </ThemeProvider>
     </QueryClientProvider>
   );
 }

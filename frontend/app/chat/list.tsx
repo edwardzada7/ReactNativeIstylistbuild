@@ -6,16 +6,19 @@ import {
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
+import { useTheme } from '../../src/contexts/ThemeContext';
 import { chatService } from '../../src/services/chat.service';
 import { Conversation } from '../../src/types';
 
 export default function ChatList() {
   const router = useRouter();
+  const { colors } = useTheme();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -34,55 +37,65 @@ export default function ChatList() {
     loadConversations();
   }, [loadConversations]);
 
+  const getInitials = (name?: string) => {
+    if (!name) return '?';
+    const parts = name.trim().split(' ');
+    if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+    return (parts[0].charAt(0) + parts[parts.length - 1].charAt(0)).toUpperCase();
+  };
+
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back">
-          <Ionicons name="arrow-back" size={24} color={Colors.text} />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>Messages</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Messages</Text>
         <View style={{ width: 24 }} />
       </View>
 
       {loading ? (
         <View style={styles.centerState}>
-          <ActivityIndicator size="large" color={Colors.primary} />
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
       ) : conversations.length === 0 ? (
         <View style={styles.centerState}>
-          <Ionicons name="chatbubbles-outline" size={48} color={Colors.textMuted} />
-          <Text style={styles.emptyText}>No conversations yet</Text>
+          <Ionicons name="chatbubbles-outline" size={48} color={colors.textMuted} />
+          <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No conversations yet</Text>
+          <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Chat with providers after booking</Text>
         </View>
       ) : (
         <FlatList
           data={conversations}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item) => String(item.booking_id)}
           renderItem={({ item }) => (
             <TouchableOpacity
-              style={styles.conversationItem}
-              onPress={() => {
-                const otherUser = item.participants?.find((p) => p.id !== item.participant_ids[0]);
-                if (otherUser?.auth_id) {
-                  router.push(`/chat/${otherUser.auth_id}`);
-                }
-              }}
+              style={[styles.conversationItem, { backgroundColor: colors.surface }]}
+              onPress={() => router.push(`/chat/${item.counterpart_auth_id}?bookingId=${item.booking_id}`)}
               accessibilityRole="button"
             >
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>
-                  {item.participants?.[0]?.full_name?.charAt(0).toUpperCase() || '?'}
-                </Text>
+              <View style={[styles.avatar, { backgroundColor: colors.surfaceLight }]}>
+                {item.counterpart_profile_image_url ? (
+                  <Image
+                    source={{ uri: item.counterpart_profile_image_url }}
+                    style={styles.avatarImage}
+                  />
+                ) : (
+                  <Text style={[styles.avatarText, { color: colors.primary }]}>
+                    {getInitials(item.counterpart_name)}
+                  </Text>
+                )}
               </View>
               <View style={styles.conversationContent}>
-                <Text style={styles.conversationName}>
-                  {item.participants?.[0]?.full_name || 'Unknown'}
+                <Text style={[styles.conversationName, { color: colors.text }]}>
+                  {item.counterpart_name || 'Unknown'}
                 </Text>
-                <Text style={styles.lastMessage} numberOfLines={1}>
-                  {item.last_message?.content || 'No messages yet'}
+                <Text style={[styles.lastMessage, { color: colors.textSecondary }]} numberOfLines={1}>
+                  {item.last_message?.message || 'No messages yet'}
                 </Text>
               </View>
               {item.unread_count > 0 && (
-                <View style={styles.badge}>
+                <View style={[styles.badge, { backgroundColor: colors.primary }]}>
                   <Text style={styles.badgeText}>{item.unread_count}</Text>
                 </View>
               )}
@@ -96,7 +109,7 @@ export default function ChatList() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+  container: { flex: 1 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -104,19 +117,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
   },
-  title: { fontSize: FontSizes.lg, fontWeight: 'bold', color: Colors.text },
+  title: { fontSize: FontSizes.lg, fontWeight: 'bold' },
   centerState: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     gap: Spacing.sm,
   },
-  emptyText: { fontSize: FontSizes.sm, color: Colors.textSecondary },
+  emptyText: { fontSize: FontSizes.sm },
   list: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xl },
   conversationItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.surface,
     borderRadius: BorderRadius.lg,
     padding: Spacing.md,
     marginBottom: Spacing.sm,
@@ -125,17 +137,21 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: Colors.surfaceLight,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: Spacing.md,
+    overflow: 'hidden',
   },
-  avatarText: { fontSize: 20, fontWeight: '700', color: Colors.primary },
+  avatarImage: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+  },
+  avatarText: { fontSize: 20, fontWeight: '700' },
   conversationContent: { flex: 1 },
-  conversationName: { fontSize: FontSizes.md, fontWeight: '600', color: Colors.text },
-  lastMessage: { fontSize: FontSizes.sm, color: Colors.textSecondary, marginTop: 2 },
+  conversationName: { fontSize: FontSizes.md, fontWeight: '600' },
+  lastMessage: { fontSize: FontSizes.sm, marginTop: 2 },
   badge: {
-    backgroundColor: Colors.primary,
     borderRadius: 12,
     minWidth: 24,
     height: 24,

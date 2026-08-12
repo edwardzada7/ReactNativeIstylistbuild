@@ -51,7 +51,7 @@ export default function Cart() {
         amount,
         email: user.email,
         items,
-        name: user.full_name,
+        name: user.full_name || user.name || undefined,
         phone: user.phone || undefined,
         redirect_url: REDIRECT_URL,
         currency: 'NGN',
@@ -110,7 +110,7 @@ export default function Cart() {
           name: user?.full_name || undefined,
           phone: user?.phone || undefined,
           currency: 'NGN',
-          provider_auth_id: lines.find((line) => line.stylistAuthId)?.stylistAuthId,
+          provider_auth_id: lines.find((line) => line.stylistAuthId)?.stylistAuthId || undefined,
         })
         .then((res) => {
           if (res?.status === 'success') {
@@ -272,7 +272,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md },
   title: { fontSize: FontSizes.lg, fontWeight: 'bold', color: Colors.text },
-  centerState: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: Spacing.sm },
+  centerState: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: Spacing.sm, paddingHorizontal: Spacing.xl },
   emptyText: { fontSize: FontSizes.sm, color: Colors.textSecondary },
   content: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xl },
   line: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: Colors.surface, borderRadius: BorderRadius.md, padding: Spacing.sm, marginBottom: Spacing.sm },
@@ -288,7 +288,6 @@ const styles = StyleSheet.create({
   totalLabel: { fontSize: FontSizes.md, color: Colors.textSecondary },
   totalValue: { fontSize: FontSizes.lg, fontWeight: '800', color: Colors.text },
   errorText: { fontSize: FontSizes.sm, color: Colors.error, marginBottom: Spacing.sm, textAlign: 'center' },
-  centerState: { flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: Spacing.xl },
   overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', gap: Spacing.md },
   overlayText: { fontSize: FontSizes.sm, color: Colors.text },
   resultIcon: {

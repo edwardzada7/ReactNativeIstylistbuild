@@ -21,7 +21,6 @@ export const reviewService = {
       '/reviews',
       {
         booking_id: data.booking_id,
-        provider_id: data.provider_id,
         rating: data.rating,
         comment: data.comment,
       },

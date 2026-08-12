@@ -1,71 +1,174 @@
-import { supabase } from '../lib/supabase';
 import apiService from './api';
+import { Conversation } from '../types';
 
 export interface ChatMessage {
   id: number;
+  booking_id: number;
   sender_auth_id: string;
   receiver_auth_id: string;
   message: string;
-  booking_id: number | null;
+  read: boolean;
   created_at: string;
+  read_at?: string;
+}
+
+export interface ChatParticipants {
+  customer_auth_id: string;
+  provider_auth_id: string;
+}
+
+export interface BookingChatResponse {
+  messages: ChatMessage[];
+  participants: ChatParticipants;
 }
 
 /**
- * Chat (Phase 3A). Reuses the EXISTING `chats` table exactly as confirmed
- * via the backend audit - no new table. Reads go straight to Supabase
- * (RLS-verified: a user only sees messages where they are sender or
- * receiver). Sending goes through the local backend's
- * `/api/chat/messages` bridge because RLS blocks a direct client insert
- * (verified: Postgres error 42501).
+ * Chat service using booking-based endpoints to match web implementation.
+ * Chat is tied to bookings - customers can only chat with providers they have booked,
+ * and providers can only chat with customers who have booked them.
  */
 export const chatService = {
-  async getConversations(): Promise<any[]> {
+  /**
+   * Get all conversations (bookings with chat) for the current user.
+   * This queries bookings where the user is a participant and has chat messages.
+   * Only includes bookings that are not canceled or declined (matching web behavior).
+   */
+  async getConversations(): Promise<Conversation[]> {
     const authId = await apiService.getAuthId();
     if (!authId) return [];
-    // Get all unique conversation partners
-    const { data, error } = await supabase
-      .from('chats')
-      .select('*, sender_auth_id, receiver_auth_id')
-      .or(`sender_auth_id.eq.${authId},receiver_auth_id.eq.${authId}`)
-      .order('created_at', { ascending: false });
 
-    if (error) throw error;
+    try {
+      // Get bookings where user is participant
+      const bookings = await apiService.get(`/bookings?auth_id=${authId}`);
 
-    // Group by counterpart and get latest message
-    const conversations = new Map();
-    for (const msg of data || []) {
-      const counterpartId = msg.sender_auth_id === authId ? msg.receiver_auth_id : msg.sender_auth_id;
-      if (!conversations.has(counterpartId)) {
-        conversations.set(counterpartId, {
-          id: counterpartId,
-          counterpart_auth_id: counterpartId,
-          last_message: msg,
-          unread_count: 0,
-        });
+      if (!bookings || bookings.length === 0) return [];
+
+      // Filter out canceled/declined bookings (matching web behavior)
+      const activeBookings = bookings.filter(
+        (booking: any) => booking.status !== 'canceled' && booking.status !== 'declined'
+      );
+
+      // For each booking, check if there are chat messages and get conversation details
+      const conversations: Conversation[] = [];
+      
+      for (const booking of activeBookings) {
+        try {
+          const chatData: BookingChatResponse = await apiService.get(
+            `/bookings/${booking.id}/chat?auth_id=${authId}&limit=1`
+          );
+
+          if (chatData.messages && chatData.messages.length > 0) {
+            const providerAuthId = booking.provider_auth_id || booking.stylist_auth_id;
+            const customerAuthId = booking.customer_auth_id;
+            
+            // Determine counterpart
+            const counterpartAuthId = authId === customerAuthId ? providerAuthId : customerAuthId;
+            
+            // Get unread count for this booking
+            const unreadCount = chatData.messages.filter(
+              (msg: ChatMessage) => msg.receiver_auth_id === authId && !msg.read
+            ).length;
+
+            // Fetch counterpart's actual name and profile image from the database
+            let counterpartName = 'Unknown';
+            let counterpartProfileImageUrl: string | null = null;
+            try {
+              // First try to get as provider (stylist)
+              const stylistProfile = await apiService.get(`/stylists/by-auth/${counterpartAuthId}`).catch(() => null);
+              if (stylistProfile) {
+                // Provider: prioritize business_name, then salon_name, then user name
+                counterpartName = stylistProfile?.business_name || stylistProfile?.salon_name || stylistProfile?.name || 'Unknown';
+                counterpartProfileImageUrl = stylistProfile?.profile_image_url || null;
+              } else {
+                // Fallback to user table for customers
+                const userProfile = await apiService.get(`/users/by-auth/${counterpartAuthId}`);
+                counterpartName = userProfile?.name || userProfile?.full_name || 'Unknown';
+                counterpartProfileImageUrl = userProfile?.profile_image_url || null;
+              }
+            } catch (profileErr) {
+              console.warn(`[chat] failed to load profile for ${counterpartAuthId}`, profileErr);
+            }
+
+            conversations.push({
+              id: booking.id,
+              booking_id: booking.id,
+              counterpart_auth_id: counterpartAuthId,
+              counterpart_name: counterpartName,
+              counterpart_profile_image_url: counterpartProfileImageUrl,
+              last_message: chatData.messages[0],
+              unread_count: unreadCount,
+            });
+          }
+        } catch (err) {
+          // Skip bookings without chat or with errors
+          console.warn(`[chat] failed to load chat for booking ${booking.id}`, err);
+        }
       }
+
+      // Sort by latest message
+      return conversations.sort((a, b) => 
+        new Date(b.last_message.created_at).getTime() - new Date(a.last_message.created_at).getTime()
+      );
+    } catch (err) {
+      console.error('[chat] failed to load conversations', err);
+      return [];
     }
-    return Array.from(conversations.values());
   },
 
-  async getThread(counterpartAuthId: string): Promise<ChatMessage[]> {
+  /**
+   * Get chat thread for a specific booking.
+   */
+  async getThread(bookingId: number): Promise<ChatMessage[]> {
     const authId = await apiService.getAuthId();
     if (!authId) return [];
-    const { data, error } = await supabase
-      .from('chats')
-      .select('*')
-      .or(
-        `and(sender_auth_id.eq.${authId},receiver_auth_id.eq.${counterpartAuthId}),and(sender_auth_id.eq.${counterpartAuthId},receiver_auth_id.eq.${authId})`
-      )
-      .order('created_at', { ascending: true });
-    if (error) throw error;
-    return data || [];
+
+    try {
+      const chatData: BookingChatResponse = await apiService.get(
+        `/bookings/${bookingId}/chat?auth_id=${authId}`
+      );
+      
+      // Mark as read
+      try {
+        await apiService.post(`/bookings/${bookingId}/chat/mark-read`, { auth_id: authId });
+      } catch (markErr) {
+        console.warn('[chat] failed to mark as read', markErr);
+      }
+
+      return chatData.messages || [];
+    } catch (err) {
+      console.error('[chat] failed to load thread', err);
+      return [];
+    }
   },
 
-  async sendMessage(receiverAuthId: string, message: string, bookingId?: number): Promise<ChatMessage> {
-    return await apiService.post('/chat/messages', {
-      receiver_auth_id: receiverAuthId,
+  /**
+   * Send a chat message for a booking.
+   */
+  async sendMessage(bookingId: number, message: string): Promise<ChatMessage> {
+    const authId = await apiService.getAuthId();
+    if (!authId) {
+      throw new Error('Not authenticated');
+    }
+
+    return await apiService.post(`/bookings/${bookingId}/chat`, {
+      auth_id: authId,
       message,
-      booking_id: bookingId,
     });
+  },
+
+  /**
+   * Get total unread count across all bookings.
+   */
+  async getUnreadCount(): Promise<number> {
+    const authId = await apiService.getAuthId();
+    if (!authId) return 0;
+
+    try {
+      const result = await apiService.get(`/chat/unread-count?auth_id=${authId}`);
+      return result.unread_count || 0;
+    } catch (err) {
+      console.error('[chat] failed to get unread count', err);
+      return 0;
+    }
   },
 };

@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,6 +15,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { BrandLogo } from '../../src/components/branding';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { useTheme } from '../../src/contexts/ThemeContext';
 import { bookingService } from '../../src/services/booking.service';
 import { providerService } from '../../src/services/provider.service';
 import { notificationService } from '../../src/services/notification.service';
@@ -35,6 +37,7 @@ const isSameDay = (isoDate: string) => {
 export default function ProviderDashboard() {
   const router = useRouter();
   const { user } = useAuth();
+  const { colors } = useTheme();
   const providerId = user?.id;
 
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -141,127 +144,142 @@ export default function ProviderDashboard() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={Colors.primary} />
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />
         }
       >
         <View style={styles.header}>
           <View style={styles.titleWrap}>
             <BrandLogo size={36} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.greeting}>Welcome back, {user?.full_name?.split(' ')[0] || 'there'} 👋</Text>
-              <Text style={styles.subGreeting}>Here is how your business is doing</Text>
+              <Text style={[styles.greeting, { color: colors.text }]}>Welcome back, {user?.full_name?.split(' ')[0] || 'there'} 👋</Text>
+              <Text style={[styles.subGreeting, { color: colors.textSecondary }]}>Here is how your business is doing</Text>
             </View>
           </View>
           <View style={styles.headerActions}>
             <TouchableOpacity
-              style={styles.iconButton}
+              style={[styles.iconButton, { backgroundColor: colors.surface }]}
+              onPress={() => router.push('/chat/list')}
+              accessibilityRole="button"
+              accessibilityLabel="Chat"
+            >
+              <Ionicons name="chatbubble-outline" size={24} color={colors.text} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.iconButton, { backgroundColor: colors.surface }]}
               onPress={() => router.push('/notifications')}
               accessibilityRole="button"
               accessibilityLabel="Notifications"
             >
-              <Ionicons name="notifications-outline" size={24} color={Colors.text} />
+              <Ionicons name="notifications-outline" size={24} color={colors.text} />
               {unreadCount > 0 ? (
-                <View style={styles.badge}>
+                <View style={[styles.badge, { backgroundColor: colors.error }]}>
                   <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
                 </View>
               ) : null}
             </TouchableOpacity>
             <TouchableOpacity
-              style={styles.iconButton}
+              style={[styles.iconButton, { backgroundColor: colors.surface }]}
               onPress={() => router.push('/(provider)/profile')}
               accessibilityRole="button"
               accessibilityLabel="Profile"
             >
-              <Ionicons name="person-circle-outline" size={26} color={Colors.text} />
+              {user?.profile_image_url || user?.avatar ? (
+                <Image
+                  source={{ uri: user.profile_image_url || user.avatar }}
+                  style={styles.profileAvatar}
+                />
+              ) : (
+                <Ionicons name="person-circle-outline" size={26} color={colors.text} />
+              )}
             </TouchableOpacity>
           </View>
         </View>
 
         {error && (
-          <View style={styles.errorBanner}>
-            <Ionicons name="alert-circle-outline" size={18} color={Colors.error} />
-            <Text style={styles.errorText}>{error}</Text>
+          <View style={[styles.errorBanner, { backgroundColor: colors.surface }]}>
+            <Ionicons name="alert-circle-outline" size={18} color={colors.error} />
+            <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>
           </View>
         )}
 
         {/* Stats */}
         <View style={styles.statsGrid}>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{formatCurrency(totalEarnings)}</Text>
-            <Text style={styles.statLabel}>Total Earnings</Text>
+          <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.statValue, { color: colors.text }]}>{formatCurrency(totalEarnings)}</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Total Earnings</Text>
           </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{formatCurrency(pendingPayout)}</Text>
-            <Text style={styles.statLabel}>Pending Payout</Text>
+          <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.statValue, { color: colors.text }]}>{formatCurrency(pendingPayout)}</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Pending Payout</Text>
           </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{completed.length}</Text>
-            <Text style={styles.statLabel}>Completed Services</Text>
+          <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.statValue, { color: colors.text }]}>{completed.length}</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Completed Services</Text>
           </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>
+          <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.statValue, { color: colors.text }]}>
               {profile?.rating ? profile.rating.toFixed(1) : 'New'}
             </Text>
-            <Text style={styles.statLabel}>Average Rating</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Average Rating</Text>
           </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{profile?.review_count ?? 0}</Text>
-            <Text style={styles.statLabel}>Total Reviews</Text>
+          <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.statValue, { color: colors.text }]}>{profile?.review_count ?? 0}</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Total Reviews</Text>
           </View>
         </View>
 
         {/* Quick Actions */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Quick Actions</Text>
           <View style={styles.actionsRow}>
             {quickActions.map((action) => (
               <TouchableOpacity
                 key={action.label}
-                style={styles.actionButton}
+                style={[styles.actionButton, { backgroundColor: colors.surface }]}
                 onPress={action.onPress}
                 accessibilityRole="button"
                 accessibilityLabel={action.label}
               >
-                <View style={styles.actionIcon}>
-                  <Ionicons name={action.icon as any} size={22} color={Colors.primary} />
+                <View style={[styles.actionIcon, { backgroundColor: colors.primary }]}>
+                  <Ionicons name={action.icon as any} size={22} color="#fff" />
                 </View>
-                <Text style={styles.actionLabel}>{action.label}</Text>
+                <Text style={[styles.actionLabel, { color: colors.text }]}>{action.label}</Text>
               </TouchableOpacity>
             ))}
           </View>
         </View>
 
         <TouchableOpacity
-          style={styles.ordersCard}
+          style={[styles.ordersCard, { backgroundColor: colors.surface }]}
           onPress={() => router.push('/(provider)/orders')}
           accessibilityRole="button"
           accessibilityLabel="Orders"
         >
           <View style={styles.ordersCardHeader}>
-            <Text style={styles.sectionTitle}>Orders</Text>
-            <Ionicons name="chevron-forward-outline" size={18} color={Colors.textSecondary} />
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Orders</Text>
+            <Ionicons name="chevron-forward-outline" size={18} color={colors.textSecondary} />
           </View>
           <View style={styles.ordersMetrics}>
-            <View style={styles.ordersMetricBlock}>
-              <Text style={styles.ordersMetricValue}>{orderStats.total}</Text>
-              <Text style={styles.ordersMetricLabel}>Total Orders</Text>
+            <View style={[styles.ordersMetricBlock, { backgroundColor: colors.background }]}>
+              <Text style={[styles.ordersMetricValue, { color: colors.primary }]}>{orderStats.total}</Text>
+              <Text style={[styles.ordersMetricLabel, { color: colors.textSecondary }]}>Total Orders</Text>
             </View>
-            <View style={styles.ordersMetricBlock}>
-              <Text style={styles.ordersMetricValue}>{orderStats.pending}</Text>
-              <Text style={styles.ordersMetricLabel}>Pending Orders</Text>
+            <View style={[styles.ordersMetricBlock, { backgroundColor: colors.background }]}>
+              <Text style={[styles.ordersMetricValue, { color: colors.primary }]}>{orderStats.pending}</Text>
+              <Text style={[styles.ordersMetricLabel, { color: colors.textSecondary }]}>Pending Orders</Text>
             </View>
-            <View style={styles.ordersMetricBlock}>
-              <Text style={styles.ordersMetricValue}>{orderStats.processing}</Text>
-              <Text style={styles.ordersMetricLabel}>Processing Orders</Text>
+            <View style={[styles.ordersMetricBlock, { backgroundColor: colors.background }]}>
+              <Text style={[styles.ordersMetricValue, { color: colors.primary }]}>{orderStats.processing}</Text>
+              <Text style={[styles.ordersMetricLabel, { color: colors.textSecondary }]}>Processing Orders</Text>
             </View>
-            <View style={styles.ordersMetricBlock}>
-              <Text style={styles.ordersMetricValue}>{orderStats.delivered}</Text>
-              <Text style={styles.ordersMetricLabel}>Delivered Orders</Text>
+            <View style={[styles.ordersMetricBlock, { backgroundColor: colors.background }]}>
+              <Text style={[styles.ordersMetricValue, { color: colors.primary }]}>{orderStats.delivered}</Text>
+              <Text style={[styles.ordersMetricLabel, { color: colors.textSecondary }]}>Delivered Orders</Text>
             </View>
           </View>
         </TouchableOpacity>
@@ -276,27 +294,27 @@ export default function ProviderDashboard() {
         ].map((group) => (
           <View key={group.title} style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>{group.title}</Text>
-              <Text style={styles.sectionCount}>{group.data.length}</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>{group.title}</Text>
+              <Text style={[styles.sectionCount, { color: colors.primary, backgroundColor: colors.surface }]}>{group.data.length}</Text>
             </View>
             {group.data.length === 0 ? (
-              <Text style={styles.emptyInline}>Nothing here yet.</Text>
+              <Text style={[styles.emptyInline, { color: colors.textSecondary }]}>Nothing here yet.</Text>
             ) : (
               group.data.slice(0, 3).map((booking) => (
                 <TouchableOpacity
                   key={booking.id}
-                  style={styles.bookingRow}
+                  style={[styles.bookingRow, { backgroundColor: colors.surface }]}
                   onPress={() => router.push('/(provider)/bookings')}
                   accessibilityRole="button"
                   accessibilityLabel={`${booking.service_name} booking`}
                 >
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.bookingService}>{booking.service_name}</Text>
-                    <Text style={styles.bookingMeta}>
+                    <Text style={[styles.bookingService, { color: colors.text }]}>{booking.service_name}</Text>
+                    <Text style={[styles.bookingMeta, { color: colors.textSecondary }]}>
                       {booking.date} {booking.time ? `· ${booking.time}` : ''}
                     </Text>
                   </View>
-                  <Text style={styles.bookingAmount}>{formatCurrency(booking.total_amount)}</Text>
+                  <Text style={[styles.bookingAmount, { color: colors.text }]}>{formatCurrency(booking.total_amount)}</Text>
                 </TouchableOpacity>
               ))
             )}
@@ -308,7 +326,7 @@ export default function ProviderDashboard() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+  container: { flex: 1 },
   centerState: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   scrollContent: { paddingBottom: Spacing.xl },
   header: {
@@ -333,10 +351,14 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: Colors.surface,
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
+  },
+  profileAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
   },
   badge: {
     position: 'absolute',
@@ -346,24 +368,22 @@ const styles = StyleSheet.create({
     height: 18,
     paddingHorizontal: 4,
     borderRadius: 9,
-    backgroundColor: Colors.error,
     justifyContent: 'center',
     alignItems: 'center',
   },
   badgeText: { fontSize: 10, fontWeight: '700', color: '#fff' },
-  greeting: { fontSize: FontSizes.xl, fontWeight: 'bold', color: Colors.text },
-  subGreeting: { fontSize: FontSizes.sm, color: Colors.textSecondary, marginTop: 4 },
+  greeting: { fontSize: FontSizes.xl, fontWeight: 'bold' },
+  subGreeting: { fontSize: FontSizes.sm, marginTop: 4 },
   errorBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
-    backgroundColor: Colors.surface,
     marginHorizontal: Spacing.lg,
     marginBottom: Spacing.md,
     padding: Spacing.md,
     borderRadius: BorderRadius.md,
   },
-  errorText: { flex: 1, fontSize: FontSizes.sm, color: Colors.error },
+  errorText: { flex: 1, fontSize: FontSizes.sm },
   statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -374,21 +394,18 @@ const styles = StyleSheet.create({
   statCard: {
     flexBasis: '31%',
     flexGrow: 1,
-    backgroundColor: Colors.surface,
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
     alignItems: 'center',
   },
-  statValue: { fontSize: FontSizes.md, fontWeight: 'bold', color: Colors.primary },
+  statValue: { fontSize: FontSizes.md, fontWeight: 'bold' },
   statLabel: {
     fontSize: FontSizes.xs,
-    color: Colors.textSecondary,
     textAlign: 'center',
     marginTop: 4,
   },
   section: { marginBottom: Spacing.lg, paddingHorizontal: Spacing.lg },
   ordersCard: {
-    backgroundColor: Colors.surface,
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
     marginHorizontal: Spacing.lg,
@@ -408,18 +425,15 @@ const styles = StyleSheet.create({
   ordersMetricBlock: {
     flexBasis: '47%',
     flexGrow: 1,
-    backgroundColor: Colors.background,
     borderRadius: BorderRadius.sm,
     padding: Spacing.sm,
   },
   ordersMetricValue: {
     fontSize: FontSizes.md,
     fontWeight: '700',
-    color: Colors.primary,
   },
   ordersMetricLabel: {
     fontSize: FontSizes.xs,
-    color: Colors.textSecondary,
     marginTop: 4,
   },
   sectionHeader: {
@@ -428,39 +442,35 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: Spacing.sm,
   },
-  sectionTitle: { fontSize: FontSizes.md, fontWeight: '700', color: Colors.text },
+  sectionTitle: { fontSize: FontSizes.md, fontWeight: '700' },
   sectionCount: {
     fontSize: FontSizes.sm,
     fontWeight: '700',
-    color: Colors.primary,
-    backgroundColor: Colors.surface,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 2,
     borderRadius: BorderRadius.full,
   },
-  emptyInline: { fontSize: FontSizes.sm, color: Colors.textMuted },
+  emptyInline: { fontSize: FontSizes.sm },
   actionsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.md },
   actionButton: { alignItems: 'center', width: 68 },
   actionIcon: {
     width: 52,
     height: 52,
     borderRadius: BorderRadius.md,
-    backgroundColor: Colors.surface,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 6,
   },
-  actionLabel: { fontSize: FontSizes.xs, color: Colors.text, textAlign: 'center' },
+  actionLabel: { fontSize: FontSizes.xs, textAlign: 'center' },
   bookingRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: Colors.surface,
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
     marginBottom: Spacing.sm,
   },
-  bookingService: { fontSize: FontSizes.sm, fontWeight: '600', color: Colors.text },
-  bookingMeta: { fontSize: FontSizes.xs, color: Colors.textMuted, marginTop: 2 },
-  bookingAmount: { fontSize: FontSizes.sm, fontWeight: '700', color: Colors.primary },
+  bookingService: { fontSize: FontSizes.sm, fontWeight: '600' },
+  bookingMeta: { fontSize: FontSizes.xs, marginTop: 2 },
+  bookingAmount: { fontSize: FontSizes.sm, fontWeight: '700' },
 });

@@ -39,7 +39,7 @@ export function normalizeProvider(raw: any): Provider {
   const servicesRaw =
     pick(raw, ['services', 'provider_services', 'catalog_services'], []) || [];
   const images = pick(raw, ['portfolio_images', 'images', 'gallery', 'photos'], []) || [];
-  const avatar = pick(raw, ['profile_image_url', 'profile_image', 'avatar', 'photo', 'image', 'profile_photo']);
+  const profileImageUrl = pick(raw, ['profile_image_url', 'avatar', 'photo_url', 'photo', 'image', 'profile_photo']);
   const city = pick(raw, ['city']);
   const country = pick(raw, ['country']);
   const locationAddress = pick(raw, ['location_address', 'address', 'location']);
@@ -70,7 +70,8 @@ export function normalizeProvider(raw: any): Provider {
     response_time: pick(raw, ['response_time']),
     completion_rate: pick(raw, ['completion_rate']),
     created_at: pick(raw, ['created_at'], ''),
-    avatar,
+    avatar: profileImageUrl,
+    profile_image_url: profileImageUrl,
   } as Provider;
 }
 

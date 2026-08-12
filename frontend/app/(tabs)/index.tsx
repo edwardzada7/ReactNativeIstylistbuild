@@ -18,6 +18,7 @@ import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/th
 import { BrandColors } from '../../src/constants/brand';
 import { BrandLogo } from '../../src/components/branding';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { useTheme } from '../../src/contexts/ThemeContext';
 import { providerService } from '../../src/services/provider.service';
 import { notificationService } from '../../src/services/notification.service';
 import { formatPriceRange } from '../../src/utils/currency';
@@ -26,6 +27,7 @@ import { Category, Provider } from '../../src/types';
 export default function Home() {
   const router = useRouter();
   const { user } = useAuth();
+  const { colors } = useTheme();
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [providers, setProviders] = useState<Provider[]>([]);
@@ -109,15 +111,15 @@ export default function Home() {
 
     return (
       <TouchableOpacity
-        style={styles.categoryCard}
+        style={[styles.categoryCard, { backgroundColor: colors.surface }]}
         onPress={() => goToCategory(item.name)}
         accessibilityRole="button"
         accessibilityLabel={item.name}
       >
-        <View style={styles.categoryIcon}>
-          <Ionicons name={iconName as any} size={28} color={Colors.primary} />
+        <View style={[styles.categoryIcon, { backgroundColor: `${colors.primary}20` }]}>
+          <Ionicons name={iconName as any} size={28} color={colors.primary} />
         </View>
-        <Text style={styles.categoryName} numberOfLines={1}>
+        <Text style={[styles.categoryName, { color: colors.text }]} numberOfLines={1}>
           {item.name}
         </Text>
       </TouchableOpacity>
@@ -127,37 +129,37 @@ export default function Home() {
   const renderProviderCard = (item: Provider) => (
     <TouchableOpacity
       key={item.id}
-      style={styles.providerCard}
+      style={[styles.providerCard, { backgroundColor: colors.surface }]}
       onPress={() => goToProvider(item.id)}
       accessibilityRole="button"
       accessibilityLabel={item.business_name}
     >
-      <View style={styles.providerImage}>
-        {item.avatar ? (
+      <View style={[styles.providerImage, { backgroundColor: colors.surfaceLight }]}>
+        {item.profile_image_url || item.avatar ? (
           <Image
-            source={{ uri: item.avatar }}
+            source={{ uri: item.profile_image_url || item.avatar }}
             style={styles.providerImagePhoto}
             contentFit="cover"
             transition={150}
           />
         ) : (
-          <Ionicons name="person" size={32} color={Colors.primary} />
+          <Ionicons name="person" size={32} color={colors.primary} />
         )}
       </View>
       <View style={styles.providerInfo}>
-        <Text style={styles.providerName} numberOfLines={1}>
+        <Text style={[styles.providerName, { color: colors.text }]} numberOfLines={1}>
           {item.business_name}
         </Text>
-        <Text style={styles.providerCategory} numberOfLines={1}>
+        <Text style={[styles.providerCategory, { color: colors.textSecondary }]} numberOfLines={1}>
           {typeof item.category === 'string' ? item.category : item.location}
         </Text>
         <View style={styles.providerMeta}>
           <View style={styles.rating}>
-            <Ionicons name="star" size={14} color={Colors.warning} />
-            <Text style={styles.ratingText}>{item.rating ? item.rating.toFixed(1) : 'New'}</Text>
-            <Text style={styles.reviewsText}>({item.review_count})</Text>
+            <Ionicons name="star" size={14} color={colors.warning} />
+            <Text style={[styles.ratingText, { color: colors.text }]}>{item.rating ? item.rating.toFixed(1) : 'New'}</Text>
+            <Text style={[styles.reviewsText, { color: colors.textSecondary }]}>({item.review_count})</Text>
           </View>
-          <Text style={styles.price}>{formatPriceRange(item.price_range)}</Text>
+          <Text style={[styles.price, { color: colors.textSecondary }]}>{formatPriceRange(item.price_range)}</Text>
         </View>
       </View>
     </TouchableOpacity>
@@ -165,17 +167,17 @@ export default function Home() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Finding great stylists for you...</Text>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>Finding great stylists for you...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
@@ -183,7 +185,7 @@ export default function Home() {
           <RefreshControl
             refreshing={refreshing}
             onRefresh={handleRefresh}
-            tintColor={Colors.primary}
+            tintColor={colors.primary}
           />
         }
       >
@@ -192,52 +194,52 @@ export default function Home() {
           <View style={styles.titleWrap}>
             <BrandLogo size={40} />
             <View style={{ flex: 1 }}>
-              <Text style={styles.greeting}>Hello {user?.full_name || 'there'}! 👋</Text>
-              <Text style={styles.subGreeting}>Find your perfect style today</Text>
+              <Text style={[styles.greeting, { color: colors.text }]}>Hello {user?.full_name || 'there'}! 👋</Text>
+              <Text style={[styles.subGreeting, { color: colors.textSecondary }]}>Find your perfect style today</Text>
             </View>
           </View>
           <View style={styles.headerActions}>
             <TouchableOpacity
-              style={styles.iconButton}
+              style={[styles.iconButton, { backgroundColor: colors.surface }]}
               onPress={() => router.push('/chat/list')}
               accessibilityRole="button"
               accessibilityLabel="Chat"
             >
-              <Ionicons name="chatbubble-outline" size={24} color={Colors.text} />
+              <Ionicons name="chatbubble-outline" size={24} color={colors.text} />
             </TouchableOpacity>
             <TouchableOpacity
-              style={styles.iconButton}
+              style={[styles.iconButton, { backgroundColor: colors.surface }]}
               onPress={() => router.push('/notifications')}
               accessibilityRole="button"
               accessibilityLabel="Notifications"
             >
-              <Ionicons name="notifications-outline" size={24} color={Colors.text} />
+              <Ionicons name="notifications-outline" size={24} color={colors.text} />
               {unreadCount > 0 ? (
-                <View style={styles.badge}>
+                <View style={[styles.badge, { backgroundColor: colors.error }]}>
                   <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
                 </View>
               ) : null}
             </TouchableOpacity>
             <TouchableOpacity
-              style={styles.iconButton}
+              style={[styles.iconButton, { backgroundColor: colors.surface }]}
               onPress={() => router.push('/(tabs)/profile')}
               accessibilityRole="button"
               accessibilityLabel="Profile"
             >
-              <Ionicons name="person-circle-outline" size={26} color={Colors.text} />
+              <Ionicons name="person-circle-outline" size={26} color={colors.text} />
             </TouchableOpacity>
           </View>
         </View>
 
         {/* Search Bar */}
         <TouchableOpacity
-          style={styles.searchBar}
+          style={[styles.searchBar, { backgroundColor: colors.surface }]}
           onPress={() => router.push('/(tabs)/search')}
           accessibilityRole="button"
           accessibilityLabel="Search services or providers"
         >
-          <Ionicons name="search" size={20} color={Colors.textMuted} />
-          <Text style={styles.searchPlaceholder}>Search services or providers...</Text>
+          <Ionicons name="search" size={20} color={colors.textMuted} />
+          <Text style={[styles.searchPlaceholder, { color: colors.textMuted }]}>Search services or providers...</Text>
         </TouchableOpacity>
 
         {/* Banner */}
@@ -248,26 +250,26 @@ export default function Home() {
           style={styles.banner}
         >
           <View style={styles.bannerContent}>
-            <Text style={styles.bannerTitle}>Special Offer!</Text>
-            <Text style={styles.bannerSubtitle}>
+            <Text style={[styles.bannerTitle, { color: '#fff' }]}>Special Offer!</Text>
+            <Text style={[styles.bannerSubtitle, { color: '#fff', opacity: 0.9 }]}>
               Get 20% off on your first booking
             </Text>
             <TouchableOpacity
-              style={styles.bannerButton}
+              style={[styles.bannerButton, { backgroundColor: colors.surfaceLight }]}
               onPress={() => router.push('/(tabs)/search')}
               accessibilityRole="button"
               accessibilityLabel="Book Now"
             >
-              <Text style={styles.bannerButtonText}>Book Now</Text>
+              <Text style={[styles.bannerButtonText, { color: colors.primary }]}>Book Now</Text>
             </TouchableOpacity>
           </View>
           <BrandLogo size={56} />
         </LinearGradient>
 
         {error && (
-          <View style={styles.errorBanner}>
-            <Ionicons name="alert-circle-outline" size={18} color={Colors.error} />
-            <Text style={styles.errorText}>{error}</Text>
+          <View style={[styles.errorBanner, { backgroundColor: colors.surface }]}>
+            <Ionicons name="alert-circle-outline" size={18} color={colors.error} />
+            <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>
           </View>
         )}
 
@@ -275,13 +277,13 @@ export default function Home() {
         {categories.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Categories</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Categories</Text>
               <TouchableOpacity
                 onPress={() => router.push('/(tabs)/search')}
                 accessibilityRole="button"
                 accessibilityLabel="See all categories"
               >
-                <Text style={styles.seeAll}>See All</Text>
+                <Text style={[styles.seeAll, { color: colors.primary }]}>See All</Text>
               </TouchableOpacity>
             </View>
             <FlatList
@@ -298,19 +300,19 @@ export default function Home() {
         {/* Featured Providers */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Featured Providers</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Featured Providers</Text>
             <TouchableOpacity
               onPress={() => router.push('/(tabs)/search')}
               accessibilityRole="button"
               accessibilityLabel="See all featured providers"
             >
-              <Text style={styles.seeAll}>See All</Text>
+              <Text style={[styles.seeAll, { color: colors.primary }]}>See All</Text>
             </TouchableOpacity>
           </View>
           {featuredProviders.length > 0 ? (
             featuredProviders.map(renderProviderCard)
           ) : (
-            <Text style={styles.emptyText}>No providers available right now.</Text>
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No providers available right now.</Text>
           )}
         </View>
 
@@ -318,13 +320,13 @@ export default function Home() {
         {popularProviders.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Popular Near You</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Popular Near You</Text>
               <TouchableOpacity
                 onPress={() => router.push('/(tabs)/search')}
                 accessibilityRole="button"
                 accessibilityLabel="See all popular providers"
               >
-                <Text style={styles.seeAll}>See All</Text>
+                <Text style={[styles.seeAll, { color: colors.primary }]}>See All</Text>
               </TouchableOpacity>
             </View>
             {popularProviders.map(renderProviderCard)}
@@ -338,7 +340,6 @@ export default function Home() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
   loadingContainer: {
     flex: 1,
@@ -348,7 +349,6 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: FontSizes.sm,
-    color: Colors.textSecondary,
   },
   scrollContent: {
     paddingBottom: Spacing.xl,
@@ -363,11 +363,9 @@ const styles = StyleSheet.create({
   greeting: {
     fontSize: FontSizes.xl,
     fontWeight: 'bold',
-    color: Colors.text,
   },
   subGreeting: {
     fontSize: FontSizes.sm,
-    color: Colors.textSecondary,
     marginTop: 4,
   },
   headerActions: {
@@ -385,7 +383,6 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: Colors.surface,
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
@@ -398,7 +395,6 @@ const styles = StyleSheet.create({
     height: 18,
     paddingHorizontal: 4,
     borderRadius: 9,
-    backgroundColor: Colors.error,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -407,7 +403,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
-    backgroundColor: Colors.surface,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.md,
     marginHorizontal: Spacing.lg,
@@ -416,7 +411,6 @@ const styles = StyleSheet.create({
   },
   searchPlaceholder: {
     fontSize: FontSizes.md,
-    color: Colors.textMuted,
   },
   banner: {
     marginHorizontal: Spacing.lg,
@@ -433,17 +427,13 @@ const styles = StyleSheet.create({
   bannerTitle: {
     fontSize: FontSizes.xl,
     fontWeight: 'bold',
-    color: Colors.text,
     marginBottom: 4,
   },
   bannerSubtitle: {
     fontSize: FontSizes.sm,
-    color: Colors.text,
-    opacity: 0.9,
     marginBottom: Spacing.sm,
   },
   bannerButton: {
-    backgroundColor: Colors.text,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.sm,
@@ -452,7 +442,6 @@ const styles = StyleSheet.create({
   bannerButtonText: {
     fontSize: FontSizes.sm,
     fontWeight: '600',
-    color: Colors.primary,
   },
   bannerEmoji: {
     fontSize: 64,
@@ -461,7 +450,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
-    backgroundColor: Colors.surface,
     marginHorizontal: Spacing.lg,
     marginBottom: Spacing.lg,
     padding: Spacing.md,
@@ -470,11 +458,9 @@ const styles = StyleSheet.create({
   errorText: {
     flex: 1,
     fontSize: FontSizes.sm,
-    color: Colors.error,
   },
   emptyText: {
     fontSize: FontSizes.sm,
-    color: Colors.textSecondary,
     paddingHorizontal: Spacing.lg,
   },
   section: {
@@ -490,11 +476,9 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: FontSizes.lg,
     fontWeight: 'bold',
-    color: Colors.text,
   },
   seeAll: {
     fontSize: FontSizes.sm,
-    color: Colors.primary,
     fontWeight: '600',
   },
   categoriesList: {
@@ -509,19 +493,16 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: BorderRadius.md,
-    backgroundColor: Colors.surface,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: Spacing.sm,
   },
   categoryName: {
     fontSize: FontSizes.xs,
-    color: Colors.text,
     textAlign: 'center',
   },
   providerCard: {
     flexDirection: 'row',
-    backgroundColor: Colors.surface,
     marginHorizontal: Spacing.lg,
     marginBottom: Spacing.md,
     padding: Spacing.md,
@@ -531,7 +512,6 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: BorderRadius.md,
-    backgroundColor: Colors.surfaceLight,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: Spacing.md,
@@ -548,12 +528,10 @@ const styles = StyleSheet.create({
   providerName: {
     fontSize: FontSizes.md,
     fontWeight: '600',
-    color: Colors.text,
     marginBottom: 4,
   },
   providerCategory: {
     fontSize: FontSizes.sm,
-    color: Colors.textSecondary,
     marginBottom: Spacing.sm,
   },
   providerMeta: {
@@ -569,15 +547,12 @@ const styles = StyleSheet.create({
   ratingText: {
     fontSize: FontSizes.sm,
     fontWeight: '600',
-    color: Colors.text,
   },
   reviewsText: {
     fontSize: FontSizes.xs,
-    color: Colors.textSecondary,
   },
   price: {
     fontSize: FontSizes.sm,
     fontWeight: '600',
-    color: Colors.primary,
   },
 });

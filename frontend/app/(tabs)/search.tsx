@@ -118,8 +118,8 @@ export default function Search() {
       accessibilityLabel={item.business_name}
     >
       <View style={styles.resultIcon}>
-        {item.avatar ? (
-          <Image source={{ uri: item.avatar }} style={styles.resultPhoto} contentFit="cover" />
+        {item.profile_image_url || item.avatar ? (
+          <Image source={{ uri: item.profile_image_url || item.avatar }} style={styles.resultPhoto} contentFit="cover" />
         ) : (
           <Ionicons name="storefront" size={32} color={Colors.primary} />
         )}

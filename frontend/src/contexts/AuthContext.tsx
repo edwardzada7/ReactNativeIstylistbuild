@@ -20,6 +20,7 @@ interface AuthContextType {
   }) => Promise<{ needsVerification: boolean; user: User | null }>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<User | null>;
+  updateUser: (updates: Partial<User>) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -74,6 +75,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         role: fallbackRole,
         role_raw: meta.role,
         is_verified: false,
+        profile_image_url: undefined,
+        latitude: undefined,
+        longitude: undefined,
+        location_address: undefined,
       };
       setUser(fallbackProfile);
       return fallbackProfile;
@@ -145,6 +150,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return hydrateFromSession(data.session);
   };
 
+  const updateUser = (updates: Partial<User>) => {
+    setUser((prev) => (prev ? { ...prev, ...updates } : null));
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -157,6 +166,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         signup,
         logout,
         refreshUser,
+        updateUser,
       }}
     >
       {children}

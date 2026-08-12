@@ -31,7 +31,7 @@ export const feedService = {
     const response = await apiService.get<any>('/feed/posts', { params });
     const posts = Array.isArray(response?.posts) ? response.posts : Array.isArray(response?.data) ? response.data : [];
     return {
-      data: posts.filter((post) => normalizePostModeration(post as any) !== 'approved'),
+      data: posts.filter((post: any) => normalizePostModeration(post) !== 'approved'),
       total: response.total || posts.length || 0,
       page: params?.page || 1,
       per_page: params?.per_page || 20,

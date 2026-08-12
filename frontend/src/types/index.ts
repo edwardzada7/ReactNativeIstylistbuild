@@ -284,7 +284,6 @@ export interface Review {
 
 export interface CreateReviewRequest {
   booking_id: string;
-  provider_id?: string;
   rating: number;
   comment: string;
   images?: string[];
@@ -321,16 +320,34 @@ export interface ProviderAvailability {
   blocked_dates: string[]; // ["2025-08-25"]
 }
 
-// Message Types
+// Message Types - Booking-based chat to match web implementation
 export interface Conversation {
-  id: string;
-  participant_ids: string[];
-  participants?: User[];
-  last_message?: Message;
+  id: number; // booking_id
+  booking_id: number;
+  counterpart_auth_id: string;
+  counterpart_name?: string;
+  counterpart_profile_image_url?: string | null;
+  last_message: ChatMessage;
   unread_count: number;
-  updated_at: string;
 }
 
+export interface ChatMessage {
+  id: number;
+  booking_id: number;
+  sender_auth_id: string;
+  receiver_auth_id: string;
+  message: string;
+  read: boolean;
+  created_at: string;
+  read_at?: string;
+}
+
+export interface ChatParticipants {
+  customer_auth_id: string;
+  provider_auth_id: string;
+}
+
+// Legacy Message interface for backward compatibility
 export interface Message {
   id: string;
   conversation_id: string;

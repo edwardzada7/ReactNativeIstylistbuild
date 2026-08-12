@@ -204,12 +204,12 @@ export const shopService = {
     // Ensure required backend fields are present and serialised predictably
     const body = {
       amount: Number(input.amount),
-      email: input.email || '',
+      email: input.email,
       items: input.items && input.items.length > 0 ? input.items : undefined,
       name: input.name ?? undefined,
       phone: input.phone ?? undefined,
       redirect_url: input.redirect_url ?? undefined,
-      currency: input.currency ?? undefined,
+      currency: input.currency ?? 'NGN',
     };
     return apiService.post('/payments/paystack/shop/initialize', body);
   },

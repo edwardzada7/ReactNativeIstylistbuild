@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useFocusEffect } from 'expo-router';
 import {
   View,
   Text,
@@ -8,6 +9,7 @@ import {
   Alert,
   ActivityIndicator,
   Image,
+  Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,6 +17,7 @@ import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { useTheme } from '../../src/contexts/ThemeContext';
 import { bookingService } from '../../src/services/booking.service';
 import { resolveCurrentLocation } from '../../src/services/location.service';
 import { supabase } from '../../src/lib/supabase';
@@ -23,13 +26,26 @@ import { Booking } from '../../src/types';
 const comingSoon = (feature: string) =>
   Alert.alert('Coming soon', `${feature} is being wired up in a later phase.`);
 
-const menuSections = (router: ReturnType<typeof useRouter>) => [
+const menuSections = (router: ReturnType<typeof useRouter>, isDark: boolean, toggleTheme: () => void) => [
   {
     section: 'Account',
     items: [
       { icon: 'person-outline', label: 'Edit Profile', onPress: () => router.push('/settings/edit-profile') },
       { icon: 'wallet-outline', label: 'Wallet', onPress: () => router.push('/(tabs)/wallet') },
       { icon: 'star-outline', label: 'My Reviews', onPress: () => router.push('/settings/my-reviews') },
+    ],
+  },
+  {
+    section: 'Appearance',
+    items: [
+      { 
+        icon: 'moon-outline', 
+        label: 'Dark Mode', 
+        onPress: () => {}, 
+        isToggle: true, 
+        value: isDark,
+        onToggle: toggleTheme 
+      },
     ],
   },
   {
@@ -54,7 +70,8 @@ const menuSections = (router: ReturnType<typeof useRouter>) => [
 
 export default function Profile() {
   const router = useRouter();
-  const { user, logout, refreshUser } = useAuth();
+  const { user, logout, refreshUser, updateUser } = useAuth();
+  const { colors, isDark, toggleTheme } = useTheme();
 
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loadingStats, setLoadingStats] = useState(true);
@@ -86,6 +103,32 @@ export default function Profile() {
   useEffect(() => {
     loadStats();
   }, [loadStats]);
+
+  useFocusEffect(
+    useCallback(() => {
+      const refreshProfileData = async () => {
+        if (!user?.auth_id) return;
+        try {
+          const { data, error } = await supabase
+            .from('users')
+            .select('profile_image_url, location_address, latitude, longitude')
+            .eq('auth_id', user.auth_id)
+            .single();
+          if (!error && data) {
+            updateUser({
+              profile_image_url: data.profile_image_url,
+              location_address: data.location_address,
+              latitude: data.latitude,
+              longitude: data.longitude,
+            });
+          }
+        } catch (err) {
+          console.error('[profile] failed to refresh profile data', err);
+        }
+      };
+      refreshProfileData();
+    }, [user?.auth_id, updateUser])
+  );
 
   const { totalBookings, upcomingCount, completedCount } = useMemo(() => {
     const totalBookings = bookings.length;
@@ -141,6 +184,7 @@ export default function Profile() {
       if (updateError) throw updateError;
 
       setAvatarUrl(publicUrl);
+      updateUser({ profile_image_url: publicUrl });
       await refreshUser();
       Alert.alert('Success', 'Your profile image has been updated.');
     } catch (err) {
@@ -181,6 +225,11 @@ export default function Profile() {
 
       if (error) throw error;
 
+      updateUser({
+        location_address: result.location_address || null,
+        latitude: result.latitude ?? null,
+        longitude: result.longitude ?? null,
+      });
       await refreshUser();
       setLocationStatus('updated');
       Alert.alert('Location updated', 'Your current location has been saved to your profile.');
@@ -217,12 +266,12 @@ export default function Profile() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <View style={styles.backHeader}>
         <TouchableOpacity onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back">
-          <Ionicons name="arrow-back" size={24} color={Colors.text} />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.backHeaderTitle}>Profile</Text>
+        <Text style={[styles.backHeaderTitle, { color: colors.text }]}>Profile</Text>
         <View style={{ width: 24 }} />
       </View>
       <ScrollView
@@ -232,24 +281,24 @@ export default function Profile() {
         {/* Profile Header */}
         <View style={styles.profileHeader}>
           <TouchableOpacity onPress={handleAvatarPress} accessibilityRole="button" accessibilityLabel="Update profile image">
-            <View style={styles.avatarContainer}>
+            <View style={[styles.avatarContainer, { backgroundColor: colors.surface }]}>
               {avatarUrl ? (
                 <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
               ) : (
-                <Ionicons name="person-circle-outline" size={56} color={Colors.primary} />
+                <Ionicons name="person-circle-outline" size={56} color={colors.primary} />
               )}
             </View>
           </TouchableOpacity>
-          <Text style={styles.userName}>{user?.full_name || 'Guest User'}</Text>
-          <Text style={styles.userEmail}>{user?.email || 'guest@example.com'}</Text>
+          <Text style={[styles.userName, { color: colors.text }]}>{user?.full_name || 'Guest User'}</Text>
+          <Text style={[styles.userEmail, { color: colors.textSecondary }]}>{user?.email || 'guest@example.com'}</Text>
         </View>
 
-        <View style={styles.locationCard}>
-          <Text style={styles.sectionTitle}>Your Location</Text>
-          <Text style={styles.locationSummary} numberOfLines={2}>
+        <View style={[styles.locationCard, { backgroundColor: colors.surface }]}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Your Location</Text>
+          <Text style={[styles.locationSummary, { color: colors.textSecondary }]} numberOfLines={2}>
             {locationLabel || 'Location not provided'}
           </Text>
-          <Text style={styles.locationStatusText}>
+          <Text style={[styles.locationStatusText, { color: colors.textSecondary }]}>
             {locationLoading
               ? 'Detecting location...'
               : locationStatus === 'updated'
@@ -260,54 +309,63 @@ export default function Profile() {
                     ? 'Unable to determine location'
                     : 'Use your current location to add it to your profile'}
           </Text>
-          <TouchableOpacity style={styles.locationButton} onPress={handleDetectLocation} disabled={locationLoading}>
-            {locationLoading ? <ActivityIndicator color={Colors.primary} /> : <Ionicons name="locate-outline" size={18} color={Colors.primary} />}
-            <Text style={styles.locationButtonText}>{locationLoading ? 'Detecting...' : locationStatus === 'permission-required' || locationStatus === 'unavailable' ? 'Retry' : 'Use My Current Location'}</Text>
+          <TouchableOpacity style={[styles.locationButton, { borderColor: colors.primary }]} onPress={handleDetectLocation} disabled={locationLoading}>
+            {locationLoading ? <ActivityIndicator color={colors.primary} /> : <Ionicons name="locate-outline" size={18} color={colors.primary} />}
+            <Text style={[styles.locationButtonText, { color: colors.primary }]}>{locationLoading ? 'Detecting...' : locationStatus === 'permission-required' || locationStatus === 'unavailable' ? 'Retry' : 'Use My Current Location'}</Text>
           </TouchableOpacity>
         </View>
 
         {/* Stats - customer-relevant only (booking activity, not provider metrics) */}
-        <View style={styles.statsContainer}>
+        <View style={[styles.statsContainer, { backgroundColor: colors.surface }]}>
           {loadingStats ? (
-            <ActivityIndicator color={Colors.primary} style={{ paddingVertical: Spacing.sm }} />
+            <ActivityIndicator color={colors.primary} style={{ paddingVertical: Spacing.sm }} />
           ) : (
             <>
               <View style={styles.statItem}>
-                <Text style={styles.statValue}>{totalBookings}</Text>
-                <Text style={styles.statLabel}>Total Bookings</Text>
+                <Text style={[styles.statValue, { color: colors.text }]}>{totalBookings}</Text>
+                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Total Bookings</Text>
               </View>
-              <View style={styles.statDivider} />
+              <View style={[styles.statDivider, { backgroundColor: colors.border, height: 40 }]} />
               <View style={styles.statItem}>
-                <Text style={styles.statValue}>{upcomingCount}</Text>
-                <Text style={styles.statLabel}>Upcoming</Text>
+                <Text style={[styles.statValue, { color: colors.text }]}>{upcomingCount}</Text>
+                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Upcoming</Text>
               </View>
-              <View style={styles.statDivider} />
+              <View style={[styles.statDivider, { backgroundColor: colors.border, height: 40 }]} />
               <View style={styles.statItem}>
-                <Text style={styles.statValue}>{completedCount}</Text>
-                <Text style={styles.statLabel}>Completed</Text>
+                <Text style={[styles.statValue, { color: colors.text }]}>{completedCount}</Text>
+                <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Completed</Text>
               </View>
             </>
           )}
         </View>
 
         {/* Menu Sections */}
-        {menuSections(router).map((section, index) => (
+        {menuSections(router, isDark, toggleTheme).map((section, index) => (
           <View key={index} style={styles.menuSection}>
-            <Text style={styles.sectionTitle}>{section.section}</Text>
-            <View style={styles.menuItems}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>{section.section}</Text>
+            <View style={[styles.menuItems, { backgroundColor: colors.surface }]}>
               {section.items.map((item, itemIndex) => (
                 <TouchableOpacity
                   key={itemIndex}
-                  style={styles.menuItem}
+                  style={[styles.menuItem, { borderBottomColor: colors.border }]}
                   onPress={item.onPress}
                   accessibilityRole="button"
                   accessibilityLabel={item.label}
                 >
                   <View style={styles.menuItemLeft}>
-                    <Ionicons name={item.icon as any} size={22} color={Colors.text} />
-                    <Text style={styles.menuItemLabel}>{item.label}</Text>
+                    <Ionicons name={item.icon as any} size={22} color={colors.text} />
+                    <Text style={[styles.menuItemLabel, { color: colors.text }]}>{item.label}</Text>
                   </View>
-                  <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
+                  {item.isToggle ? (
+                    <Switch
+                      value={item.value}
+                      onValueChange={item.onToggle}
+                      trackColor={{ false: colors.border, true: colors.primary }}
+                      thumbColor={item.value ? colors.primary : colors.textMuted}
+                    />
+                  ) : (
+                    <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+                  )}
                 </TouchableOpacity>
               ))}
             </View>
@@ -316,16 +374,16 @@ export default function Profile() {
 
         {/* Logout Button */}
         <TouchableOpacity
-          style={styles.logoutButton}
+          style={[styles.logoutButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
           onPress={handleLogout}
           accessibilityRole="button"
           accessibilityLabel="Logout"
         >
-          <Ionicons name="log-out-outline" size={22} color={Colors.error} />
-          <Text style={styles.logoutText}>Logout</Text>
+          <Ionicons name="log-out-outline" size={22} color={colors.error} />
+          <Text style={[styles.logoutText, { color: colors.error }]}>Logout</Text>
         </TouchableOpacity>
 
-        <Text style={styles.version}>Version 1.0.0</Text>
+        <Text style={[styles.version, { color: colors.textMuted }]}>Version 1.0.0</Text>
       </ScrollView>
     </SafeAreaView>
   );
@@ -334,7 +392,6 @@ export default function Profile() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
   scrollContent: {
     paddingBottom: Spacing.xl,
@@ -346,7 +403,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
   },
-  backHeaderTitle: { fontSize: FontSizes.lg, fontWeight: 'bold', color: Colors.text },
+  backHeaderTitle: { fontSize: FontSizes.lg, fontWeight: 'bold' },
   profileHeader: {
     alignItems: 'center',
     paddingVertical: Spacing.xl,
@@ -356,7 +413,6 @@ const styles = StyleSheet.create({
     width: 96,
     height: 96,
     borderRadius: 48,
-    backgroundColor: Colors.surface,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: Spacing.md,
@@ -372,15 +428,12 @@ const styles = StyleSheet.create({
   userName: {
     fontSize: FontSizes.xl,
     fontWeight: 'bold',
-    color: Colors.text,
     marginBottom: 4,
   },
   userEmail: {
     fontSize: FontSizes.md,
-    color: Colors.textSecondary,
   },
   locationCard: {
-    backgroundColor: Colors.surface,
     marginHorizontal: Spacing.lg,
     marginBottom: Spacing.lg,
     padding: Spacing.lg,
@@ -394,23 +447,19 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
-    borderColor: Colors.primary,
     marginTop: Spacing.sm,
   },
   locationButtonText: {
     fontSize: FontSizes.sm,
-    color: Colors.primary,
     fontWeight: '600',
   },
   locationSummary: {
     fontSize: FontSizes.md,
-    color: Colors.text,
     marginTop: Spacing.xs,
     fontWeight: '600',
   },
   locationStatusText: {
     fontSize: FontSizes.sm,
-    color: Colors.textSecondary,
     marginTop: Spacing.xs,
   },
   badge: {
@@ -420,17 +469,14 @@ const styles = StyleSheet.create({
     marginTop: Spacing.sm,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 4,
-    backgroundColor: `${Colors.success}20`,
     borderRadius: BorderRadius.full,
   },
   badgeText: {
     fontSize: FontSizes.xs,
     fontWeight: '600',
-    color: Colors.success,
   },
   statsContainer: {
     flexDirection: 'row',
-    backgroundColor: Colors.surface,
     marginHorizontal: Spacing.lg,
     marginBottom: Spacing.lg,
     padding: Spacing.lg,
@@ -442,17 +488,15 @@ const styles = StyleSheet.create({
   },
   statDivider: {
     width: 1,
-    backgroundColor: Colors.border,
+    height: 40,
   },
   statValue: {
     fontSize: FontSizes.xl,
     fontWeight: 'bold',
-    color: Colors.text,
     marginBottom: 4,
   },
   statLabel: {
     fontSize: FontSizes.sm,
-    color: Colors.textSecondary,
   },
   menuSection: {
     marginBottom: Spacing.lg,
@@ -460,13 +504,11 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: FontSizes.sm,
     fontWeight: '600',
-    color: Colors.textSecondary,
     paddingHorizontal: Spacing.lg,
     marginBottom: Spacing.sm,
     textTransform: 'uppercase',
   },
   menuItems: {
-    backgroundColor: Colors.surface,
     marginHorizontal: Spacing.lg,
     borderRadius: BorderRadius.lg,
     overflow: 'hidden',
@@ -478,7 +520,6 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
   },
   menuItemLeft: {
     flexDirection: 'row',
@@ -487,7 +528,6 @@ const styles = StyleSheet.create({
   },
   menuItemLabel: {
     fontSize: FontSizes.md,
-    color: Colors.text,
   },
   logoutButton: {
     flexDirection: 'row',
@@ -497,17 +537,14 @@ const styles = StyleSheet.create({
     marginHorizontal: Spacing.lg,
     marginTop: Spacing.lg,
     paddingVertical: Spacing.md,
-    backgroundColor: `${Colors.error}20`,
     borderRadius: BorderRadius.md,
   },
   logoutText: {
     fontSize: FontSizes.md,
     fontWeight: '600',
-    color: Colors.error,
   },
   version: {
     fontSize: FontSizes.xs,
-    color: Colors.textMuted,
     textAlign: 'center',
     marginTop: Spacing.lg,
   },

@@ -147,8 +147,8 @@ export default function ProviderProfile() {
       >
         {/* Header / Cover */}
         <View style={styles.coverContainer}>
-          {provider.avatar ? (
-            <Image source={{ uri: provider.avatar }} style={styles.coverImage} contentFit="cover" />
+          {provider.profile_image_url || provider.avatar ? (
+            <Image source={{ uri: provider.profile_image_url || provider.avatar }} style={styles.coverImage} contentFit="cover" />
           ) : (
             <View style={styles.coverFallback}>
               <Ionicons name="person" size={64} color={Colors.primary} />

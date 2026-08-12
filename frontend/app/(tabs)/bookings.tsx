@@ -22,6 +22,7 @@ import { bookingService } from '../../src/services/booking.service';
 import { reviewService } from '../../src/services/review.service';
 import { walletService } from '../../src/services/wallet.service';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { useTheme } from '../../src/contexts/ThemeContext';
 import { formatCurrency } from '../../src/utils/currency';
 import { derivePaymentStatus, getPaymentStatusMeta, formatStatusLabel } from '../../src/utils/walletHelpers';
 import { Booking, Transaction, Wallet } from '../../src/types';
@@ -150,7 +151,6 @@ export default function Bookings() {
     try {
       await reviewService.createReview({
         booking_id: reviewModal.id,
-        provider_id: reviewModal.provider_id,
         rating: reviewRating,
         comment: reviewComment.trim(),
       });
@@ -336,6 +336,20 @@ export default function Bookings() {
                       ) : (
                         <Text style={styles.actionButtonTextSecondary}>Cancel</Text>
                       )}
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={styles.actionButtonSecondary}
+                      onPress={() => {
+                        const providerAuthId = item.provider_auth_id || item.provider_id;
+                        if (providerAuthId) {
+                          router.push(`/chat/${providerAuthId}?bookingId=${item.id}`);
+                        }
+                      }}
+                      accessibilityRole="button"
+                      accessibilityLabel="Chat with provider"
+                    >
+                      <Ionicons name="chatbubble-outline" size={16} color={Colors.text} />
+                      <Text style={styles.actionButtonTextSecondary}>Chat</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
                       style={styles.actionButtonPrimary}
@@ -562,6 +576,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.surfaceLight,
     borderRadius: BorderRadius.sm,
     alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 4,
   },
   actionButtonTextSecondary: {
     fontSize: FontSizes.sm,

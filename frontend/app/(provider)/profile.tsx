@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, FlatList, Image, ActivityIndicator } from 'react-native';
+import { useFocusEffect } from 'expo-router';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, FlatList, Image, ActivityIndicator, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { useTheme } from '../../src/contexts/ThemeContext';
 import { providerService } from '../../src/services/provider.service';
 import { feedService } from '../../src/services/feed.service';
 import { resolveCurrentLocation } from '../../src/services/location.service';
@@ -14,7 +16,8 @@ import { Provider, Post } from '../../src/types';
 
 export default function ProviderProfile() {
   const router = useRouter();
-  const { user, logout, refreshUser } = useAuth();
+  const { user, logout, refreshUser, updateUser } = useAuth();
+  const { colors, isDark, toggleTheme } = useTheme();
   const [profile, setProfile] = useState<Provider | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(false);
@@ -31,6 +34,9 @@ export default function ProviderProfile() {
       const nextLocation = data.location_address || data.location || '';
       setLocationLabel(nextLocation);
       setLocationStatus(nextLocation ? 'updated' : 'idle');
+      if (data.profile_image_url || data.avatar) {
+        setAvatarUrl(data.profile_image_url || data.avatar || null);
+      }
     } catch (err) {
       console.error('[provider-profile-tab] failed to load', err);
     }
@@ -74,7 +80,33 @@ export default function ProviderProfile() {
     setLocationStatus(nextLocation ? 'updated' : 'idle');
     loadProfile();
     loadPosts();
-  }, [loadProfile, loadPosts, user?.profile_image_url, user?.avatar, user?.location_address, user?.city, user?.state, user?.country]);
+  }, [loadProfile, loadPosts, user?.id, user?.profile_image_url, user?.avatar, user?.location_address, user?.city, user?.state, user?.country]);
+
+  useFocusEffect(
+    useCallback(() => {
+      const refreshProfileData = async () => {
+        if (!user?.auth_id) return;
+        try {
+          const { data, error } = await supabase
+            .from('stylists')
+            .select('profile_image_url, location_address, latitude, longitude')
+            .eq('auth_id', user.auth_id)
+            .single();
+          if (!error && data) {
+            updateUser({
+              profile_image_url: data.profile_image_url,
+              location_address: data.location_address,
+              latitude: data.latitude,
+              longitude: data.longitude,
+            });
+          }
+        } catch (err) {
+          console.error('[provider-profile] failed to refresh profile data', err);
+        }
+      };
+      refreshProfileData();
+    }, [user?.auth_id, updateUser])
+  );
 
   const handlePickAvatar = async (source: 'camera' | 'library') => {
     if (!user?.auth_id) return;
@@ -121,6 +153,7 @@ export default function ProviderProfile() {
       if (updateError) throw updateError;
 
       setAvatarUrl(publicUrl);
+      updateUser({ profile_image_url: publicUrl });
       await refreshUser();
       Alert.alert('Success', 'Your profile image has been updated.');
     } catch (err) {
@@ -161,6 +194,11 @@ export default function ProviderProfile() {
 
       if (error) throw error;
 
+      updateUser({
+        location_address: result.location_address || null,
+        latitude: result.latitude ?? null,
+        longitude: result.longitude ?? null,
+      });
       await refreshUser();
       await loadProfile();
       setLocationStatus('updated');
@@ -202,40 +240,51 @@ export default function ProviderProfile() {
     { icon: 'help-circle-outline', label: 'Help Center', onPress: () => router.push('/settings/help') },
   ];
 
+  const appearanceItems = [
+    { 
+      icon: 'moon-outline', 
+      label: 'Dark Mode', 
+      onPress: () => {}, 
+      isToggle: true, 
+      value: isDark,
+      onToggle: toggleTheme 
+    },
+  ];
+
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <View style={styles.backHeader}>
         <TouchableOpacity onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back">
-          <Ionicons name="arrow-back" size={24} color={Colors.text} />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.backHeaderTitle}>Profile</Text>
+        <Text style={[styles.backHeaderTitle, { color: colors.text }]}>Profile</Text>
         <View style={{ width: 24 }} />
       </View>
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
         <View style={styles.profileHeader}>
           <TouchableOpacity onPress={handleAvatarPress} accessibilityRole="button" accessibilityLabel="Update profile image">
-            <View style={styles.avatarContainer}>
+            <View style={[styles.avatarContainer, { backgroundColor: colors.surface }]}>
               {avatarUrl ? (
                 <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
               ) : (
-                <Ionicons name="storefront" size={40} color={Colors.primary} />
+                <Ionicons name="storefront" size={40} color={colors.primary} />
               )}
             </View>
           </TouchableOpacity>
-          <Text style={styles.userName}>{user?.full_name || profile?.business_name || 'Provider'}</Text>
-          <Text style={styles.userEmail}>{user?.email}</Text>
-          <View style={styles.badge}>
-            <Ionicons name="briefcase" size={14} color={Colors.primary} />
-            <Text style={styles.badgeText}>Service Provider</Text>
+          <Text style={[styles.userName, { color: colors.text }]}>{user?.full_name || profile?.business_name || 'Provider'}</Text>
+          <Text style={[styles.userEmail, { color: colors.textSecondary }]}>{user?.email}</Text>
+          <View style={[styles.badge, { backgroundColor: `${colors.primary}20` }]}>
+            <Ionicons name="briefcase" size={14} color={colors.primary} />
+            <Text style={[styles.badgeText, { color: colors.primary }]}>Service Provider</Text>
           </View>
         </View>
 
-        <View style={styles.locationCard}>
-          <Text style={styles.sectionTitle}>Your Location</Text>
-          <Text style={styles.locationSummary} numberOfLines={2}>
+        <View style={[styles.locationCard, { backgroundColor: colors.surface }]}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Your Location</Text>
+          <Text style={[styles.locationSummary, { color: colors.textSecondary }]} numberOfLines={2}>
             {locationLabel || 'Location not provided'}
           </Text>
-          <Text style={styles.locationStatusText}>
+          <Text style={[styles.locationStatusText, { color: colors.textSecondary }]}>
             {locationLoading
               ? 'Detecting location...'
               : locationStatus === 'updated'
@@ -246,46 +295,46 @@ export default function ProviderProfile() {
                     ? 'Unable to determine location'
                     : 'Use your current location to add it to your profile'}
           </Text>
-          <TouchableOpacity style={styles.locationButton} onPress={handleDetectLocation} disabled={locationLoading}>
-            {locationLoading ? <ActivityIndicator color={Colors.primary} /> : <Ionicons name="locate-outline" size={18} color={Colors.primary} />}
-            <Text style={styles.locationButtonText}>{locationLoading ? 'Detecting...' : locationStatus === 'permission-required' || locationStatus === 'unavailable' ? 'Retry' : 'Use My Current Location'}</Text>
+          <TouchableOpacity style={[styles.locationButton, { borderColor: colors.primary }]} onPress={handleDetectLocation} disabled={locationLoading}>
+            {locationLoading ? <ActivityIndicator color={colors.primary} /> : <Ionicons name="locate-outline" size={18} color={colors.primary} />}
+            <Text style={[styles.locationButtonText, { color: colors.primary }]}>{locationLoading ? 'Detecting...' : locationStatus === 'permission-required' || locationStatus === 'unavailable' ? 'Retry' : 'Use My Current Location'}</Text>
           </TouchableOpacity>
         </View>
 
-        <View style={styles.statsContainer}>
+        <View style={[styles.statsContainer, { backgroundColor: colors.surface }]}>
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>{profile?.rating ? profile.rating.toFixed(1) : 'New'}</Text>
-            <Text style={styles.statLabel}>Rating</Text>
+            <Text style={[styles.statValue, { color: colors.text }]}>{profile?.rating ? profile.rating.toFixed(1) : 'New'}</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Rating</Text>
           </View>
-          <View style={styles.statDivider} />
+          <View style={[styles.statDivider, { backgroundColor: colors.border, height: 40 }]} />
           <TouchableOpacity
             style={styles.statItem}
             onPress={() => router.push('/(provider)/reviews')}
             accessibilityRole="button"
             accessibilityLabel="View reviews"
           >
-            <Text style={styles.statValue}>{profile?.review_count ?? 0}</Text>
-            <Text style={styles.statLabel}>Reviews</Text>
+            <Text style={[styles.statValue, { color: colors.text }]}>{profile?.review_count ?? 0}</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Reviews</Text>
           </TouchableOpacity>
-          <View style={styles.statDivider} />
+          <View style={[styles.statDivider, { backgroundColor: colors.border, height: 40 }]} />
           <View style={styles.statItem}>
-            <Text style={styles.statValue}>{profile?.services.length ?? 0}</Text>
-            <Text style={styles.statLabel}>Services</Text>
+            <Text style={[styles.statValue, { color: colors.text }]}>{profile?.services.length ?? 0}</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Services</Text>
           </View>
         </View>
 
         {/* Posts Section */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Posts</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Posts</Text>
         </View>
         {loadingPosts ? (
           <View style={styles.centerState}>
-            <ActivityIndicator size="small" color={Colors.primary} />
+            <ActivityIndicator size="small" color={colors.primary} />
           </View>
         ) : posts.length === 0 ? (
           <View style={styles.emptyPosts}>
-            <Ionicons name="images-outline" size={32} color={Colors.textMuted} />
-            <Text style={styles.emptyText}>No posts yet</Text>
+            <Ionicons name="images-outline" size={32} color={colors.textMuted} />
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No posts yet</Text>
           </View>
         ) : (
           <FlatList
@@ -295,7 +344,7 @@ export default function ProviderProfile() {
             keyExtractor={(item) => String(item.id)}
             renderItem={({ item }) => (
               <TouchableOpacity
-                style={styles.postCard}
+                style={[styles.postCard, { backgroundColor: colors.surface }]}
                 accessibilityRole="button"
                 accessibilityLabel="View post"
               >
@@ -303,8 +352,8 @@ export default function ProviderProfile() {
                   <Image source={{ uri: item.image_url }} style={styles.postImage} />
                 )}
                 <View style={styles.postMeta}>
-                  <Ionicons name="heart" size={14} color={Colors.error} />
-                  <Text style={styles.postMetaText}>{item.likes_count || 0}</Text>
+                  <Ionicons name="heart" size={14} color={colors.error} />
+                  <Text style={[styles.postMetaText, { color: colors.textSecondary }]}>{item.likes_count || 0}</Text>
                 </View>
               </TouchableOpacity>
             )}
@@ -312,32 +361,63 @@ export default function ProviderProfile() {
           />
         )}
 
-        <View style={styles.menuItems}>
-          {menuItems.map((item) => (
+        {/* Appearance Section */}
+        <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Appearance</Text>
+        </View>
+        <View style={[styles.menuItems, { backgroundColor: colors.surface }]}>
+          {appearanceItems.map((item) => (
             <TouchableOpacity
               key={item.label}
-              style={styles.menuItem}
+              style={[styles.menuItem, { borderBottomColor: colors.border }]}
               onPress={item.onPress}
               accessibilityRole="button"
               accessibilityLabel={item.label}
             >
               <View style={styles.menuItemLeft}>
-                <Ionicons name={item.icon as any} size={22} color={Colors.text} />
-                <Text style={styles.menuItemLabel}>{item.label}</Text>
+                <Ionicons name={item.icon as any} size={22} color={colors.text} />
+                <Text style={[styles.menuItemLabel, { color: colors.text }]}>{item.label}</Text>
               </View>
-              <Ionicons name="chevron-forward" size={20} color={Colors.textMuted} />
+              {item.isToggle ? (
+                <Switch
+                  value={item.value}
+                  onValueChange={item.onToggle}
+                  trackColor={{ false: colors.border, true: colors.primary }}
+                  thumbColor={item.value ? colors.primary : colors.textMuted}
+                />
+              ) : (
+                <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+              )}
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <View style={[styles.menuItems, { backgroundColor: colors.surface }]}>
+          {menuItems.map((item) => (
+            <TouchableOpacity
+              key={item.label}
+              style={[styles.menuItem, { borderBottomColor: colors.border }]}
+              onPress={item.onPress}
+              accessibilityRole="button"
+              accessibilityLabel={item.label}
+            >
+              <View style={styles.menuItemLeft}>
+                <Ionicons name={item.icon as any} size={22} color={colors.text} />
+                <Text style={[styles.menuItemLabel, { color: colors.text }]}>{item.label}</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
             </TouchableOpacity>
           ))}
         </View>
 
         <TouchableOpacity
-          style={styles.logoutButton}
+          style={[styles.logoutButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
           onPress={handleLogout}
           accessibilityRole="button"
           accessibilityLabel="Logout"
         >
-          <Ionicons name="log-out-outline" size={22} color={Colors.error} />
-          <Text style={styles.logoutText}>Logout</Text>
+          <Ionicons name="log-out-outline" size={22} color={colors.error} />
+          <Text style={[styles.logoutText, { color: colors.error }]}>Logout</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -345,7 +425,7 @@ export default function ProviderProfile() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+  container: { flex: 1 },
   scrollContent: { paddingBottom: Spacing.xl },
   backHeader: {
     flexDirection: 'row',
@@ -354,13 +434,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
   },
-  backHeaderTitle: { fontSize: FontSizes.lg, fontWeight: 'bold', color: Colors.text },
+  backHeaderTitle: { fontSize: FontSizes.lg, fontWeight: 'bold' },
   profileHeader: { alignItems: 'center', paddingVertical: Spacing.xl, paddingHorizontal: Spacing.lg },
   avatarContainer: {
     width: 88,
     height: 88,
     borderRadius: 44,
-    backgroundColor: Colors.surface,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: Spacing.md,
@@ -370,10 +449,9 @@ const styles = StyleSheet.create({
     width: 88,
     height: 88,
   },
-  userName: { fontSize: FontSizes.xl, fontWeight: 'bold', color: Colors.text, marginBottom: 4 },
-  userEmail: { fontSize: FontSizes.md, color: Colors.textSecondary },
+  userName: { fontSize: FontSizes.xl, fontWeight: 'bold', marginBottom: 4 },
+  userEmail: { fontSize: FontSizes.md },
   locationCard: {
-    backgroundColor: Colors.surface,
     marginHorizontal: Spacing.lg,
     marginBottom: Spacing.lg,
     padding: Spacing.lg,
@@ -387,23 +465,19 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.md,
     borderWidth: 1,
-    borderColor: Colors.primary,
     marginTop: Spacing.sm,
   },
   locationButtonText: {
     fontSize: FontSizes.sm,
-    color: Colors.primary,
     fontWeight: '600',
   },
   locationSummary: {
     fontSize: FontSizes.md,
-    color: Colors.text,
     marginTop: Spacing.xs,
     fontWeight: '600',
   },
   locationStatusText: {
     fontSize: FontSizes.sm,
-    color: Colors.textSecondary,
     marginTop: Spacing.xs,
   },
   badge: {
@@ -413,22 +487,20 @@ const styles = StyleSheet.create({
     marginTop: Spacing.sm,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 4,
-    backgroundColor: `${Colors.primary}20`,
     borderRadius: BorderRadius.full,
   },
-  badgeText: { fontSize: FontSizes.xs, fontWeight: '600', color: Colors.primary },
+  badgeText: { fontSize: FontSizes.xs, fontWeight: '600' },
   statsContainer: {
     flexDirection: 'row',
-    backgroundColor: Colors.surface,
     marginHorizontal: Spacing.lg,
     marginBottom: Spacing.lg,
     padding: Spacing.lg,
     borderRadius: BorderRadius.lg,
   },
   statItem: { flex: 1, alignItems: 'center' },
-  statDivider: { width: 1, backgroundColor: Colors.border },
-  statValue: { fontSize: FontSizes.xl, fontWeight: 'bold', color: Colors.text, marginBottom: 4 },
-  statLabel: { fontSize: FontSizes.sm, color: Colors.textSecondary },
+  statDivider: { width: 1 },
+  statValue: { fontSize: FontSizes.xl, fontWeight: 'bold', marginBottom: 4 },
+  statLabel: { fontSize: FontSizes.sm },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -437,12 +509,11 @@ const styles = StyleSheet.create({
     marginTop: Spacing.lg,
     marginBottom: Spacing.md,
   },
-  sectionTitle: { fontSize: FontSizes.md, fontWeight: '700', color: Colors.text },
+  sectionTitle: { fontSize: FontSizes.md, fontWeight: '700' },
   addPostButton: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: Colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -456,16 +527,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: Spacing.xl,
     marginHorizontal: Spacing.lg,
-    backgroundColor: Colors.surface,
     borderRadius: BorderRadius.lg,
   },
-  emptyText: { fontSize: FontSizes.sm, color: Colors.textSecondary, marginTop: Spacing.sm },
+  emptyText: { fontSize: FontSizes.sm, marginTop: Spacing.sm },
   postsList: { paddingHorizontal: Spacing.lg, gap: Spacing.sm },
   postCard: {
     width: 120,
     borderRadius: BorderRadius.md,
     overflow: 'hidden',
-    backgroundColor: Colors.surface,
   },
   postImage: { width: '100%', height: 120 },
   postMeta: {
@@ -475,9 +544,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.xs,
   },
-  postMetaText: { fontSize: FontSizes.xs, color: Colors.textSecondary },
+  postMetaText: { fontSize: FontSizes.xs },
   menuItems: {
-    backgroundColor: Colors.surface,
     marginHorizontal: Spacing.lg,
     borderRadius: BorderRadius.lg,
     overflow: 'hidden',
@@ -489,10 +557,9 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
   },
   menuItemLeft: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
-  menuItemLabel: { fontSize: FontSizes.md, color: Colors.text },
+  menuItemLabel: { fontSize: FontSizes.md },
   logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -501,8 +568,7 @@ const styles = StyleSheet.create({
     marginHorizontal: Spacing.lg,
     marginTop: Spacing.lg,
     paddingVertical: Spacing.md,
-    backgroundColor: `${Colors.error}20`,
     borderRadius: BorderRadius.md,
   },
-  logoutText: { fontSize: FontSizes.md, fontWeight: '600', color: Colors.error },
+  logoutText: { fontSize: FontSizes.md, fontWeight: '600' },
 });
