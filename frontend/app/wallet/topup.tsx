@@ -17,6 +17,7 @@ import { useRouter } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { Button } from '../../src/components/common';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { useTheme } from '../../src/contexts/ThemeContext';
 import { walletService } from '../../src/services/wallet.service';
 import { formatCurrency } from '../../src/utils/currency';
 
@@ -50,6 +51,7 @@ type Step = 'amount' | 'checkout' | 'success' | 'failed' | 'cancelled';
 export default function WalletTopUp() {
   const router = useRouter();
   const { user } = useAuth();
+  const { colors } = useTheme();
 
   const [step, setStep] = useState<Step>('amount');
   const [amount, setAmount] = useState('');
@@ -146,16 +148,16 @@ export default function WalletTopUp() {
   );
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => (step === 'checkout' ? setStep('amount') : router.back())}
           accessibilityRole="button"
           accessibilityLabel="Go back"
         >
-          <Ionicons name="arrow-back" size={24} color={Colors.text} />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>Top Up Wallet</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Top Up Wallet</Text>
       </View>
 
       {step === 'amount' && (
@@ -163,13 +165,13 @@ export default function WalletTopUp() {
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.content}
         >
-          <Text style={styles.label}>Enter Amount</Text>
-          <View style={styles.amountInputWrap}>
-            <Text style={styles.currencySymbol}>₦</Text>
+          <Text style={[styles.label, { color: colors.textSecondary }]}>Enter Amount</Text>
+          <View style={[styles.amountInputWrap, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.currencySymbol, { color: colors.text }]}>₦</Text>
             <TextInput
-              style={styles.amountInput}
+              style={[styles.amountInput, { color: colors.text }]}
               placeholder="0"
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={colors.textSecondary}
               keyboardType="numeric"
               value={amount}
               onChangeText={(v) => setAmount(v.replace(/[^0-9]/g, ''))}
@@ -180,24 +182,24 @@ export default function WalletTopUp() {
             {QUICK_AMOUNTS.map((qa) => (
               <TouchableOpacity
                 key={qa}
-                style={styles.quickChip}
+                style={[styles.quickChip, { backgroundColor: colors.surface }]}
                 onPress={() => setAmount(String(qa))}
                 accessibilityRole="button"
                 accessibilityLabel={`₦${qa}`}
               >
-                <Text style={styles.quickChipText}>{formatCurrency(qa)}</Text>
+                <Text style={[styles.quickChipText, { color: colors.text }]}>{formatCurrency(qa)}</Text>
               </TouchableOpacity>
             ))}
           </View>
 
-          {error ? <Text style={styles.errorText}>{error}</Text> : null}
+          {error ? <Text style={[styles.errorText, { color: Colors.error }]}>{error}</Text> : null}
 
           <View style={styles.paymentMethods}>
-            <Text style={styles.paymentMethodsTitle}>Supported payment methods</Text>
+            <Text style={[styles.paymentMethodsTitle, { color: colors.textSecondary }]}>Supported payment methods</Text>
             <View style={styles.methodsRow}>
               {['Card', 'Bank Transfer', 'USSD', 'Mobile Money'].map((m) => (
-                <View key={m} style={styles.methodChip}>
-                  <Text style={styles.methodChipText}>{m}</Text>
+                <View key={m} style={[styles.methodChip, { borderColor: colors.border }]}>
+                  <Text style={[styles.methodChipText, { color: colors.textSecondary }]}>{m}</Text>
                 </View>
               ))}
             </View>
@@ -230,7 +232,7 @@ export default function WalletTopUp() {
           {verifying && (
             <View style={styles.creditingOverlay}>
               <ActivityIndicator size="large" color={Colors.primary} />
-              <Text style={styles.creditingText}>Confirming payment...</Text>
+              <Text style={[styles.creditingText, { color: colors.text }]}>Confirming payment...</Text>
             </View>
           )}
         </View>
@@ -238,11 +240,11 @@ export default function WalletTopUp() {
 
       {step === 'success' && (
         <View style={styles.centerState}>
-          <View style={styles.resultIcon}>
-            <Ionicons name="checkmark" size={48} color={Colors.text} />
+          <View style={[styles.resultIcon, { backgroundColor: Colors.success }]}>
+            <Ionicons name="checkmark" size={48} color={colors.text} />
           </View>
-          <Text style={styles.resultTitle}>Top-Up Successful!</Text>
-          <Text style={styles.resultSubtitle}>
+          <Text style={[styles.resultTitle, { color: colors.text }]}>Top-Up Successful!</Text>
+          <Text style={[styles.resultSubtitle, { color: colors.textSecondary }]}>
             {formatCurrency(numericAmount)} has been added to your wallet.
           </Text>
           <Button title="Back to Wallet" onPress={() => router.replace('/(tabs)/wallet')} fullWidth size="large" />
@@ -252,10 +254,10 @@ export default function WalletTopUp() {
       {step === 'failed' && (
         <View style={styles.centerState}>
           <View style={[styles.resultIcon, { backgroundColor: Colors.error }]}>
-            <Ionicons name="close" size={48} color={Colors.text} />
+            <Ionicons name="close" size={48} color={colors.text} />
           </View>
-          <Text style={styles.resultTitle}>Payment Failed</Text>
-          <Text style={styles.resultSubtitle}>
+          <Text style={[styles.resultTitle, { color: colors.text }]}>Payment Failed</Text>
+          <Text style={[styles.resultSubtitle, { color: colors.textSecondary }]}>
             {error || 'Your payment could not be completed. No funds were deducted.'}
           </Text>
           <Button title="Try Again" onPress={() => setStep('amount')} fullWidth size="large" />
@@ -265,10 +267,10 @@ export default function WalletTopUp() {
       {step === 'cancelled' && (
         <View style={styles.centerState}>
           <View style={[styles.resultIcon, { backgroundColor: Colors.warning }]}>
-            <Ionicons name="alert" size={48} color={Colors.text} />
+            <Ionicons name="alert" size={48} color={colors.text} />
           </View>
-          <Text style={styles.resultTitle}>Payment Cancelled</Text>
-          <Text style={styles.resultSubtitle}>You closed the checkout before completing payment.</Text>
+          <Text style={[styles.resultTitle, { color: colors.text }]}>Payment Cancelled</Text>
+          <Text style={[styles.resultSubtitle, { color: colors.textSecondary }]}>You closed the checkout before completing payment.</Text>
           <Button title="Try Again" onPress={() => setStep('amount')} fullWidth size="large" />
         </View>
       )}
@@ -277,7 +279,7 @@ export default function WalletTopUp() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+  container: { flex: 1 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -285,40 +287,37 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
   },
-  title: { fontSize: FontSizes.lg, fontWeight: 'bold', color: Colors.text },
+  title: { fontSize: FontSizes.lg, fontWeight: 'bold' },
   content: { flex: 1, paddingHorizontal: Spacing.lg, paddingBottom: Spacing.lg },
-  label: { fontSize: FontSizes.sm, color: Colors.textSecondary, marginBottom: Spacing.sm },
+  label: { fontSize: FontSizes.sm, marginBottom: Spacing.sm },
   amountInputWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.surface,
     borderRadius: BorderRadius.lg,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     marginBottom: Spacing.lg,
   },
-  currencySymbol: { fontSize: 28, fontWeight: '700', color: Colors.text, marginRight: Spacing.sm },
-  amountInput: { flex: 1, fontSize: 28, fontWeight: '700', color: Colors.text },
+  currencySymbol: { fontSize: 28, fontWeight: '700', marginRight: Spacing.sm },
+  amountInput: { flex: 1, fontSize: 28, fontWeight: '700' },
   quickRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginBottom: Spacing.lg },
   quickChip: {
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
-    backgroundColor: Colors.surface,
     borderRadius: BorderRadius.full,
   },
-  quickChipText: { fontSize: FontSizes.xs, fontWeight: '600', color: Colors.text },
-  errorText: { fontSize: FontSizes.sm, color: Colors.error, marginBottom: Spacing.md },
+  quickChipText: { fontSize: FontSizes.xs, fontWeight: '600' },
+  errorText: { fontSize: FontSizes.sm, marginBottom: Spacing.md },
   paymentMethods: { marginTop: Spacing.md },
-  paymentMethodsTitle: { fontSize: FontSizes.xs, color: Colors.textMuted, marginBottom: Spacing.sm },
+  paymentMethodsTitle: { fontSize: FontSizes.xs, marginBottom: Spacing.sm },
   methodsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
   methodChip: {
     paddingHorizontal: Spacing.sm,
     paddingVertical: 4,
     borderRadius: BorderRadius.sm,
     borderWidth: 1,
-    borderColor: Colors.border,
   },
-  methodChipText: { fontSize: FontSizes.xs, color: Colors.textSecondary },
+  methodChipText: { fontSize: FontSizes.xs },
   centerState: {
     flex: 1,
     justifyContent: 'center',
@@ -332,20 +331,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: Spacing.md,
   },
-  creditingText: { fontSize: FontSizes.sm, color: Colors.text },
+  creditingText: { fontSize: FontSizes.sm },
   resultIcon: {
     width: 88,
     height: 88,
     borderRadius: 44,
-    backgroundColor: Colors.success,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: Spacing.lg,
   },
-  resultTitle: { fontSize: FontSizes.xl, fontWeight: 'bold', color: Colors.text, marginBottom: Spacing.sm },
+  resultTitle: { fontSize: FontSizes.xl, fontWeight: 'bold', marginBottom: Spacing.sm },
   resultSubtitle: {
     fontSize: FontSizes.sm,
-    color: Colors.textSecondary,
     textAlign: 'center',
     marginBottom: Spacing.xl,
   },

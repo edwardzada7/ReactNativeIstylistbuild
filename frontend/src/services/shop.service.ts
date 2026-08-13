@@ -202,15 +202,26 @@ export const shopService = {
     currency?: string;
   }): Promise<{ status: boolean; authorization_url?: string; reference?: string; message?: string }> {
     // Ensure required backend fields are present and serialised predictably
-    const body = {
+    const body: Record<string, any> = {
       amount: Number(input.amount),
       email: input.email,
-      items: input.items && input.items.length > 0 ? input.items : undefined,
-      name: input.name ?? undefined,
-      phone: input.phone ?? undefined,
-      redirect_url: input.redirect_url ?? undefined,
-      currency: input.currency ?? 'NGN',
+      currency: input.currency || 'NGN',
     };
+    
+    // Only include optional fields if they have values
+    if (input.items && input.items.length > 0) {
+      body.items = input.items;
+    }
+    if (input.name) {
+      body.name = input.name;
+    }
+    if (input.phone) {
+      body.phone = input.phone;
+    }
+    if (input.redirect_url) {
+      body.redirect_url = input.redirect_url;
+    }
+    
     return apiService.post('/payments/paystack/shop/initialize', body);
   },
 

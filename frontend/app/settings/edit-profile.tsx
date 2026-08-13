@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { Button, Input } from '../../src/components/common';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { useTheme } from '../../src/contexts/ThemeContext';
 import apiService from '../../src/services/api';
 
 const GENDERS = ['male', 'female', 'other'];
@@ -24,6 +25,7 @@ const GENDERS = ['male', 'female', 'other'];
 export default function EditProfile() {
   const router = useRouter();
   const { user, refreshUser } = useAuth();
+  const { colors } = useTheme();
   const [form, setForm] = useState({
     full_name: user?.full_name || '',
     phone: user?.phone || '',
@@ -82,12 +84,12 @@ export default function EditProfile() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back">
-          <Ionicons name="arrow-back" size={24} color={Colors.text} />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>Edit Profile</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Edit Profile</Text>
         <View style={{ width: 24 }} />
       </View>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
@@ -136,17 +138,17 @@ export default function EditProfile() {
             placeholder="Street address"
             icon="home-outline"
           />
-          <Text style={styles.label}>Gender</Text>
+          <Text style={[styles.label, { color: colors.text }]}>Gender</Text>
           <View style={styles.chipRow}>
             {GENDERS.map((g) => (
               <TouchableOpacity
                 key={g}
-                style={[styles.chip, gender === g && styles.chipActive]}
+                style={[styles.chip, { borderColor: colors.border }, gender === g && styles.chipActive]}
                 onPress={() => setGender(g)}
                 accessibilityRole="button"
                 accessibilityLabel={g}
               >
-                <Text style={[styles.chipText, gender === g && styles.chipTextActive]}>
+                <Text style={[styles.chipText, { color: colors.text }, gender === g && styles.chipTextActive]}>
                   {g.charAt(0).toUpperCase() + g.slice(1)}
                 </Text>
               </TouchableOpacity>
@@ -160,7 +162,7 @@ export default function EditProfile() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+  container: { flex: 1 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -168,19 +170,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
   },
-  title: { fontSize: FontSizes.lg, fontWeight: 'bold', color: Colors.text },
+  title: { fontSize: FontSizes.lg, fontWeight: 'bold' },
   content: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xl },
-  label: { fontSize: FontSizes.sm, fontWeight: '600', color: Colors.text, marginBottom: Spacing.sm },
+  label: { fontSize: FontSizes.sm, fontWeight: '600', marginBottom: Spacing.sm },
   chipRow: { flexDirection: 'row', gap: Spacing.sm },
   chip: {
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
-    backgroundColor: Colors.surface,
     borderRadius: BorderRadius.full,
     borderWidth: 1,
-    borderColor: Colors.border,
   },
   chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  chipText: { fontSize: FontSizes.sm, color: Colors.text },
-  chipTextActive: { fontWeight: '700' },
+  chipText: { fontSize: FontSizes.sm },
+  chipTextActive: { fontWeight: '700', color: Colors.text },
 });

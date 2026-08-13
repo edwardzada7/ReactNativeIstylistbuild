@@ -15,11 +15,13 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { feedService } from '../../src/services/feed.service';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { useTheme } from '../../src/contexts/ThemeContext';
 
 export default function EditPost() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
+  const { colors } = useTheme();
   const [caption, setCaption] = useState('');
   const [image, setImage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -55,30 +57,30 @@ export default function EditPost() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
         <View style={styles.centerState}>
-          <ActivityIndicator size="large" color={Colors.primary} />
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      <View style={styles.header}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+      <View style={[styles.header, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <Ionicons name="close" size={24} color={Colors.text} />
+          <Ionicons name="close" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Edit Post</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Edit Post</Text>
         <TouchableOpacity
           onPress={handleUpdate}
-          style={[styles.postButton, (!image || saving) && styles.postButtonDisabled]}
+          style={[styles.postButton, { backgroundColor: colors.primary }, (!image || saving) && { backgroundColor: colors.textMuted }]}
           disabled={!image || saving}
         >
           {saving ? (
-            <ActivityIndicator size="small" color={Colors.text} />
+            <ActivityIndicator size="small" color={colors.text} />
           ) : (
-            <Text style={styles.postButtonText}>Update</Text>
+            <Text style={[styles.postButtonText, { color: colors.text }]}>Update</Text>
           )}
         </TouchableOpacity>
       </View>
@@ -88,17 +90,17 @@ export default function EditPost() {
           {image ? (
             <Image source={{ uri: image }} style={styles.image} />
           ) : (
-            <TouchableOpacity style={styles.imagePlaceholder} onPress={() => {}}>
-              <Ionicons name="image-outline" size={48} color={Colors.textMuted} />
-              <Text style={styles.placeholderText}>Add Photo</Text>
+            <TouchableOpacity style={[styles.imagePlaceholder, { backgroundColor: colors.surface }]} onPress={() => {}}>
+              <Ionicons name="image-outline" size={48} color={colors.textMuted} />
+              <Text style={[styles.placeholderText, { color: colors.textMuted }]}>Add Photo</Text>
             </TouchableOpacity>
           )}
         </View>
 
         <TextInput
-          style={styles.captionInput}
+          style={[styles.captionInput, { color: colors.text }]}
           placeholder="Write a caption..."
-          placeholderTextColor={Colors.textMuted}
+          placeholderTextColor={colors.textMuted}
           multiline
           value={caption}
           onChangeText={setCaption}
@@ -112,7 +114,6 @@ export default function EditPost() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
   centerState: {
     flex: 1,
@@ -125,9 +126,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
-    backgroundColor: Colors.background,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
   },
   backButton: {
     padding: Spacing.sm,
@@ -135,21 +134,15 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: FontSizes.lg,
     fontWeight: 'bold',
-    color: Colors.text,
   },
   postButton: {
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
-    backgroundColor: Colors.primary,
     borderRadius: BorderRadius.full,
-  },
-  postButtonDisabled: {
-    backgroundColor: Colors.textMuted,
   },
   postButtonText: {
     fontSize: FontSizes.sm,
     fontWeight: '600',
-    color: Colors.text,
   },
   content: {
     flex: 1,
@@ -167,18 +160,15 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 300,
     borderRadius: BorderRadius.lg,
-    backgroundColor: Colors.surface,
     justifyContent: 'center',
     alignItems: 'center',
     gap: Spacing.sm,
   },
   placeholderText: {
     fontSize: FontSizes.sm,
-    color: Colors.textMuted,
   },
   captionInput: {
     fontSize: FontSizes.md,
-    color: Colors.text,
     minHeight: 100,
     textAlignVertical: 'top',
   },

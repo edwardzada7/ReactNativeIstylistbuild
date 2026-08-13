@@ -9,10 +9,12 @@ import { walletService } from '../../src/services/wallet.service';
 import { formatCurrency } from '../../src/utils/currency';
 import TransactionList from '../../src/components/wallet/TransactionList';
 import { Wallet, Transaction } from '../../src/types';
+import { useTheme } from '../../src/contexts/ThemeContext';
 
 export default function CustomerWallet() {
   const router = useRouter();
   const { user } = useAuth();
+  const { colors } = useTheme();
 
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -82,59 +84,59 @@ export default function CustomerWallet() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
         <View style={styles.centerState}>
-          <ActivityIndicator size="large" color={Colors.primary} />
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={Colors.primary} />
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />
         }
       >
-        <Text style={styles.title}>Wallet</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Wallet</Text>
 
         {error ? (
-          <View style={styles.errorBanner}>
-            <Ionicons name="alert-circle-outline" size={20} color={Colors.error} />
-            <Text style={styles.errorText}>{error}</Text>
+          <View style={[styles.errorBanner, { backgroundColor: `${colors.error}15` }]}>
+            <Ionicons name="alert-circle-outline" size={20} color={colors.error} />
+            <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>
           </View>
         ) : null}
 
         {/* Balance card */}
-        <View style={styles.balanceCard}>
-          <Text style={styles.balanceLabel}>Current Balance</Text>
-          <Text style={styles.balanceValue}>{formatCurrency(stats.currentBalance)}</Text>
+        <View style={[styles.balanceCard, { backgroundColor: colors.primary }]}>
+          <Text style={[styles.balanceLabel, { color: colors.text, opacity: 0.85 }]}>Current Balance</Text>
+          <Text style={[styles.balanceValue, { color: colors.text }]}>{formatCurrency(stats.currentBalance)}</Text>
           <TouchableOpacity
-            style={styles.topUpButton}
+            style={[styles.topUpButton, { backgroundColor: 'rgba(255,255,255,0.2)' }]}
             onPress={() => router.push('/wallet/topup')}
             accessibilityRole="button"
             accessibilityLabel="Top up wallet"
           >
-            <Ionicons name="add-circle" size={18} color={Colors.text} />
-            <Text style={styles.topUpButtonText}>Top Up</Text>
+            <Ionicons name="add-circle" size={18} color={colors.text} />
+            <Text style={[styles.topUpButtonText, { color: colors.text }]}>Top Up</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.statsRow}>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{formatCurrency(stats.pendingEscrow)}</Text>
-            <Text style={styles.statLabel}>Pending Escrow</Text>
+          <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.statValue, { color: colors.text }]}>{formatCurrency(stats.pendingEscrow)}</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Pending Escrow</Text>
           </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{formatCurrency(stats.availableBalance)}</Text>
-            <Text style={styles.statLabel}>Available</Text>
+          <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.statValue, { color: colors.text }]}>{formatCurrency(stats.availableBalance)}</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Available</Text>
           </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{formatCurrency(stats.totalSpent)}</Text>
-            <Text style={styles.statLabel}>Total Spent</Text>
+          <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.statValue, { color: colors.text }]}>{formatCurrency(stats.totalSpent)}</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Total Spent</Text>
           </View>
         </View>
 
@@ -145,48 +147,44 @@ export default function CustomerWallet() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+  container: { flex: 1 },
   centerState: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   scrollContent: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xl },
-  title: { fontSize: FontSizes.xxl, fontWeight: 'bold', color: Colors.text, marginVertical: Spacing.md },
+  title: { fontSize: FontSizes.xxl, fontWeight: 'bold', marginVertical: Spacing.md },
   errorBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
-    backgroundColor: `${Colors.error}15`,
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
     marginBottom: Spacing.md,
   },
-  errorText: { flex: 1, fontSize: FontSizes.sm, color: Colors.error },
+  errorText: { flex: 1, fontSize: FontSizes.sm },
   balanceCard: {
-    backgroundColor: Colors.primary,
     borderRadius: BorderRadius.lg,
     padding: Spacing.lg,
     marginBottom: Spacing.md,
   },
-  balanceLabel: { fontSize: FontSizes.sm, color: Colors.text, opacity: 0.85 },
-  balanceValue: { fontSize: 32, fontWeight: 'bold', color: Colors.text, marginTop: 4, marginBottom: Spacing.md },
+  balanceLabel: { fontSize: FontSizes.sm, opacity: 0.85 },
+  balanceValue: { fontSize: 32, fontWeight: 'bold', marginTop: 4, marginBottom: Spacing.md },
   topUpButton: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    backgroundColor: 'rgba(255,255,255,0.2)',
     borderRadius: BorderRadius.md,
     paddingVertical: Spacing.sm,
     alignSelf: 'flex-start',
     paddingHorizontal: Spacing.md,
   },
-  topUpButtonText: { fontSize: FontSizes.sm, fontWeight: '700', color: Colors.text },
+  topUpButtonText: { fontSize: FontSizes.sm, fontWeight: '700' },
   statsRow: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.lg },
   statCard: {
     flex: 1,
-    backgroundColor: Colors.surface,
     borderRadius: BorderRadius.md,
     padding: Spacing.sm,
     alignItems: 'center',
   },
-  statValue: { fontSize: FontSizes.sm, fontWeight: '700', color: Colors.text },
-  statLabel: { fontSize: FontSizes.xs, color: Colors.textSecondary, marginTop: 2, textAlign: 'center' },
+  statValue: { fontSize: FontSizes.sm, fontWeight: '700' },
+  statLabel: { fontSize: FontSizes.xs, marginTop: 2, textAlign: 'center' },
 });

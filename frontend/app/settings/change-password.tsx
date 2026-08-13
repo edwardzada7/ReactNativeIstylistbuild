@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 import { Colors, FontSizes, Spacing } from '../../src/constants/theme';
 import { Button, Input } from '../../src/components/common';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { useTheme } from '../../src/contexts/ThemeContext';
 import { authService } from '../../src/services/auth.service';
 
 /**
@@ -17,6 +18,7 @@ import { authService } from '../../src/services/auth.service';
 export default function ChangePassword() {
   const router = useRouter();
   const { user } = useAuth();
+  const { colors } = useTheme();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -50,12 +52,12 @@ export default function ChangePassword() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back">
-          <Ionicons name="arrow-back" size={24} color={Colors.text} />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>Change Password</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Change Password</Text>
         <View style={{ width: 24 }} />
       </View>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
@@ -92,7 +94,7 @@ export default function ChangePassword() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+  container: { flex: 1 },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -100,6 +102,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
   },
-  title: { fontSize: FontSizes.lg, fontWeight: 'bold', color: Colors.text },
+  title: { fontSize: FontSizes.lg, fontWeight: 'bold' },
   content: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xl },
 });

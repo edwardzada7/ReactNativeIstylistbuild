@@ -16,6 +16,7 @@ import { useRouter } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { Button } from '../../src/components/common';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { useTheme } from '../../src/contexts/ThemeContext';
 import { providerService } from '../../src/services/provider.service';
 import { DayAvailability } from '../../src/types';
 
@@ -37,6 +38,7 @@ const DEFAULT_DAYS: DayAvailability[] = [
 export default function ProviderAvailability() {
   const router = useRouter();
   const { user } = useAuth();
+  const { colors } = useTheme();
   const providerId = user?.id;
 
   const [days, setDays] = useState<DayAvailability[]>(DEFAULT_DAYS);
@@ -102,7 +104,7 @@ export default function ProviderAvailability() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
         <View style={styles.centerState}>
           <ActivityIndicator size="large" color={Colors.primary} />
         </View>
@@ -111,48 +113,48 @@ export default function ProviderAvailability() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back">
-          <Ionicons name="arrow-back" size={24} color={Colors.text} />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>Availability</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Availability</Text>
         <View style={{ width: 24 }} />
       </View>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={styles.sectionTitle}>Working Days & Hours</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Working Days & Hours</Text>
         {days.map((d) => (
-          <View key={d.day} style={styles.dayRow}>
+          <View key={d.day} style={[styles.dayRow, { backgroundColor: colors.surface }]}>
             <View style={styles.dayHeader}>
-              <Text style={styles.dayName}>
+              <Text style={[styles.dayName, { color: colors.text }]}>
                 {d.day.charAt(0).toUpperCase() + d.day.slice(1)}
               </Text>
               <Switch
                 value={d.is_open}
                 onValueChange={() => toggleDay(d.day)}
-                trackColor={{ false: Colors.border, true: Colors.primary }}
+                trackColor={{ false: colors.border, true: Colors.primary }}
               />
             </View>
             {d.is_open && (
               <View style={styles.timeRow}>
                 <View style={styles.timeInputWrap}>
-                  <Text style={styles.timeLabel}>Opens</Text>
+                  <Text style={[styles.timeLabel, { color: colors.textSecondary }]}>Opens</Text>
                   <TextInput
-                    style={styles.timeInput}
+                    style={[styles.timeInput, { backgroundColor: colors.surfaceLight, color: colors.text }]}
                     value={d.open_time}
                     onChangeText={(v) => updateTime(d.day, 'open_time', v)}
                     placeholder="09:00"
-                    placeholderTextColor={Colors.textMuted}
+                    placeholderTextColor={colors.textSecondary}
                   />
                 </View>
                 <View style={styles.timeInputWrap}>
-                  <Text style={styles.timeLabel}>Closes</Text>
+                  <Text style={[styles.timeLabel, { color: colors.textSecondary }]}>Closes</Text>
                   <TextInput
-                    style={styles.timeInput}
+                    style={[styles.timeInput, { backgroundColor: colors.surfaceLight, color: colors.text }]}
                     value={d.close_time}
                     onChangeText={(v) => updateTime(d.day, 'close_time', v)}
                     placeholder="18:00"
-                    placeholderTextColor={Colors.textMuted}
+                    placeholderTextColor={colors.textSecondary}
                   />
                 </View>
               </View>
@@ -160,37 +162,37 @@ export default function ProviderAvailability() {
           </View>
         ))}
 
-        <Text style={[styles.sectionTitle, { marginTop: Spacing.lg }]}>Blocked Dates</Text>
+        <Text style={[styles.sectionTitle, { marginTop: Spacing.lg, color: colors.text }]}>Blocked Dates</Text>
         <View style={styles.blockedInputRow}>
           <TextInput
-            style={styles.blockedInput}
+            style={[styles.blockedInput, { backgroundColor: colors.surfaceLight, color: colors.text }]}
             value={blockedDateInput}
             onChangeText={setBlockedDateInput}
             placeholder="YYYY-MM-DD"
-            placeholderTextColor={Colors.textMuted}
+            placeholderTextColor={colors.textSecondary}
           />
           <TouchableOpacity
-            style={styles.addButton}
+            style={[styles.addButton, { backgroundColor: colors.surface }]}
             onPress={addBlockedDate}
             accessibilityRole="button"
             accessibilityLabel="Add blocked date"
           >
-            <Ionicons name="add" size={22} color={Colors.text} />
+            <Ionicons name="add" size={22} color={colors.text} />
           </TouchableOpacity>
         </View>
         {blockedDates.length === 0 ? (
-          <Text style={styles.emptyInline}>No blocked dates yet.</Text>
+          <Text style={[styles.emptyInline, { color: colors.textSecondary }]}>No blocked dates yet.</Text>
         ) : (
           <View style={styles.blockedList}>
             {blockedDates.map((date) => (
-              <View key={date} style={styles.blockedChip}>
-                <Text style={styles.blockedChipText}>{date}</Text>
+              <View key={date} style={[styles.blockedChip, { backgroundColor: colors.surfaceLight }]}>
+                <Text style={[styles.blockedChipText, { color: colors.text }]}>{date}</Text>
                 <TouchableOpacity
                   onPress={() => removeBlockedDate(date)}
                   accessibilityRole="button"
                   accessibilityLabel={`Remove ${date}`}
                 >
-                  <Ionicons name="close-circle" size={16} color={Colors.textMuted} />
+                  <Ionicons name="close-circle" size={16} color={colors.textSecondary} />
                 </TouchableOpacity>
               </View>
             ))}
@@ -205,7 +207,7 @@ export default function ProviderAvailability() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+  container: { flex: 1 },
   centerState: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   header: {
     flexDirection: 'row',
@@ -214,56 +216,49 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
   },
-  title: { fontSize: FontSizes.xxl, fontWeight: 'bold', color: Colors.text },
+  title: { fontSize: FontSizes.xxl, fontWeight: 'bold' },
   content: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xl },
-  sectionTitle: { fontSize: FontSizes.md, fontWeight: '700', color: Colors.text, marginBottom: Spacing.sm },
+  sectionTitle: { fontSize: FontSizes.md, fontWeight: '700', marginBottom: Spacing.sm },
   dayRow: {
-    backgroundColor: Colors.surface,
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
     marginBottom: Spacing.sm,
   },
   dayHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  dayName: { fontSize: FontSizes.sm, fontWeight: '600', color: Colors.text },
+  dayName: { fontSize: FontSizes.sm, fontWeight: '600' },
   timeRow: { flexDirection: 'row', gap: Spacing.md, marginTop: Spacing.sm },
   timeInputWrap: { flex: 1 },
-  timeLabel: { fontSize: FontSizes.xs, color: Colors.textMuted, marginBottom: 4 },
+  timeLabel: { fontSize: FontSizes.xs, marginBottom: 4 },
   timeInput: {
-    backgroundColor: Colors.surfaceLight,
     borderRadius: BorderRadius.sm,
     paddingHorizontal: Spacing.sm,
     paddingVertical: Spacing.sm,
-    color: Colors.text,
     fontSize: FontSizes.sm,
   },
   blockedInputRow: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.sm },
   blockedInput: {
     flex: 1,
-    backgroundColor: Colors.surface,
     borderRadius: BorderRadius.sm,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
-    color: Colors.text,
     fontSize: FontSizes.sm,
   },
   addButton: {
     width: 44,
     height: 44,
     borderRadius: BorderRadius.sm,
-    backgroundColor: Colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  emptyInline: { fontSize: FontSizes.sm, color: Colors.textMuted },
+  emptyInline: { fontSize: FontSizes.sm },
   blockedList: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
   blockedChip: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: Colors.surface,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 6,
     borderRadius: BorderRadius.full,
   },
-  blockedChipText: { fontSize: FontSizes.xs, color: Colors.text },
+  blockedChipText: { fontSize: FontSizes.xs },
 });

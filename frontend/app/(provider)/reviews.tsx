@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { useTheme } from '../../src/contexts/ThemeContext';
 import { providerService } from '../../src/services/provider.service';
 import { Review } from '../../src/types';
 
@@ -39,6 +40,7 @@ const Stars = ({ rating, size = 14 }: { rating: number; size?: number }) => (
 export default function ProviderReviews() {
   const router = useRouter();
   const { user } = useAuth();
+  const { colors } = useTheme();
   const providerId = user?.id;
 
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -78,12 +80,12 @@ export default function ProviderReviews() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back">
-          <Ionicons name="arrow-back" size={24} color={Colors.text} />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>My Reviews</Text>
+        <Text style={[styles.title, { color: colors.text }]}>My Reviews</Text>
         <View style={{ width: 24 }} />
       </View>
 
@@ -99,36 +101,36 @@ export default function ProviderReviews() {
             <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={Colors.primary} />
           }
         >
-          {error && <Text style={styles.errorText}>{error}</Text>}
+          {error && <Text style={[styles.errorText, { color: colors.text }]}>{error}</Text>}
 
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryRating}>
+          <View style={[styles.summaryCard, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.summaryRating, { color: colors.text }]}>
               {summary?.rating ? summary.rating.toFixed(1) : 'New'}
             </Text>
             <Stars rating={summary?.rating || 0} size={18} />
-            <Text style={styles.summaryCount}>
+            <Text style={[styles.summaryCount, { color: colors.textSecondary }]}>
               {summary?.review_count ?? reviews.length} review{(summary?.review_count ?? reviews.length) === 1 ? '' : 's'}
             </Text>
           </View>
 
           {reviews.length === 0 ? (
             <View style={styles.centerState}>
-              <Ionicons name="star-outline" size={32} color={Colors.textMuted} />
-              <Text style={styles.emptyText}>
+              <Ionicons name="star-outline" size={32} color={colors.textSecondary} />
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
                 No reviews yet. They will show up here once customers rate your service.
               </Text>
             </View>
           ) : (
             reviews.map((review) => (
-              <View key={review.id} style={styles.reviewCard}>
+              <View key={review.id} style={[styles.reviewCard, { backgroundColor: colors.surface }]}>
                 <View style={styles.reviewHeader}>
-                  <View style={styles.avatarCircle}>
+                  <View style={[styles.avatarCircle, { backgroundColor: colors.surfaceLight }]}>
                     <Ionicons name="person" size={18} color={Colors.primary} />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.customerName}>{review.customer_name}</Text>
+                    <Text style={[styles.customerName, { color: colors.text }]}>{review.customer_name}</Text>
                     {!!review.created_at && (
-                      <Text style={styles.reviewDate}>
+                      <Text style={[styles.reviewDate, { color: colors.textSecondary }]}>
                         {new Date(review.created_at).toLocaleDateString('en-NG', {
                           day: 'numeric',
                           month: 'short',
@@ -139,7 +141,7 @@ export default function ProviderReviews() {
                   </View>
                   <Stars rating={review.rating} />
                 </View>
-                {!!review.comment && <Text style={styles.comment}>{review.comment}</Text>}
+                {!!review.comment && <Text style={[styles.comment, { color: colors.text }]}>{review.comment}</Text>}
               </View>
             ))
           )}
@@ -150,7 +152,7 @@ export default function ProviderReviews() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+  container: { flex: 1 },
   centerState: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: Spacing.sm, paddingTop: Spacing.xxl },
   header: {
     flexDirection: 'row',
@@ -159,27 +161,24 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
   },
-  title: { fontSize: FontSizes.lg, fontWeight: 'bold', color: Colors.text },
+  title: { fontSize: FontSizes.lg, fontWeight: 'bold' },
   content: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xl },
-  errorText: { fontSize: FontSizes.sm, color: Colors.error, marginBottom: Spacing.md },
+  errorText: { fontSize: FontSizes.sm, marginBottom: Spacing.md },
   emptyText: {
     fontSize: FontSizes.sm,
-    color: Colors.textSecondary,
     textAlign: 'center',
     paddingHorizontal: Spacing.xl,
   },
   summaryCard: {
-    backgroundColor: Colors.surface,
     borderRadius: BorderRadius.lg,
     padding: Spacing.lg,
     alignItems: 'center',
     marginBottom: Spacing.lg,
     gap: 6,
   },
-  summaryRating: { fontSize: 36, fontWeight: 'bold', color: Colors.text },
-  summaryCount: { fontSize: FontSizes.sm, color: Colors.textSecondary },
+  summaryRating: { fontSize: 36, fontWeight: 'bold' },
+  summaryCount: { fontSize: FontSizes.sm },
   reviewCard: {
-    backgroundColor: Colors.surface,
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
     marginBottom: Spacing.sm,
@@ -189,11 +188,10 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: `${Colors.primary}18`,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  customerName: { fontSize: FontSizes.sm, fontWeight: '700', color: Colors.text },
-  reviewDate: { fontSize: FontSizes.xs, color: Colors.textMuted, marginTop: 2 },
-  comment: { fontSize: FontSizes.sm, color: Colors.textSecondary, lineHeight: 20 },
+  customerName: { fontSize: FontSizes.sm, fontWeight: '700' },
+  reviewDate: { fontSize: FontSizes.xs, marginTop: 2 },
+  comment: { fontSize: FontSizes.sm, lineHeight: 20 },
 });

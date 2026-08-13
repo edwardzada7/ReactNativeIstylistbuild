@@ -21,10 +21,12 @@ import { providerService } from '../../src/services/provider.service';
 import { feedService } from '../../src/services/feed.service';
 import { formatCurrency, formatPriceRange } from '../../src/utils/currency';
 import { Provider, Review, Post } from '../../src/types';
+import { useTheme } from '../../src/contexts/ThemeContext';
 
 export default function ProviderProfile() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { colors } = useTheme();
 
   const [provider, setProvider] = useState<Provider | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -106,7 +108,7 @@ export default function ProviderProfile() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
         <View style={styles.centerState}>
           <ActivityIndicator size="large" color={Colors.primary} />
         </View>
@@ -116,18 +118,18 @@ export default function ProviderProfile() {
 
   if (error || !provider) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
         <TouchableOpacity
           style={styles.backButtonFloating}
           onPress={() => router.back()}
           accessibilityRole="button"
           accessibilityLabel="Go back"
         >
-          <Ionicons name="arrow-back" size={22} color={Colors.text} />
+          <Ionicons name="arrow-back" size={22} color={colors.text} />
         </TouchableOpacity>
         <View style={styles.centerState}>
           <Ionicons name="alert-circle-outline" size={40} color={Colors.error} />
-          <Text style={styles.emptyText}>{error || 'Provider not found.'}</Text>
+          <Text style={[styles.emptyText, { color: colors.text }]}>{error || 'Provider not found.'}</Text>
           <Button title="Retry" onPress={loadData} variant="outline" />
         </View>
       </SafeAreaView>
@@ -137,7 +139,7 @@ export default function ProviderProfile() {
   const categoryLabel = typeof provider.category === 'string' ? provider.category : '';
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
@@ -160,7 +162,7 @@ export default function ProviderProfile() {
             accessibilityRole="button"
             accessibilityLabel="Go back"
           >
-            <Ionicons name="arrow-back" size={22} color={Colors.text} />
+            <Ionicons name="arrow-back" size={22} color={colors.text} />
           </TouchableOpacity>
         </View>
 
@@ -168,27 +170,27 @@ export default function ProviderProfile() {
           <View style={styles.titleRow}>
             <View style={{ flex: 1 }}>
               <View style={styles.nameRow}>
-                <Text style={styles.name}>{provider.business_name}</Text>
+                <Text style={[styles.name, { color: colors.text }]}>{provider.business_name}</Text>
                 {provider.is_verified && (
                   <Ionicons name="checkmark-circle" size={18} color={Colors.info} />
                 )}
               </View>
-              {!!categoryLabel && <Text style={styles.category}>{categoryLabel}</Text>}
+              {!!categoryLabel && <Text style={[styles.category, { color: colors.textSecondary }]}>{categoryLabel}</Text>}
             </View>
-            <Text style={styles.priceRange}>{formatPriceRange(provider.price_range)}</Text>
+            <Text style={[styles.priceRange, { color: colors.text }]}>{formatPriceRange(provider.price_range)}</Text>
           </View>
 
           <View style={styles.metaRow}>
             <View style={styles.metaItem}>
               <Ionicons name="star" size={16} color={Colors.warning} />
-              <Text style={styles.metaText}>
+              <Text style={[styles.metaText, { color: colors.text }]}>
                 {provider.rating ? provider.rating.toFixed(1) : 'New'} ({provider.review_count})
               </Text>
             </View>
             {(provider.location_address || provider.location) && provider.location !== 'Location not set' ? (
               <View style={styles.metaItem}>
-                <Ionicons name="location-outline" size={16} color={Colors.textSecondary} />
-                <Text style={styles.metaText} numberOfLines={1}>
+                <Ionicons name="location-outline" size={16} color={colors.textSecondary} />
+                <Text style={[styles.metaText, { color: colors.text }]} numberOfLines={1}>
                   {provider.location_address || provider.location}
                 </Text>
               </View>
@@ -197,16 +199,16 @@ export default function ProviderProfile() {
 
           {!!provider.bio && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>About</Text>
-              <Text style={styles.bio}>{provider.bio}</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>About</Text>
+              <Text style={[styles.bio, { color: colors.textSecondary }]}>{provider.bio}</Text>
             </View>
           )}
 
           {/* Services */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Services</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Services</Text>
             {provider.services.length === 0 ? (
-              <Text style={styles.emptyInline}>No services listed yet.</Text>
+              <Text style={[styles.emptyInline, { color: colors.textSecondary }]}>No services listed yet.</Text>
             ) : (
               provider.services.map((service) => (
                 <TouchableOpacity
@@ -214,25 +216,26 @@ export default function ProviderProfile() {
                   style={[
                     styles.serviceRow,
                     selectedServiceId === service.id && styles.serviceRowSelected,
+                    { borderColor: selectedServiceId === service.id ? Colors.primary : colors.border },
                   ]}
                   onPress={() => setSelectedServiceId(service.id)}
                   accessibilityRole="button"
                   accessibilityLabel={`Select ${service.name}`}
                 >
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.serviceName}>{service.name}</Text>
+                    <Text style={[styles.serviceName, { color: colors.text }]}>{service.name}</Text>
                     {!!service.description && (
-                      <Text style={styles.serviceDescription} numberOfLines={2}>
+                      <Text style={[styles.serviceDescription, { color: colors.textSecondary }]} numberOfLines={2}>
                         {service.description}
                       </Text>
                     )}
-                    <Text style={styles.serviceMeta}>
+                    <Text style={[styles.serviceMeta, { color: colors.textSecondary }]}>
                       {service.duration} min
                       {service.in_store ? ' · In-store' : ''}
                       {service.home_service ? ' · Home service' : ''}
                     </Text>
                   </View>
-                  <Text style={styles.servicePrice}>{formatCurrency(service.price)}</Text>
+                  <Text style={[styles.servicePrice, { color: colors.text }]}>{formatCurrency(service.price)}</Text>
                 </TouchableOpacity>
               ))
             )}
@@ -241,7 +244,7 @@ export default function ProviderProfile() {
           {/* Portfolio */}
           {portfolio.length > 0 && (
             <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Portfolio</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Portfolio</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 {portfolio.map((img, idx) => (
                   <Image
@@ -257,14 +260,14 @@ export default function ProviderProfile() {
 
           {/* Availability */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Availability</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Availability</Text>
             {slots.length === 0 ? (
-              <Text style={styles.emptyInline}>No open slots right now.</Text>
+              <Text style={[styles.emptyInline, { color: colors.textSecondary }]}>No open slots right now.</Text>
             ) : (
               <View style={styles.slotsWrap}>
                 {slots.slice(0, 12).map((slot, idx) => (
-                  <View key={`${slot}-${idx}`} style={styles.slotChip}>
-                    <Text style={styles.slotText}>{slot}</Text>
+                  <View key={`${slot}-${idx}`} style={[styles.slotChip, { borderColor: colors.border }]}>
+                    <Text style={[styles.slotText, { color: colors.text }]}>{slot}</Text>
                   </View>
                 ))}
               </View>
@@ -273,20 +276,20 @@ export default function ProviderProfile() {
 
           {/* Reviews */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Reviews ({reviews.length})</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Reviews ({reviews.length})</Text>
             {reviews.length === 0 ? (
-              <Text style={styles.emptyInline}>No reviews yet.</Text>
+              <Text style={[styles.emptyInline, { color: colors.textSecondary }]}>No reviews yet.</Text>
             ) : (
               reviews.map((review) => (
-                <View key={review.id} style={styles.reviewCard}>
+                <View key={review.id} style={[styles.reviewCard, { backgroundColor: colors.surface }]}>
                   <View style={styles.reviewHeader}>
-                    <Text style={styles.reviewer}>{review.customer_name}</Text>
+                    <Text style={[styles.reviewer, { color: colors.text }]}>{review.customer_name}</Text>
                     <View style={styles.metaItem}>
                       <Ionicons name="star" size={14} color={Colors.warning} />
-                      <Text style={styles.metaText}>{review.rating}</Text>
+                      <Text style={[styles.metaText, { color: colors.text }]}>{review.rating}</Text>
                     </View>
                   </View>
-                  {!!review.comment && <Text style={styles.reviewComment}>{review.comment}</Text>}
+                  {!!review.comment && <Text style={[styles.reviewComment, { color: colors.textSecondary }]}>{review.comment}</Text>}
                 </View>
               ))
             )}
@@ -294,26 +297,26 @@ export default function ProviderProfile() {
 
           {/* Feed Posts */}
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Feed Posts ({posts.length})</Text>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Feed Posts ({posts.length})</Text>
             {posts.length === 0 ? (
-              <Text style={styles.emptyInline}>No posts yet.</Text>
+              <Text style={[styles.emptyInline, { color: colors.textSecondary }]}>No posts yet.</Text>
             ) : (
               <FlatList
                 data={posts}
                 scrollEnabled={false}
                 keyExtractor={(item) => String(item.id)}
                 renderItem={({ item }) => (
-                  <View style={styles.postCard}>
+                  <View style={[styles.postCard, { backgroundColor: colors.surface }]}>
                     {item.image_url && (
                       <RNImage source={{ uri: item.image_url }} style={styles.postImage} resizeMode="cover" />
                     )}
                     {item.caption && (
-                      <Text style={styles.postCaption} numberOfLines={3}>
+                      <Text style={[styles.postCaption, { color: colors.textSecondary }]} numberOfLines={3}>
                         {item.caption}
                       </Text>
                     )}
                     <View style={styles.postMeta}>
-                      <Text style={styles.postMetaText}>
+                      <Text style={[styles.postMetaText, { color: colors.textSecondary }]}>
                         {item.likes_count || 0} likes · {item.comments_count || 0} comments
                       </Text>
                     </View>
@@ -325,7 +328,7 @@ export default function ProviderProfile() {
         </View>
       </ScrollView>
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { backgroundColor: colors.background, borderTopColor: colors.border }]}>
         <Button title="Book Now" onPress={handleBookNow} fullWidth size="large" />
       </View>
     </SafeAreaView>
@@ -335,7 +338,6 @@ export default function ProviderProfile() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
   centerState: {
     flex: 1,
@@ -346,12 +348,10 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: FontSizes.sm,
-    color: Colors.textSecondary,
     textAlign: 'center',
   },
   emptyInline: {
     fontSize: FontSizes.sm,
-    color: Colors.textMuted,
   },
   scrollContent: {
     paddingBottom: 120,
@@ -359,7 +359,6 @@ const styles = StyleSheet.create({
   coverContainer: {
     width: '100%',
     height: 220,
-    backgroundColor: Colors.surface,
   },
   coverImage: {
     width: '100%',
@@ -370,7 +369,6 @@ const styles = StyleSheet.create({
     height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: Colors.surfaceLight,
   },
   backButtonFloating: {
     position: 'absolute',
@@ -400,17 +398,14 @@ const styles = StyleSheet.create({
   name: {
     fontSize: FontSizes.xl,
     fontWeight: 'bold',
-    color: Colors.text,
   },
   category: {
     fontSize: FontSizes.sm,
-    color: Colors.textSecondary,
     marginTop: 4,
   },
   priceRange: {
     fontSize: FontSizes.lg,
     fontWeight: '700',
-    color: Colors.primary,
   },
   metaRow: {
     flexDirection: 'row',
@@ -425,7 +420,6 @@ const styles = StyleSheet.create({
   },
   metaText: {
     fontSize: FontSizes.sm,
-    color: Colors.textSecondary,
   },
   section: {
     marginBottom: Spacing.lg,
@@ -433,54 +427,46 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: FontSizes.md,
     fontWeight: '700',
-    color: Colors.text,
     marginBottom: Spacing.sm,
   },
   bio: {
     fontSize: FontSizes.sm,
-    color: Colors.textSecondary,
     lineHeight: 20,
   },
   serviceRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: Colors.surface,
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
     marginBottom: Spacing.sm,
     borderWidth: 1,
-    borderColor: 'transparent',
   },
   serviceRowSelected: {
+    backgroundColor: Colors.primary + '20',
     borderColor: Colors.primary,
   },
   serviceDescription: {
     fontSize: FontSizes.xs,
-    color: Colors.textSecondary,
     marginTop: 2,
   },
   serviceName: {
     fontSize: FontSizes.sm,
     fontWeight: '600',
-    color: Colors.text,
   },
   serviceMeta: {
     fontSize: FontSizes.xs,
-    color: Colors.textMuted,
     marginTop: 2,
   },
   servicePrice: {
     fontSize: FontSizes.md,
     fontWeight: '700',
-    color: Colors.primary,
   },
   portfolioImage: {
     width: 120,
     height: 120,
     borderRadius: BorderRadius.md,
     marginRight: Spacing.sm,
-    backgroundColor: Colors.surface,
   },
   slotsWrap: {
     flexDirection: 'row',
@@ -490,18 +476,14 @@ const styles = StyleSheet.create({
   slotChip: {
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
-    backgroundColor: Colors.surface,
     borderRadius: BorderRadius.full,
     borderWidth: 1,
-    borderColor: Colors.border,
   },
   slotText: {
     fontSize: FontSizes.xs,
-    color: Colors.text,
     fontWeight: '600',
   },
   reviewCard: {
-    backgroundColor: Colors.surface,
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
     marginBottom: Spacing.sm,
@@ -515,14 +497,11 @@ const styles = StyleSheet.create({
   reviewer: {
     fontSize: FontSizes.sm,
     fontWeight: '600',
-    color: Colors.text,
   },
   reviewComment: {
     fontSize: FontSizes.sm,
-    color: Colors.textSecondary,
   },
   postCard: {
-    backgroundColor: Colors.surface,
     borderRadius: BorderRadius.md,
     marginBottom: Spacing.sm,
     overflow: 'hidden',
@@ -533,7 +512,6 @@ const styles = StyleSheet.create({
   },
   postCaption: {
     fontSize: FontSizes.sm,
-    color: Colors.text,
     padding: Spacing.sm,
     lineHeight: 20,
   },
@@ -544,7 +522,6 @@ const styles = StyleSheet.create({
   },
   postMetaText: {
     fontSize: FontSizes.xs,
-    color: Colors.textSecondary,
   },
   footer: {
     position: 'absolute',
@@ -552,8 +529,5 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     padding: Spacing.lg,
-    backgroundColor: Colors.background,
-    borderTopWidth: 1,
-    borderTopColor: Colors.border,
   },
 });

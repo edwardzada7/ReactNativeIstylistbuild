@@ -17,12 +17,14 @@ import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/th
 import { providerService } from '../../src/services/provider.service';
 import { formatPriceRange } from '../../src/utils/currency';
 import { Provider, Category } from '../../src/types';
+import { useTheme } from '../../src/contexts/ThemeContext';
 
 const PAGE_SIZE = 10;
 
 export default function Search() {
   const router = useRouter();
   const params = useLocalSearchParams<{ category?: string }>();
+  const { colors } = useTheme();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
@@ -93,7 +95,8 @@ export default function Search() {
       key={filter}
       style={[
         styles.filterChip,
-        selectedFilter === filter && styles.filterChipActive,
+        { backgroundColor: colors.surface, borderColor: colors.border },
+        selectedFilter === filter && { backgroundColor: colors.primary, borderColor: colors.primary },
       ]}
       onPress={() => setSelectedFilter(filter)}
       accessibilityRole="button"
@@ -102,7 +105,8 @@ export default function Search() {
       <Text
         style={[
           styles.filterText,
-          selectedFilter === filter && styles.filterTextActive,
+          { color: colors.text },
+          selectedFilter === filter && { color: colors.text },
         ]}
       >
         {filter}
@@ -112,60 +116,60 @@ export default function Search() {
 
   const renderResultCard = ({ item }: { item: Provider }) => (
     <TouchableOpacity
-      style={styles.resultCard}
+      style={[styles.resultCard, { backgroundColor: colors.surface }]}
       onPress={() => router.push(`/provider/${item.id}`)}
       accessibilityRole="button"
       accessibilityLabel={item.business_name}
     >
-      <View style={styles.resultIcon}>
+      <View style={[styles.resultIcon, { backgroundColor: colors.surfaceLight }]}>
         {item.profile_image_url || item.avatar ? (
           <Image source={{ uri: item.profile_image_url || item.avatar }} style={styles.resultPhoto} contentFit="cover" />
         ) : (
-          <Ionicons name="storefront" size={32} color={Colors.primary} />
+          <Ionicons name="storefront" size={32} color={colors.primary} />
         )}
       </View>
       <View style={styles.resultInfo}>
-        <Text style={styles.resultName} numberOfLines={1}>
+        <Text style={[styles.resultName, { color: colors.text }]} numberOfLines={1}>
           {item.business_name}
         </Text>
-        <Text style={styles.resultCategory} numberOfLines={1}>
+        <Text style={[styles.resultCategory, { color: colors.textSecondary }]} numberOfLines={1}>
           {typeof item.category === 'string' ? item.category : item.location}
         </Text>
         <View style={styles.resultMeta}>
           <View style={styles.metaItem}>
-            <Ionicons name="star" size={14} color={Colors.warning} />
-            <Text style={styles.metaText}>{item.rating ? item.rating.toFixed(1) : 'New'}</Text>
+            <Ionicons name="star" size={14} color={colors.warning} />
+            <Text style={[styles.metaText, { color: colors.textSecondary }]}>{item.rating ? item.rating.toFixed(1) : 'New'}</Text>
           </View>
           <View style={styles.metaItem}>
-            <Ionicons name="location" size={14} color={Colors.textSecondary} />
-            <Text style={styles.metaText} numberOfLines={1}>
+            <Ionicons name="location" size={14} color={colors.textSecondary} />
+            <Text style={[styles.metaText, { color: colors.textSecondary }]} numberOfLines={1}>
               {item.location}
             </Text>
           </View>
-          <Text style={styles.priceText}>{formatPriceRange(item.price_range)}</Text>
+          <Text style={[styles.priceText, { color: colors.primary }]}>{formatPriceRange(item.price_range)}</Text>
         </View>
       </View>
     </TouchableOpacity>
   );
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back">
-          <Ionicons name="arrow-back" size={24} color={Colors.text} />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>Search</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Search</Text>
         <View style={{ width: 24 }} />
       </View>
 
       {/* Search Input */}
       <View style={styles.searchContainer}>
-        <View style={styles.searchBar}>
-          <Ionicons name="search" size={20} color={Colors.textMuted} />
+        <View style={[styles.searchBar, { backgroundColor: colors.surface }]}>
+          <Ionicons name="search" size={20} color={colors.textMuted} />
           <TextInput
-            style={styles.searchInput}
+            style={[styles.searchInput, { color: colors.text }]}
             placeholder="Search services or providers..."
-            placeholderTextColor={Colors.textMuted}
+            placeholderTextColor={colors.textMuted}
             value={searchQuery}
             onChangeText={setSearchQuery}
           />
@@ -175,7 +179,7 @@ export default function Search() {
               accessibilityRole="button"
               accessibilityLabel="Clear search"
             >
-              <Ionicons name="close-circle" size={20} color={Colors.textMuted} />
+              <Ionicons name="close-circle" size={20} color={colors.textMuted} />
             </TouchableOpacity>
           )}
         </View>
@@ -193,17 +197,17 @@ export default function Search() {
       {/* Results */}
       {loading ? (
         <View style={styles.centerState}>
-          <ActivityIndicator size="large" color={Colors.primary} />
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
       ) : error ? (
         <View style={styles.centerState}>
-          <Ionicons name="alert-circle-outline" size={32} color={Colors.error} />
-          <Text style={styles.emptyText}>{error}</Text>
+          <Ionicons name="alert-circle-outline" size={32} color={colors.error} />
+          <Text style={[styles.emptyText, { color: colors.textSecondary }]}>{error}</Text>
         </View>
       ) : visibleProviders.length === 0 ? (
         <View style={styles.centerState}>
-          <Ionicons name="search-outline" size={32} color={Colors.textMuted} />
-          <Text style={styles.emptyText}>No providers found. Try a different search.</Text>
+          <Ionicons name="search-outline" size={32} color={colors.textMuted} />
+          <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No providers found. Try a different search.</Text>
         </View>
       ) : (
         <FlashList
@@ -218,7 +222,7 @@ export default function Search() {
           }}
           ListFooterComponent={
             hasMore ? (
-              <ActivityIndicator style={{ marginVertical: Spacing.md }} color={Colors.primary} />
+              <ActivityIndicator style={{ marginVertical: Spacing.md }} color={colors.primary} />
             ) : null
           }
         />
@@ -230,7 +234,6 @@ export default function Search() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -242,7 +245,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: FontSizes.xxl,
     fontWeight: 'bold',
-    color: Colors.text,
   },
   searchContainer: {
     flexDirection: 'row',
@@ -255,7 +257,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
-    backgroundColor: Colors.surface,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.md,
@@ -263,7 +264,6 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: FontSizes.md,
-    color: Colors.text,
     paddingVertical: Spacing.sm,
   },
   filtersContainer: {
@@ -274,22 +274,12 @@ const styles = StyleSheet.create({
   filterChip: {
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
-    backgroundColor: Colors.surface,
     borderRadius: BorderRadius.full,
     borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  filterChipActive: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
   },
   filterText: {
     fontSize: FontSizes.sm,
-    color: Colors.text,
     fontWeight: '600',
-  },
-  filterTextActive: {
-    color: Colors.text,
   },
   centerState: {
     flex: 1,
@@ -300,7 +290,6 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: FontSizes.sm,
-    color: Colors.textSecondary,
     textAlign: 'center',
   },
   resultsList: {
@@ -309,7 +298,6 @@ const styles = StyleSheet.create({
   },
   resultCard: {
     flexDirection: 'row',
-    backgroundColor: Colors.surface,
     padding: Spacing.md,
     borderRadius: BorderRadius.lg,
     marginBottom: Spacing.md,
@@ -318,7 +306,6 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: BorderRadius.md,
-    backgroundColor: Colors.surfaceLight,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: Spacing.md,
@@ -335,12 +322,10 @@ const styles = StyleSheet.create({
   resultName: {
     fontSize: FontSizes.md,
     fontWeight: '600',
-    color: Colors.text,
     marginBottom: 4,
   },
   resultCategory: {
     fontSize: FontSizes.sm,
-    color: Colors.textSecondary,
     marginBottom: Spacing.sm,
   },
   resultMeta: {
@@ -356,12 +341,10 @@ const styles = StyleSheet.create({
   },
   metaText: {
     fontSize: FontSizes.xs,
-    color: Colors.textSecondary,
   },
   priceText: {
     fontSize: FontSizes.sm,
     fontWeight: '600',
-    color: Colors.primary,
     marginLeft: 'auto',
   },
 });

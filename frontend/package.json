@@ -2,15 +2,15 @@
   "name": "frontend",
   "main": "expo-router/entry",
   "version": "1.0.0",
-"scripts": {
-  "preinstall": "node ./scripts/cmd-guard.js --preinstall",
-  "start": "expo start",
-  "reset-project": "node ./scripts/reset-project.js",
-  "android": "expo run:android",
-  "ios": "expo run:ios",
-  "web": "expo start --web",
-  "lint": "expo lint"
-},
+  "scripts": {
+    "preinstall": "node ./scripts/cmd-guard.js --preinstall",
+    "start": "expo start",
+    "reset-project": "node ./scripts/reset-project.js",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web",
+    "lint": "expo lint"
+  },
   "dependencies": {
     "@expo/metro-runtime": "6.1.2",
     "@expo/vector-icons": "15.1.1",
@@ -28,6 +28,7 @@
     "expo-constants": "18.0.13",
     "expo-dev-client": "~6.0.21",
     "expo-device": "~8.0.10",
+    "expo-document-picker": "57.0.1",
     "expo-font": "14.0.12",
     "expo-haptics": "15.0.8",
     "expo-image": "3.0.11",

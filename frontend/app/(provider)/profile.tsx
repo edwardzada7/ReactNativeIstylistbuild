@@ -13,6 +13,7 @@ import { feedService } from '../../src/services/feed.service';
 import { resolveCurrentLocation } from '../../src/services/location.service';
 import { supabase } from '../../src/lib/supabase';
 import { Provider, Post } from '../../src/types';
+import apiService from '../../src/services/api';
 
 export default function ProviderProfile() {
   const router = useRouter();
@@ -25,6 +26,8 @@ export default function ProviderProfile() {
   const [locationLoading, setLocationLoading] = useState(false);
   const [locationStatus, setLocationStatus] = useState<'idle' | 'detecting' | 'updated' | 'permission-required' | 'unavailable'>('idle');
   const [locationLabel, setLocationLabel] = useState('');
+  const [accountType, setAccountType] = useState<'individual' | 'business'>('individual');
+  const [kycStatus, setKycStatus] = useState<'not_submitted' | 'pending' | 'verified' | 'rejected'>('not_submitted');
 
   const loadProfile = useCallback(async () => {
     if (!user?.id) return;
@@ -80,6 +83,8 @@ export default function ProviderProfile() {
     setLocationStatus(nextLocation ? 'updated' : 'idle');
     loadProfile();
     loadPosts();
+    loadAccountType();
+    loadKycStatus();
   }, [loadProfile, loadPosts, user?.id, user?.profile_image_url, user?.avatar, user?.location_address, user?.city, user?.state, user?.country]);
 
   useFocusEffect(
@@ -226,6 +231,42 @@ export default function ProviderProfile() {
     ]);
   };
 
+  const loadAccountType = async () => {
+    if (!user?.auth_id) return;
+    try {
+      const res = await apiService.get<{ account_type?: string }>(`/users/by-auth/${user.auth_id}`);
+      setAccountType((res.data?.account_type as 'individual' | 'business') || 'individual');
+    } catch (err) {
+      console.error('[provider-profile] failed to load account type', err);
+    }
+  };
+
+  const loadKycStatus = async () => {
+    if (!user?.auth_id) return;
+    try {
+      const res = await apiService.get<{ status: string }>(`/kyc/me?auth_id=${encodeURIComponent(user.auth_id)}`);
+      setKycStatus((res.data?.status as 'not_submitted' | 'pending' | 'verified' | 'rejected') || 'not_submitted');
+    } catch (err) {
+      console.error('[provider-profile] failed to load KYC status', err);
+    }
+  };
+
+  const handleAccountTypeChange = async (newType: 'individual' | 'business') => {
+    if (!user?.auth_id) return;
+    try {
+      await apiService.patch(`/users/by-auth/${user.auth_id}`, { account_type: newType });
+      setAccountType(newType);
+      // Refresh user data to ensure persistence
+      await refreshUser();
+      // Reload account type from server to confirm persistence
+      await loadAccountType();
+      Alert.alert('Success', `Account type updated to ${newType}`);
+    } catch (err) {
+      console.error('[provider-profile] failed to update account type', err);
+      Alert.alert('Error', 'Failed to update account type');
+    }
+  };
+
   const menuItems = [
     { icon: 'cut-outline', label: 'My Services', onPress: () => router.push('/(provider)/services') },
     { icon: 'time-outline', label: 'Availability', onPress: () => router.push('/(provider)/availability') },
@@ -236,6 +277,7 @@ export default function ProviderProfile() {
       label: 'Wallet',
       onPress: () => router.push('/(provider)/wallet'),
     },
+    { icon: 'shield-checkmark-outline', label: 'KYC Verification', onPress: () => router.push('/(provider)/kyc') },
     { icon: 'settings-outline', label: 'Settings', onPress: () => router.push('/settings') },
     { icon: 'help-circle-outline', label: 'Help Center', onPress: () => router.push('/settings/help') },
   ];
@@ -320,6 +362,68 @@ export default function ProviderProfile() {
           <View style={styles.statItem}>
             <Text style={[styles.statValue, { color: colors.text }]}>{profile?.services.length ?? 0}</Text>
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Services</Text>
+          </View>
+        </View>
+
+        {/* Account Type Section */}
+        <View style={[styles.menuItems, { backgroundColor: colors.surface }]}>
+          <View style={[styles.menuItem, { borderBottomColor: colors.border }]}>
+            <View style={styles.menuItemLeft}>
+              <Ionicons name="business-outline" size={22} color={colors.text} />
+              <Text style={[styles.menuItemLabel, { color: colors.text }]}>Account Type</Text>
+            </View>
+            <View style={styles.accountTypeRow}>
+              <TouchableOpacity
+                style={[
+                  styles.accountTypeButton,
+                  { backgroundColor: accountType === 'individual' ? colors.primary : colors.background, borderColor: colors.border },
+                ]}
+                onPress={() => handleAccountTypeChange('individual')}
+              >
+                <Text style={[styles.accountTypeText, { color: accountType === 'individual' ? '#fff' : colors.text }]}>
+                  Individual
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.accountTypeButton,
+                  { backgroundColor: accountType === 'business' ? colors.primary : colors.background, borderColor: colors.border },
+                ]}
+                onPress={() => handleAccountTypeChange('business')}
+              >
+                <Text style={[styles.accountTypeText, { color: accountType === 'business' ? '#fff' : colors.text }]}>
+                  Business
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+          <View style={[styles.menuItem, { borderBottomColor: colors.border }]}>
+            <View style={styles.menuItemLeft}>
+              <Ionicons name="shield-checkmark-outline" size={22} color={colors.text} />
+              <Text style={[styles.menuItemLabel, { color: colors.text }]}>KYC Status</Text>
+            </View>
+            <View style={[
+              styles.kycBadge,
+              {
+                backgroundColor: kycStatus === 'verified' ? `${colors.success}20` :
+                               kycStatus === 'pending' ? `${colors.warning}20` :
+                               kycStatus === 'rejected' ? `${colors.error}20` : `${colors.textMuted}20`,
+                borderColor: kycStatus === 'verified' ? colors.success :
+                              kycStatus === 'pending' ? colors.warning :
+                              kycStatus === 'rejected' ? colors.error : colors.textMuted
+              }
+            ]}>
+              <Text style={[
+                styles.kycBadgeText,
+                { color: kycStatus === 'verified' ? colors.success :
+                        kycStatus === 'pending' ? colors.warning :
+                        kycStatus === 'rejected' ? colors.error : colors.textMuted }
+              ]}>
+                {kycStatus === 'not_submitted' ? 'Not Submitted' :
+                 kycStatus === 'pending' ? 'Pending' :
+                 kycStatus === 'verified' ? 'Verified' : 'Rejected'}
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -560,6 +664,24 @@ const styles = StyleSheet.create({
   },
   menuItemLeft: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
   menuItemLabel: { fontSize: FontSizes.md },
+  accountTypeRow: {
+    flexDirection: 'row',
+    gap: Spacing.xs,
+  },
+  accountTypeButton: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+  },
+  accountTypeText: { fontSize: FontSizes.xs, fontWeight: '600' },
+  kycBadge: {
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: Spacing.xs,
+    borderRadius: BorderRadius.sm,
+    borderWidth: 1,
+  },
+  kycBadgeText: { fontSize: FontSizes.xs, fontWeight: '600' },
   logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',

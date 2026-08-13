@@ -18,6 +18,7 @@ import { providerService } from '../../src/services/provider.service';
 import { bookingService } from '../../src/services/booking.service';
 import { walletService } from '../../src/services/wallet.service';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { useTheme } from '../../src/contexts/ThemeContext';
 import { formatCurrency } from '../../src/utils/currency';
 import { Provider, Service } from '../../src/types';
 
@@ -36,6 +37,7 @@ function buildNextDays(count: number) {
 export default function CreateBooking() {
   const router = useRouter();
   const { user } = useAuth();
+  const { colors } = useTheme();
   const { providerId, serviceId } = useLocalSearchParams<{
     providerId: string;
     serviceId?: string;
@@ -230,7 +232,7 @@ export default function CreateBooking() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
         <View style={styles.centerState}>
           <ActivityIndicator size="large" color={Colors.primary} />
         </View>
@@ -240,24 +242,24 @@ export default function CreateBooking() {
 
   if (confirmed) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
         <View style={styles.centerState}>
           <View
             style={[
               styles.successIcon,
-              paymentOutcome === 'payment_failed' && { backgroundColor: Colors.error },
+              { backgroundColor: paymentOutcome === 'payment_failed' ? Colors.error : Colors.success },
             ]}
           >
             <Ionicons
               name={paymentOutcome === 'paid' ? 'checkmark' : 'alert'}
               size={48}
-              color={Colors.text}
+              color={colors.text}
             />
           </View>
-          <Text style={styles.successTitle}>
+          <Text style={[styles.successTitle, { color: colors.text }]}>
             {paymentOutcome === 'paid' ? 'Booking Confirmed - Paid (Escrow)' : 'Payment Could Not Be Completed'}
           </Text>
-          <Text style={styles.successSubtitle}>
+          <Text style={[styles.successSubtitle, { color: colors.textSecondary }]}>
             {paymentOutcome === 'paid' &&
               `Your booking with ${provider?.business_name} is paid and securely held in escrow until the service is completed. ${provider?.business_name} has been notified.`}
             {paymentOutcome === 'payment_failed' &&
@@ -288,7 +290,7 @@ export default function CreateBooking() {
             accessibilityRole="button"
             accessibilityLabel="View my bookings"
           >
-            <Text style={styles.linkText}>View My Bookings</Text>
+            <Text style={[styles.linkText, { color: Colors.primary }]}>View My Bookings</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -297,38 +299,39 @@ export default function CreateBooking() {
 
   if (error || !provider) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
         <View style={styles.centerState}>
-          <Text style={styles.emptyText}>{error || 'Provider not found.'}</Text>
+          <Text style={[styles.emptyText, { color: colors.textSecondary }]}>{error || 'Provider not found.'}</Text>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => router.back()}
           accessibilityRole="button"
           accessibilityLabel="Go back"
         >
-          <Ionicons name="arrow-back" size={24} color={Colors.text} />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>Book Appointment</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Book Appointment</Text>
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={styles.providerName}>{provider.business_name}</Text>
+        <Text style={[styles.providerName, { color: colors.textSecondary }]}>{provider.business_name}</Text>
 
         {/* Service selection */}
-        <Text style={styles.sectionTitle}>Select Service</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Select Service</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: Spacing.lg }}>
           {provider.services.map((service) => (
             <TouchableOpacity
               key={service.id}
               style={[
                 styles.serviceChip,
+                { backgroundColor: colors.surface, borderColor: colors.border },
                 selectedService?.id === service.id && styles.serviceChipActive,
               ]}
               onPress={() => setSelectedService(service)}
@@ -338,6 +341,7 @@ export default function CreateBooking() {
               <Text
                 style={[
                   styles.serviceChipText,
+                  { color: colors.text },
                   selectedService?.id === service.id && styles.serviceChipTextActive,
                 ]}
               >
@@ -346,6 +350,7 @@ export default function CreateBooking() {
               <Text
                 style={[
                   styles.serviceChipPrice,
+                  { color: colors.textSecondary },
                   selectedService?.id === service.id && styles.serviceChipTextActive,
                 ]}
               >
@@ -356,22 +361,22 @@ export default function CreateBooking() {
         </ScrollView>
 
         {/* Date selection */}
-        <Text style={styles.sectionTitle}>Select Date</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Select Date</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: Spacing.lg }}>
           {days.map((d) => {
             const isSelected = d.toDateString() === selectedDate.toDateString();
             return (
               <TouchableOpacity
                 key={d.toISOString()}
-                style={[styles.dateChip, isSelected && styles.dateChipActive]}
+                style={[styles.dateChip, { backgroundColor: colors.surface }, isSelected && styles.dateChipActive]}
                 onPress={() => setSelectedDate(d)}
                 accessibilityRole="button"
                 accessibilityLabel={d.toDateString()}
               >
-                <Text style={[styles.dateChipDay, isSelected && styles.serviceChipTextActive]}>
+                <Text style={[styles.dateChipDay, { color: colors.textSecondary }, isSelected && styles.serviceChipTextActive]}>
                   {d.toLocaleDateString('en-US', { weekday: 'short' })}
                 </Text>
-                <Text style={[styles.dateChipDate, isSelected && styles.serviceChipTextActive]}>
+                <Text style={[styles.dateChipDate, { color: colors.text }, isSelected && styles.serviceChipTextActive]}>
                   {d.getDate()}
                 </Text>
               </TouchableOpacity>
@@ -380,23 +385,27 @@ export default function CreateBooking() {
         </ScrollView>
 
         {/* Time slots */}
-        <Text style={styles.sectionTitle}>Select Time</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Select Time</Text>
         {slotsLoading ? (
           <ActivityIndicator color={Colors.primary} style={{ marginBottom: Spacing.lg }} />
         ) : slots.length === 0 ? (
-          <Text style={styles.emptyInline}>No available slots on this date. Try another day.</Text>
+          <Text style={[styles.emptyInline, { color: colors.textSecondary }]}>No available slots on this date. Try another day.</Text>
         ) : (
           <View style={styles.slotsWrap}>
             {slots.map((slot) => (
               <TouchableOpacity
                 key={slot}
-                style={[styles.slotChip, selectedSlot === slot && styles.slotChipActive]}
+                style={[
+                  styles.slotChip,
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                  selectedSlot === slot && styles.slotChipActive,
+                ]}
                 onPress={() => setSelectedSlot(slot)}
                 accessibilityRole="button"
                 accessibilityLabel={slot}
               >
                 <Text
-                  style={[styles.slotChipText, selectedSlot === slot && styles.serviceChipTextActive]}
+                  style={[styles.slotChipText, { color: colors.text }, selectedSlot === slot && styles.serviceChipTextActive]}
                 >
                   {slot}
                 </Text>
@@ -406,11 +415,11 @@ export default function CreateBooking() {
         )}
 
         {/* Notes */}
-        <Text style={[styles.sectionTitle, { marginTop: Spacing.lg }]}>Notes (optional)</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text, marginTop: Spacing.lg }]}>Notes (optional)</Text>
         <TextInput
-          style={styles.notesInput}
+          style={[styles.notesInput, { backgroundColor: colors.surface, color: colors.text }]}
           placeholder="Any special requests..."
-          placeholderTextColor={Colors.textMuted}
+          placeholderTextColor={colors.textSecondary}
           value={notes}
           onChangeText={setNotes}
           multiline
@@ -418,45 +427,45 @@ export default function CreateBooking() {
 
         {/* Summary */}
         {selectedService && (
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryTitle}>Booking Summary</Text>
+          <View style={[styles.summaryCard, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.summaryTitle, { color: colors.text }]}>Booking Summary</Text>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Service</Text>
-              <Text style={styles.summaryValue}>{selectedService.name}</Text>
+              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Service</Text>
+              <Text style={[styles.summaryValue, { color: colors.text }]}>{selectedService.name}</Text>
             </View>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Provider</Text>
-              <Text style={styles.summaryValue}>{provider.business_name}</Text>
+              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Provider</Text>
+              <Text style={[styles.summaryValue, { color: colors.text }]}>{provider.business_name}</Text>
             </View>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Date</Text>
-              <Text style={styles.summaryValue}>{selectedDate.toDateString()}</Text>
+              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Date</Text>
+              <Text style={[styles.summaryValue, { color: colors.text }]}>{selectedDate.toDateString()}</Text>
             </View>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Time</Text>
-              <Text style={styles.summaryValue}>{selectedSlot || '-'}</Text>
+              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Time</Text>
+              <Text style={[styles.summaryValue, { color: colors.text }]}>{selectedSlot || '-'}</Text>
             </View>
             <View style={[styles.summaryRow, { marginTop: Spacing.sm }]}>
-              <Text style={styles.summaryTotalLabel}>Price</Text>
-              <Text style={styles.summaryTotalValue}>{formatCurrency(selectedService.price)}</Text>
+              <Text style={[styles.summaryTotalLabel, { color: colors.text }]}>Price</Text>
+              <Text style={[styles.summaryTotalValue, { color: Colors.primary }]}>{formatCurrency(selectedService.price)}</Text>
             </View>
 
-            <View style={styles.summaryDivider} />
+            <View style={[styles.summaryDivider, { backgroundColor: colors.border }]} />
 
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Wallet Balance</Text>
-              <Text style={[styles.summaryValue, !hasSufficientBalance && { color: Colors.error }]}>
+              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Wallet Balance</Text>
+              <Text style={[styles.summaryValue, { color: colors.text }, !hasSufficientBalance && { color: Colors.error }]}>
                 {walletChecked ? formatCurrency(walletBalance) : '...'}
               </Text>
             </View>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Escrow Amount</Text>
-              <Text style={styles.summaryValue}>{formatCurrency(selectedService.price)}</Text>
+              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Escrow Amount</Text>
+              <Text style={[styles.summaryValue, { color: colors.text }]}>{formatCurrency(selectedService.price)}</Text>
             </View>
 
-            <View style={styles.protectionNote}>
+            <View style={[styles.protectionNote, { backgroundColor: `${Colors.success}15` }]}>
               <Ionicons name="shield-checkmark" size={16} color={Colors.success} />
-              <Text style={styles.protectionNoteText}>
+              <Text style={[styles.protectionNoteText, { color: colors.textSecondary }]}>
                 Your payment is securely held in escrow until the service has been completed.
               </Text>
             </View>
@@ -466,9 +475,9 @@ export default function CreateBooking() {
         <View style={{ height: Spacing.xl }} />
 
         {autoCompleting && (
-          <View style={styles.autoCompletingBanner}>
+          <View style={[styles.autoCompletingBanner, { backgroundColor: `${Colors.primary}15` }]}>
             <ActivityIndicator size="small" color={Colors.primary} />
-            <Text style={styles.autoCompletingText}>Wallet topped up - completing your booking...</Text>
+            <Text style={[styles.autoCompletingText, { color: colors.text }]}>Wallet topped up - completing your booking...</Text>
           </View>
         )}
 
@@ -482,22 +491,22 @@ export default function CreateBooking() {
             size="large"
           />
         ) : (
-          <View style={styles.insufficientPanel}>
+          <View style={[styles.insufficientPanel, { backgroundColor: `${Colors.warning}12`, borderColor: `${Colors.warning}40` }]}>
             <View style={styles.insufficientHeader}>
               <Ionicons name="alert-circle" size={20} color={Colors.warning} />
-              <Text style={styles.insufficientTitle}>Your wallet balance is insufficient.</Text>
+              <Text style={[styles.insufficientTitle, { color: colors.text }]}>Your wallet balance is insufficient.</Text>
             </View>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Current Wallet Balance</Text>
-              <Text style={styles.summaryValue}>{formatCurrency(walletBalance)}</Text>
+              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Current Wallet Balance</Text>
+              <Text style={[styles.summaryValue, { color: colors.text }]}>{formatCurrency(walletBalance)}</Text>
             </View>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Required Amount</Text>
-              <Text style={styles.summaryValue}>{formatCurrency(selectedService?.price || 0)}</Text>
+              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Required Amount</Text>
+              <Text style={[styles.summaryValue, { color: colors.text }]}>{formatCurrency(selectedService?.price || 0)}</Text>
             </View>
             <View style={styles.summaryRow}>
-              <Text style={styles.summaryLabel}>Shortfall</Text>
-              <Text style={[styles.summaryValue, { color: Colors.error }]}>
+              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Shortfall</Text>
+              <Text style={[styles.summaryValue, { color: colors.text }, { color: Colors.error }]}>
                 {formatCurrency(Math.max(0, (selectedService?.price || 0) - walletBalance))}
               </Text>
             </View>
@@ -511,7 +520,7 @@ export default function CreateBooking() {
             />
           </View>
         )}
-        <Text style={styles.paymentNote}>
+        <Text style={[styles.paymentNote, { color: colors.textSecondary }]}>
           Booking payment is made from your iStylist wallet only - Top Up Wallet uses Flutterwave.
         </Text>
       </ScrollView>
@@ -520,7 +529,7 @@ export default function CreateBooking() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+  container: { flex: 1 },
   centerState: {
     flex: 1,
     justifyContent: 'center',
@@ -528,7 +537,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xl,
     gap: Spacing.md,
   },
-  emptyText: { fontSize: FontSizes.sm, color: Colors.textSecondary, textAlign: 'center' },
+  emptyText: { fontSize: FontSizes.sm, textAlign: 'center' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -536,95 +545,83 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
   },
-  title: { fontSize: FontSizes.lg, fontWeight: 'bold', color: Colors.text },
+  title: { fontSize: FontSizes.lg, fontWeight: 'bold' },
   content: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xl },
-  providerName: { fontSize: FontSizes.md, color: Colors.textSecondary, marginBottom: Spacing.lg },
-  sectionTitle: { fontSize: FontSizes.md, fontWeight: '700', color: Colors.text, marginBottom: Spacing.sm },
+  providerName: { fontSize: FontSizes.md, marginBottom: Spacing.lg },
+  sectionTitle: { fontSize: FontSizes.md, fontWeight: '700', marginBottom: Spacing.sm },
   serviceChip: {
-    backgroundColor: Colors.surface,
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
     marginRight: Spacing.sm,
     minWidth: 130,
     borderWidth: 1,
-    borderColor: 'transparent',
   },
   serviceChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  serviceChipText: { fontSize: FontSizes.sm, fontWeight: '600', color: Colors.text },
-  serviceChipPrice: { fontSize: FontSizes.xs, color: Colors.textSecondary, marginTop: 4 },
+  serviceChipText: { fontSize: FontSizes.sm, fontWeight: '600' },
+  serviceChipPrice: { fontSize: FontSizes.xs, marginTop: 4 },
   serviceChipTextActive: { color: Colors.text },
   dateChip: {
     width: 56,
     alignItems: 'center',
     paddingVertical: Spacing.sm,
-    backgroundColor: Colors.surface,
     borderRadius: BorderRadius.md,
     marginRight: Spacing.sm,
   },
   dateChipActive: { backgroundColor: Colors.primary },
-  dateChipDay: { fontSize: FontSizes.xs, color: Colors.textSecondary },
-  dateChipDate: { fontSize: FontSizes.md, fontWeight: '700', color: Colors.text, marginTop: 2 },
-  emptyInline: { fontSize: FontSizes.sm, color: Colors.textMuted, marginBottom: Spacing.lg },
+  dateChipDay: { fontSize: FontSizes.xs },
+  dateChipDate: { fontSize: FontSizes.md, fontWeight: '700', marginTop: 2 },
+  emptyInline: { fontSize: FontSizes.sm, marginBottom: Spacing.lg },
   slotsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginBottom: Spacing.lg },
   slotChip: {
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
-    backgroundColor: Colors.surface,
     borderRadius: BorderRadius.full,
     borderWidth: 1,
-    borderColor: Colors.border,
   },
   slotChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  slotChipText: { fontSize: FontSizes.sm, color: Colors.text, fontWeight: '600' },
+  slotChipText: { fontSize: FontSizes.sm, fontWeight: '600' },
   notesInput: {
-    backgroundColor: Colors.surface,
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
-    color: Colors.text,
     fontSize: FontSizes.sm,
     minHeight: 70,
     textAlignVertical: 'top',
     marginBottom: Spacing.lg,
   },
   summaryCard: {
-    backgroundColor: Colors.surface,
     borderRadius: BorderRadius.lg,
     padding: Spacing.md,
   },
-  summaryTitle: { fontSize: FontSizes.md, fontWeight: '700', color: Colors.text, marginBottom: Spacing.sm },
+  summaryTitle: { fontSize: FontSizes.md, fontWeight: '700', marginBottom: Spacing.sm },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
-  summaryLabel: { fontSize: FontSizes.sm, color: Colors.textSecondary },
-  summaryValue: { fontSize: FontSizes.sm, color: Colors.text, fontWeight: '600' },
-  summaryTotalLabel: { fontSize: FontSizes.md, fontWeight: '700', color: Colors.text },
-  summaryTotalValue: { fontSize: FontSizes.md, fontWeight: '700', color: Colors.primary },
-  summaryDivider: { height: 1, backgroundColor: Colors.border, marginVertical: Spacing.sm },
+  summaryLabel: { fontSize: FontSizes.sm },
+  summaryValue: { fontSize: FontSizes.sm, fontWeight: '600' },
+  summaryTotalLabel: { fontSize: FontSizes.md, fontWeight: '700' },
+  summaryTotalValue: { fontSize: FontSizes.md, fontWeight: '700' },
+  summaryDivider: { height: 1, marginVertical: Spacing.sm },
   protectionNote: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: Spacing.sm,
-    backgroundColor: `${Colors.success}15`,
     borderRadius: BorderRadius.md,
     padding: Spacing.sm,
     marginTop: Spacing.sm,
   },
-  protectionNoteText: { flex: 1, fontSize: FontSizes.xs, color: Colors.textSecondary, lineHeight: 16 },
+  protectionNoteText: { flex: 1, fontSize: FontSizes.xs, lineHeight: 16 },
   autoCompletingBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: Spacing.sm,
-    backgroundColor: `${Colors.primary}15`,
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
     marginBottom: Spacing.md,
   },
-  autoCompletingText: { fontSize: FontSizes.sm, color: Colors.text, fontWeight: '600' },
+  autoCompletingText: { fontSize: FontSizes.sm, fontWeight: '600' },
   insufficientPanel: {
-    backgroundColor: `${Colors.warning}12`,
     borderRadius: BorderRadius.lg,
     padding: Spacing.md,
     borderWidth: 1,
-    borderColor: `${Colors.warning}40`,
   },
   insufficientHeader: {
     flexDirection: 'row',
@@ -632,11 +629,10 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     marginBottom: Spacing.sm,
   },
-  insufficientTitle: { flex: 1, fontSize: FontSizes.sm, fontWeight: '700', color: Colors.text },
+  insufficientTitle: { flex: 1, fontSize: FontSizes.sm, fontWeight: '700' },
   topUpFromSummaryButton: { marginTop: Spacing.md },
   paymentNote: {
     fontSize: FontSizes.xs,
-    color: Colors.textMuted,
     textAlign: 'center',
     marginTop: Spacing.sm,
   },
@@ -644,17 +640,15 @@ const styles = StyleSheet.create({
     width: 88,
     height: 88,
     borderRadius: 44,
-    backgroundColor: Colors.success,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: Spacing.lg,
   },
-  successTitle: { fontSize: FontSizes.xl, fontWeight: 'bold', color: Colors.text, marginBottom: Spacing.sm },
+  successTitle: { fontSize: FontSizes.xl, fontWeight: 'bold', marginBottom: Spacing.sm },
   successSubtitle: {
     fontSize: FontSizes.sm,
-    color: Colors.textSecondary,
     textAlign: 'center',
     marginBottom: Spacing.xl,
   },
-  linkText: { fontSize: FontSizes.sm, color: Colors.primary, fontWeight: '600' },
+  linkText: { fontSize: FontSizes.sm, fontWeight: '600' },
 });

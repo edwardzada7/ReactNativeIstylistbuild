@@ -15,6 +15,7 @@ import { Button } from '../../src/components/common';
 import { bookingService } from '../../src/services/booking.service';
 import { walletService } from '../../src/services/wallet.service';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { useTheme } from '../../src/contexts/ThemeContext';
 import { formatCurrency } from '../../src/utils/currency';
 import { formatStatusLabel } from '../../src/utils/walletHelpers';
 import { Booking } from '../../src/types';
@@ -56,6 +57,7 @@ export default function BookingDetails() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useAuth();
+  const { colors } = useTheme();
   const isProvider = user?.role === 'provider';
   const role: 'customer' | 'provider' = isProvider ? 'provider' : 'customer';
 
@@ -132,7 +134,7 @@ export default function BookingDetails() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
         <View style={styles.centerState}>
           <ActivityIndicator size="large" color={Colors.primary} />
         </View>
@@ -142,11 +144,11 @@ export default function BookingDetails() {
 
   if (!booking) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
         <View style={styles.centerState}>
           <Ionicons name="alert-circle-outline" size={48} color={Colors.warning} />
-          <Text style={styles.notFoundTitle}>Booking Not Found</Text>
-          <Text style={styles.notFoundText}>{error || 'This booking does not exist or you do not have access to it.'}</Text>
+          <Text style={[styles.notFoundTitle, { color: colors.text }]}>Booking Not Found</Text>
+          <Text style={[styles.notFoundText, { color: colors.textSecondary }]}>{error || 'This booking does not exist or you do not have access to it.'}</Text>
           <Button title="Go Back" onPress={handleBack} />
         </View>
       </SafeAreaView>
@@ -165,39 +167,39 @@ export default function BookingDetails() {
   const services = booking.services && booking.services.length > 0 ? booking.services : null;
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={handleBack} accessibilityRole="button" accessibilityLabel="Go back">
-          <Ionicons name="arrow-back" size={24} color={Colors.text} />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Booking Details</Text>
+        <Text style={[styles.headerTitle, { color: colors.text }]}>Booking Details</Text>
         <View style={{ width: 24 }} />
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
         {/* Status Card */}
-        <View style={styles.card}>
+        <View style={[styles.card, { backgroundColor: colors.surface }]}>
           <View style={styles.statusRow}>
             <View style={styles.statusLeft}>
               <Ionicons name={STATUS_ICON[booking.status] || 'help-circle-outline'} size={32} color={Colors.primary} />
               <View>
-                <Text style={styles.cardLabel}>Status</Text>
-                <Text style={styles.statusBadgeText}>{formatStatusLabel(booking.status)}</Text>
+                <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Status</Text>
+                <Text style={[styles.statusBadgeText, { color: colors.text }]}>{formatStatusLabel(booking.status)}</Text>
               </View>
             </View>
             <View style={{ alignItems: 'flex-end' }}>
-              <Text style={styles.cardLabel}>Booking ID</Text>
-              <Text style={styles.bookingIdText}>#{booking.id}</Text>
+              <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Booking ID</Text>
+              <Text style={[styles.bookingIdText, { color: colors.text }]}>#{booking.id}</Text>
             </View>
           </View>
         </View>
 
         {/* Person Info Card */}
-        <View style={styles.card}>
+        <View style={[styles.card, { backgroundColor: colors.surface }]}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
             <View>
-              <Text style={styles.cardTitle}>{isProvider ? 'Customer' : 'Provider'}</Text>
-              <Text style={styles.personName}>{isProvider ? booking.customer_name || 'Customer' : booking.provider_name}</Text>
+              <Text style={[styles.cardTitle, { color: colors.text }]}>{isProvider ? 'Customer' : 'Provider'}</Text>
+              <Text style={[styles.personName, { color: colors.text }]}>{isProvider ? booking.customer_name || 'Customer' : booking.provider_name}</Text>
             </View>
             {!!(isProvider ? booking.customer_auth_id : booking.provider_auth_id) && (
               <TouchableOpacity
@@ -222,61 +224,61 @@ export default function BookingDetails() {
         </View>
 
         {/* Date & Time Card */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Appointment</Text>
+        <View style={[styles.card, { backgroundColor: colors.surface }]}>
+          <Text style={[styles.cardTitle, { color: colors.text }]}>Appointment</Text>
           <View style={styles.rowGap}>
             <Ionicons name="calendar-outline" size={18} color={Colors.primary} />
-            <Text style={styles.rowText}>{formatDate(booking.date)}</Text>
+            <Text style={[styles.rowText, { color: colors.text }]}>{formatDate(booking.date)}</Text>
           </View>
           <View style={styles.rowGap}>
             <Ionicons name="time-outline" size={18} color={Colors.primary} />
-            <Text style={styles.rowText}>{formatTime(booking.time)}</Text>
+            <Text style={[styles.rowText, { color: colors.text }]}>{formatTime(booking.time)}</Text>
           </View>
         </View>
 
         {/* Services Card */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Services</Text>
+        <View style={[styles.card, { backgroundColor: colors.surface }]}>
+          <Text style={[styles.cardTitle, { color: colors.text }]}>Services</Text>
           {services ? (
             <>
               {services.map((s, idx) => (
                 <View key={s.service_id ?? idx} style={styles.serviceLine}>
                   <View>
-                    <Text style={styles.serviceName}>{s.service_name}</Text>
-                    {!!s.duration_minutes && <Text style={styles.serviceMeta}>{s.duration_minutes} minutes</Text>}
+                    <Text style={[styles.serviceName, { color: colors.text }]}>{s.service_name}</Text>
+                    {!!s.duration_minutes && <Text style={[styles.serviceMeta, { color: colors.textSecondary }]}>{s.duration_minutes} minutes</Text>}
                   </View>
-                  {s.price != null && <Text style={styles.servicePrice}>{formatCurrency(s.price)}</Text>}
+                  {s.price != null && <Text style={[styles.servicePrice, { color: colors.text }]}>{formatCurrency(s.price)}</Text>}
                 </View>
               ))}
               <View style={styles.totalLine}>
                 <View>
-                  <Text style={styles.totalLabel}>Total</Text>
+                  <Text style={[styles.totalLabel, { color: colors.text }]}>Total</Text>
                   {!!booking.total_duration && (
-                    <Text style={styles.serviceMeta}>{booking.total_duration} minutes total</Text>
+                    <Text style={[styles.serviceMeta, { color: colors.textSecondary }]}>{booking.total_duration} minutes total</Text>
                   )}
                 </View>
-                <Text style={styles.totalValue}>{formatCurrency(booking.total_amount)}</Text>
+                <Text style={[styles.totalValue, { color: colors.text }]}>{formatCurrency(booking.total_amount)}</Text>
               </View>
             </>
           ) : (
             <View style={styles.serviceLine}>
-              <Text style={styles.serviceName}>{booking.service_name}</Text>
-              <Text style={styles.servicePrice}>{formatCurrency(booking.total_amount)}</Text>
+              <Text style={[styles.serviceName, { color: colors.text }]}>{booking.service_name}</Text>
+              <Text style={[styles.servicePrice, { color: colors.text }]}>{formatCurrency(booking.total_amount)}</Text>
             </View>
           )}
         </View>
 
         {/* Notes Card */}
         {!!booking.notes && (
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Notes</Text>
-            <Text style={styles.rowText}>{booking.notes}</Text>
+          <View style={[styles.card, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.cardTitle, { color: colors.text }]}>Notes</Text>
+            <Text style={[styles.rowText, { color: colors.text }]}>{booking.notes}</Text>
           </View>
         )}
 
         {/* Actions Card */}
-        <View style={styles.card}>
-          <Text style={styles.cardLabel}>Actions</Text>
+        <View style={[styles.card, { backgroundColor: colors.surface }]}>
+          <Text style={[styles.cardLabel, { color: colors.textSecondary }]}>Actions</Text>
           <View style={{ height: Spacing.sm }} />
 
           {canCustomerPay && (
@@ -358,7 +360,7 @@ export default function BookingDetails() {
             !canProviderConfirm &&
             !canProviderDecline &&
             !canProviderComplete &&
-            !canProviderCancel && <Text style={styles.rowText}>No actions available for this booking.</Text>}
+            !canProviderCancel && <Text style={[styles.rowText, { color: colors.text }]}>No actions available for this booking.</Text>}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -370,60 +372,55 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: `${Colors.primary}18`,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  container: { flex: 1, backgroundColor: Colors.background },
+  container: { flex: 1 },
   centerState: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: Spacing.xl, gap: Spacing.md },
-  notFoundTitle: { fontSize: FontSizes.lg, fontWeight: '700', color: Colors.text, marginTop: Spacing.sm },
-  notFoundText: { fontSize: FontSizes.sm, color: Colors.textSecondary, textAlign: 'center', marginBottom: Spacing.md },
+  notFoundTitle: { fontSize: FontSizes.lg, fontWeight: '700', marginTop: Spacing.sm },
+  notFoundText: { fontSize: FontSizes.sm, textAlign: 'center', marginBottom: Spacing.md },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
-    backgroundColor: Colors.primary,
   },
-  headerTitle: { fontSize: FontSizes.lg, fontWeight: '700', color: Colors.text },
+  headerTitle: { fontSize: FontSizes.lg, fontWeight: '700' },
   content: { padding: Spacing.lg, gap: Spacing.md },
   card: {
-    backgroundColor: Colors.surface,
     borderRadius: BorderRadius.lg,
     padding: Spacing.md,
     gap: Spacing.sm,
   },
-  cardTitle: { fontSize: FontSizes.sm, fontWeight: '700', color: Colors.text },
-  cardLabel: { fontSize: FontSizes.xs, color: Colors.textSecondary },
+  cardTitle: { fontSize: FontSizes.sm, fontWeight: '700' },
+  cardLabel: { fontSize: FontSizes.xs },
   statusRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   statusLeft: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  statusBadgeText: { fontSize: FontSizes.md, fontWeight: '700', color: Colors.text },
-  bookingIdText: { fontSize: FontSizes.md, fontWeight: '700', color: Colors.text },
-  personName: { fontSize: FontSizes.lg, fontWeight: '700', color: Colors.text },
+  statusBadgeText: { fontSize: FontSizes.md, fontWeight: '700' },
+  bookingIdText: { fontSize: FontSizes.md, fontWeight: '700' },
+  personName: { fontSize: FontSizes.lg, fontWeight: '700' },
   rowGap: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  rowText: { fontSize: FontSizes.sm, color: Colors.text, fontWeight: '500' },
+  rowText: { fontSize: FontSizes.sm, fontWeight: '500' },
   serviceLine: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: Colors.background,
     borderRadius: BorderRadius.md,
     padding: Spacing.sm,
   },
-  serviceName: { fontSize: FontSizes.sm, fontWeight: '600', color: Colors.text },
-  serviceMeta: { fontSize: FontSizes.xs, color: Colors.textMuted },
-  servicePrice: { fontSize: FontSizes.sm, fontWeight: '700', color: Colors.primary },
+  serviceName: { fontSize: FontSizes.sm, fontWeight: '600' },
+  serviceMeta: { fontSize: FontSizes.xs },
+  servicePrice: { fontSize: FontSizes.sm, fontWeight: '700' },
   totalLine: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: `${Colors.primary}10`,
     borderRadius: BorderRadius.md,
     padding: Spacing.sm,
     marginTop: Spacing.xs,
   },
-  totalLabel: { fontSize: FontSizes.sm, fontWeight: '700', color: Colors.text },
-  totalValue: { fontSize: FontSizes.lg, fontWeight: '800', color: Colors.primary },
+  totalLabel: { fontSize: FontSizes.sm, fontWeight: '700' },
+  totalValue: { fontSize: FontSizes.lg, fontWeight: '800' },
   actionSpacing: { marginBottom: Spacing.sm },
 });

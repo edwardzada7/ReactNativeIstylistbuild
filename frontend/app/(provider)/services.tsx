@@ -18,6 +18,7 @@ import { useRouter } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { Button, Input } from '../../src/components/common';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { useTheme } from '../../src/contexts/ThemeContext';
 import { providerService } from '../../src/services/provider.service';
 import { formatCurrency } from '../../src/utils/currency';
 import { Service, CatalogSubService } from '../../src/types';
@@ -27,6 +28,7 @@ type ModalStep = 'pick' | 'details';
 export default function ProviderServices() {
   const router = useRouter();
   const { user } = useAuth();
+  const { colors } = useTheme();
   const providerId = user?.id;
 
   const [services, setServices] = useState<Service[]>([]);
@@ -187,19 +189,19 @@ export default function ProviderServices() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back">
-          <Ionicons name="arrow-back" size={24} color={Colors.text} />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>My Services</Text>
+        <Text style={[styles.title, { color: colors.text }]}>My Services</Text>
         <TouchableOpacity
-          style={styles.addButton}
+          style={[styles.addButton, { backgroundColor: colors.surface }]}
           onPress={openAddModal}
           accessibilityRole="button"
           accessibilityLabel="Add service"
         >
-          <Ionicons name="add" size={24} color={Colors.text} />
+          <Ionicons name="add" size={24} color={colors.text} />
         </TouchableOpacity>
       </View>
 
@@ -209,23 +211,23 @@ export default function ProviderServices() {
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
-          {error && <Text style={styles.errorText}>{error}</Text>}
+          {error && <Text style={[styles.errorText, { color: colors.text }]}>{error}</Text>}
           {services.length === 0 ? (
             <View style={styles.centerState}>
-              <Ionicons name="cut-outline" size={32} color={Colors.textMuted} />
-              <Text style={styles.emptyText}>No services yet. Tap + to add your first one.</Text>
+              <Ionicons name="cut-outline" size={32} color={colors.textSecondary} />
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No services yet. Tap + to add your first one.</Text>
             </View>
           ) : (
             services.map((service) => (
-              <View key={service.id} style={styles.serviceCard}>
+              <View key={service.id} style={[styles.serviceCard, { backgroundColor: colors.surface }]}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.serviceName}>{service.name}</Text>
+                  <Text style={[styles.serviceName, { color: colors.text }]}>{service.name}</Text>
                   {!!service.description && (
-                    <Text style={styles.serviceDescription} numberOfLines={2}>
+                    <Text style={[styles.serviceDescription, { color: colors.textSecondary }]} numberOfLines={2}>
                       {service.description}
                     </Text>
                   )}
-                  <Text style={styles.serviceMeta}>{service.duration} min</Text>
+                  <Text style={[styles.serviceMeta, { color: colors.textSecondary }]}>{service.duration} min</Text>
                 </View>
                 <View style={styles.serviceActions}>
                   <TouchableOpacity onPress={() => openEditModal(service)} accessibilityLabel="Edit service">
@@ -235,7 +237,7 @@ export default function ProviderServices() {
                     <Ionicons name="trash-outline" size={20} color={Colors.error} />
                   </TouchableOpacity>
                 </View>
-                <Text style={styles.servicePrice}>{formatCurrency(service.price)}</Text>
+                <Text style={[styles.servicePrice, { color: colors.text }]}>{formatCurrency(service.price)}</Text>
               </View>
             ))
           )}
@@ -247,7 +249,7 @@ export default function ProviderServices() {
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.modalOverlay}
         >
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
             <View style={styles.modalHeader}>
               {modalStep === 'details' ? (
                 <TouchableOpacity
@@ -256,12 +258,12 @@ export default function ProviderServices() {
                   accessibilityLabel="Back to catalog"
                   style={styles.modalBackButton}
                 >
-                  <Ionicons name="arrow-back" size={22} color={Colors.text} />
+                  <Ionicons name="arrow-back" size={22} color={colors.text} />
                 </TouchableOpacity>
               ) : (
                 <View style={styles.modalBackButton} />
               )}
-              <Text style={styles.modalTitle}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>
                 {editingService ? 'Edit Service' : modalStep === 'pick' ? 'Choose a Service' : 'Set Price & Duration'}
               </Text>
               <TouchableOpacity
@@ -269,21 +271,21 @@ export default function ProviderServices() {
                 accessibilityRole="button"
                 accessibilityLabel="Close"
               >
-                <Ionicons name="close" size={24} color={Colors.text} />
+                <Ionicons name="close" size={24} color={colors.text} />
               </TouchableOpacity>
             </View>
 
             {modalStep === 'pick' ? (
               <View style={styles.pickStep}>
-                <Text style={styles.pickHint}>
+                <Text style={[styles.pickHint, { color: colors.textSecondary }]}>
                   Select a service from our catalog. This keeps search accurate for customers.
                 </Text>
-                <View style={styles.catalogSearchBar}>
-                  <Ionicons name="search" size={18} color={Colors.textMuted} />
+                <View style={[styles.catalogSearchBar, { backgroundColor: colors.surfaceLight }]}>
+                  <Ionicons name="search" size={18} color={colors.textSecondary} />
                   <TextInput
-                    style={styles.catalogSearchInput}
+                    style={[styles.catalogSearchInput, { color: colors.text }]}
                     placeholder="Search services..."
-                    placeholderTextColor={Colors.textMuted}
+                    placeholderTextColor={colors.textSecondary}
                     value={catalogSearch}
                     onChangeText={setCatalogSearch}
                   />
@@ -296,13 +298,13 @@ export default function ProviderServices() {
                 ) : catalogError ? (
                   <View style={styles.catalogCenterState}>
                     <Ionicons name="alert-circle-outline" size={28} color={Colors.error} />
-                    <Text style={styles.emptyText}>{catalogError}</Text>
+                    <Text style={[styles.emptyText, { color: colors.text }]}>{catalogError}</Text>
                     <Button title="Retry" onPress={loadCatalog} variant="outline" />
                   </View>
                 ) : filteredCatalog.length === 0 ? (
                   <View style={styles.catalogCenterState}>
-                    <Ionicons name="search-outline" size={28} color={Colors.textMuted} />
-                    <Text style={styles.emptyText}>
+                    <Ionicons name="search-outline" size={28} color={colors.textSecondary} />
+                    <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
                       {catalogSearch
                         ? 'No matching services found.'
                         : 'No more catalog services to add.'}
@@ -313,18 +315,18 @@ export default function ProviderServices() {
                     {filteredCatalog.map((item) => (
                       <TouchableOpacity
                         key={item.id || item.name}
-                        style={styles.catalogRow}
+                        style={[styles.catalogRow, { borderBottomColor: colors.border }]}
                         onPress={() => handlePickCatalogItem(item)}
                         accessibilityRole="button"
                         accessibilityLabel={`Select ${item.name}`}
                       >
                         <View style={{ flex: 1 }}>
-                          <Text style={styles.catalogRowName}>{item.name}</Text>
+                          <Text style={[styles.catalogRowName, { color: colors.text }]}>{item.name}</Text>
                           {!!item.category_name && (
-                            <Text style={styles.catalogRowCategory}>{item.category_name}</Text>
+                            <Text style={[styles.catalogRowCategory, { color: colors.textSecondary }]}>{item.category_name}</Text>
                           )}
                         </View>
-                        <Ionicons name="chevron-forward" size={18} color={Colors.textMuted} />
+                        <Ionicons name="chevron-forward" size={18} color={colors.textSecondary} />
                       </TouchableOpacity>
                     ))}
                   </ScrollView>
@@ -332,9 +334,9 @@ export default function ProviderServices() {
               </View>
             ) : (
               <ScrollView>
-                <View style={styles.selectedServiceBanner}>
+                <View style={[styles.selectedServiceBanner, { backgroundColor: colors.surfaceLight }]}>
                   <Ionicons name="checkmark-circle" size={18} color={Colors.primary} />
-                  <Text style={styles.selectedServiceName}>{selectedCatalogItem?.name}</Text>
+                  <Text style={[styles.selectedServiceName, { color: colors.text }]}>{selectedCatalogItem?.name}</Text>
                 </View>
                 <Input
                   label="Description (optional)"
@@ -367,7 +369,7 @@ export default function ProviderServices() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+  container: { flex: 1 },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -375,36 +377,33 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
   },
-  title: { fontSize: FontSizes.xxl, fontWeight: 'bold', color: Colors.text },
+  title: { fontSize: FontSizes.xxl, fontWeight: 'bold' },
   addButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: Colors.primary,
     justifyContent: 'center',
     alignItems: 'center',
   },
   centerState: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: Spacing.sm, paddingTop: Spacing.xxl },
-  emptyText: { fontSize: FontSizes.sm, color: Colors.textSecondary, textAlign: 'center', paddingHorizontal: Spacing.xl },
-  errorText: { fontSize: FontSizes.sm, color: Colors.error, marginBottom: Spacing.md },
+  emptyText: { fontSize: FontSizes.sm, textAlign: 'center', paddingHorizontal: Spacing.xl },
+  errorText: { fontSize: FontSizes.sm, marginBottom: Spacing.md },
   list: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xl },
   serviceCard: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: Colors.surface,
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
     marginBottom: Spacing.sm,
   },
-  serviceName: { fontSize: FontSizes.sm, fontWeight: '700', color: Colors.text },
-  serviceDescription: { fontSize: FontSizes.xs, color: Colors.textSecondary, marginTop: 2 },
-  serviceMeta: { fontSize: FontSizes.xs, color: Colors.textMuted, marginTop: 2 },
+  serviceName: { fontSize: FontSizes.sm, fontWeight: '700' },
+  serviceDescription: { fontSize: FontSizes.xs, marginTop: 2 },
+  serviceMeta: { fontSize: FontSizes.xs, marginTop: 2 },
   serviceActions: { flexDirection: 'row', gap: Spacing.sm, marginRight: Spacing.sm },
-  servicePrice: { fontSize: FontSizes.md, fontWeight: '700', color: Colors.primary },
+  servicePrice: { fontSize: FontSizes.md, fontWeight: '700' },
   modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
   modalContent: {
-    backgroundColor: Colors.background,
     borderTopLeftRadius: BorderRadius.lg,
     borderTopRightRadius: BorderRadius.lg,
     padding: Spacing.lg,
@@ -416,21 +415,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: Spacing.md,
   },
-  modalTitle: { fontSize: FontSizes.lg, fontWeight: '700', color: Colors.text },
+  modalTitle: { fontSize: FontSizes.lg, fontWeight: '700' },
   modalBackButton: { width: 28 },
   pickStep: { flex: 1, minHeight: 300 },
-  pickHint: { fontSize: FontSizes.xs, color: Colors.textSecondary, marginBottom: Spacing.md },
+  pickHint: { fontSize: FontSizes.xs, marginBottom: Spacing.md },
   catalogSearchBar: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
-    backgroundColor: Colors.surface,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.md,
     marginBottom: Spacing.md,
   },
-  catalogSearchInput: { flex: 1, fontSize: FontSizes.sm, color: Colors.text, paddingVertical: 4 },
+  catalogSearchInput: { flex: 1, fontSize: FontSizes.sm, paddingVertical: 4 },
   catalogCenterState: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -445,18 +443,16 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     paddingHorizontal: Spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
   },
-  catalogRowName: { fontSize: FontSizes.sm, fontWeight: '600', color: Colors.text },
-  catalogRowCategory: { fontSize: FontSizes.xs, color: Colors.textSecondary, marginTop: 2 },
+  catalogRowName: { fontSize: FontSizes.sm, fontWeight: '600' },
+  catalogRowCategory: { fontSize: FontSizes.xs, marginTop: 2 },
   selectedServiceBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
-    backgroundColor: `${Colors.primary}15`,
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
     marginBottom: Spacing.md,
   },
-  selectedServiceName: { fontSize: FontSizes.md, fontWeight: '700', color: Colors.text },
+  selectedServiceName: { fontSize: FontSizes.md, fontWeight: '700' },
 });

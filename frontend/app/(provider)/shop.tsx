@@ -20,6 +20,7 @@ import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/th
 import { SHOP_CATEGORIES } from '../../src/constants/shopCategories';
 import { Button, Input } from '../../src/components/common';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { useTheme } from '../../src/contexts/ThemeContext';
 import { shopService, Product } from '../../src/services/shop.service';
 import { formatCurrency } from '../../src/utils/currency';
 
@@ -28,6 +29,7 @@ type ShopView = 'my-products' | 'marketplace';
 export default function ProviderShop() {
   const router = useRouter();
   const { user } = useAuth();
+  const { colors } = useTheme();
   const authId = user?.auth_id;
 
   const [view, setView] = useState<ShopView>('marketplace');
@@ -171,41 +173,41 @@ export default function ProviderShop() {
     : (marketplaceProducts.length === 0 ? 'No approved products are available right now.' : 'No products match your current selection.');
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <View style={styles.header}>
         <View style={styles.headerTextWrap}>
-          <Text style={styles.title}>Shop</Text>
-          <Text style={styles.subtitle}>{view === 'my-products' ? 'Manage your own products' : 'Browse the marketplace'}</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Shop</Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>{view === 'my-products' ? 'Manage your own products' : 'Browse the marketplace'}</Text>
         </View>
         <View style={styles.headerActions}>
           {view === 'my-products' ? (
-            <TouchableOpacity style={styles.addBtn} onPress={() => setModalVisible(true)} accessibilityRole="button" accessibilityLabel="Add product">
+            <TouchableOpacity style={[styles.addBtn, { backgroundColor: Colors.primary }]} onPress={() => setModalVisible(true)} accessibilityRole="button" accessibilityLabel="Add product">
               <Ionicons name="add" size={20} color="#fff" />
               <Text style={styles.addBtnText}>Add Product</Text>
             </TouchableOpacity>
           ) : null}
-          <TouchableOpacity style={styles.ordersBtn} onPress={() => router.push('/(provider)/orders')} accessibilityRole="button" accessibilityLabel="My orders">
-            <Text style={styles.ordersBtnText}>My Orders</Text>
+          <TouchableOpacity style={[styles.ordersBtn, { borderColor: colors.border, backgroundColor: colors.surface }]} onPress={() => router.push('/(provider)/orders')} accessibilityRole="button" accessibilityLabel="My orders">
+            <Text style={[styles.ordersBtnText, { color: colors.text }]}>My Orders</Text>
           </TouchableOpacity>
         </View>
       </View>
 
       <View style={styles.segmentedControl}>
         <TouchableOpacity
-          style={[styles.segmentButton, view === 'marketplace' && styles.segmentButtonActive]}
+          style={[styles.segmentButton, { backgroundColor: colors.surface }, view === 'marketplace' && { backgroundColor: Colors.primary }]}
           onPress={() => setView('marketplace')}
           accessibilityRole="button"
           accessibilityLabel="Marketplace"
         >
-          <Text style={[styles.segmentButtonText, view === 'marketplace' && styles.segmentButtonTextActive]}>Marketplace</Text>
+          <Text style={[styles.segmentButtonText, { color: colors.textSecondary }, view === 'marketplace' && { color: '#fff' }]}>Marketplace</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.segmentButton, view === 'my-products' && styles.segmentButtonActive]}
+          style={[styles.segmentButton, { backgroundColor: colors.surface }, view === 'my-products' && { backgroundColor: Colors.primary }]}
           onPress={() => setView('my-products')}
           accessibilityRole="button"
           accessibilityLabel="My products"
         >
-          <Text style={[styles.segmentButtonText, view === 'my-products' && styles.segmentButtonTextActive]}>My Products</Text>
+          <Text style={[styles.segmentButtonText, { color: colors.textSecondary }, view === 'my-products' && { color: '#fff' }]}>My Products</Text>
         </TouchableOpacity>
       </View>
 
@@ -215,15 +217,15 @@ export default function ProviderShop() {
         </View>
       ) : shownProducts.length === 0 ? (
         <View style={styles.centerState}>
-          <Ionicons name="bag-handle-outline" size={32} color={Colors.textMuted} />
-          <Text style={styles.emptyText}>{emptyMessage}</Text>
+          <Ionicons name="bag-handle-outline" size={32} color={colors.textSecondary} />
+          <Text style={[styles.emptyText, { color: colors.textSecondary }]}>{emptyMessage}</Text>
         </View>
       ) : (
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
           {shownProducts.map((product) => (
             <TouchableOpacity
               key={product.id}
-              style={styles.card}
+              style={[styles.card, { backgroundColor: colors.surface }]}
               onPress={() => {
                 if (view === 'my-products') {
                   openEditModal(product);
@@ -237,15 +239,15 @@ export default function ProviderShop() {
               {product.image_urls?.[0] ? (
                 <Image source={{ uri: product.image_urls[0] }} style={styles.cardImage} />
               ) : (
-                <View style={[styles.cardImage, styles.cardImagePlaceholder]}>
-                  <Ionicons name="image-outline" size={22} color={Colors.textMuted} />
+                <View style={[styles.cardImage, styles.cardImagePlaceholder, { backgroundColor: colors.surfaceLight }]}>
+                  <Ionicons name="image-outline" size={22} color={colors.textSecondary} />
                 </View>
               )}
               <View style={{ flex: 1 }}>
-                <Text style={styles.cardName} numberOfLines={1}>{product.name}</Text>
-                <Text style={styles.cardPrice}>{formatCurrency(product.price)} &middot; {product.stock} in stock</Text>
+                <Text style={[styles.cardName, { color: colors.text }]} numberOfLines={1}>{product.name}</Text>
+                <Text style={[styles.cardPrice, { color: colors.textSecondary }]}>{formatCurrency(product.price)} &middot; {product.stock} in stock</Text>
                 {product.main_category || product.category ? (
-                  <Text style={styles.cardMeta}>{product.subcategory || product.main_category || product.category}</Text>
+                  <Text style={[styles.cardMeta, { color: colors.textSecondary }]}>{product.subcategory || product.main_category || product.category}</Text>
                 ) : null}
                 {view === 'my-products' ? (
                   <View style={[styles.badge, { backgroundColor: product.approved ? `${Colors.success}20` : `${Colors.warning}20` }]}>
@@ -273,23 +275,23 @@ export default function ProviderShop() {
       )}
 
       <Modal visible={modalVisible} animationType="slide" onRequestClose={() => setModalVisible(false)}>
-        <SafeAreaView style={styles.container} edges={['top']}>
+        <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
           <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
             <View style={styles.header}>
               <TouchableOpacity onPress={() => setModalVisible(false)} accessibilityLabel="Close">
-                <Ionicons name="close" size={24} color={Colors.text} />
+                <Ionicons name="close" size={24} color={colors.text} />
               </TouchableOpacity>
-              <Text style={styles.title}>{editingProduct ? 'Edit Product' : 'Add Product'}</Text>
+              <Text style={[styles.title, { color: colors.text }]}>{editingProduct ? 'Edit Product' : 'Add Product'}</Text>
               <View style={{ width: 24 }} />
             </View>
             <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-              <TouchableOpacity style={styles.imagePicker} onPress={pickImage}>
+              <TouchableOpacity style={[styles.imagePicker, { borderColor: colors.border }]} onPress={pickImage}>
                 {form.image ? (
                   <Image source={{ uri: form.image }} style={styles.imagePickerPreview} />
                 ) : (
                   <>
                     <Ionicons name="camera-outline" size={28} color={Colors.primary} />
-                    <Text style={styles.imagePickerText}>Add Photo</Text>
+                    <Text style={[styles.imagePickerText, { color: colors.textSecondary }]}>Add Photo</Text>
                   </>
                 )}
               </TouchableOpacity>
@@ -297,27 +299,27 @@ export default function ProviderShop() {
               <Input label="Description" value={form.description} onChangeText={(v) => setForm((f) => ({ ...f, description: v }))} placeholder="Describe your product" multiline numberOfLines={3} style={{ minHeight: 80, textAlignVertical: 'top' }} />
               <Input label="Price (NGN)" value={form.price} onChangeText={(v) => setForm((f) => ({ ...f, price: v }))} placeholder="0.00" keyboardType="decimal-pad" />
               <Input label="Stock Quantity" value={form.stock} onChangeText={(v) => setForm((f) => ({ ...f, stock: v }))} placeholder="0" keyboardType="number-pad" />
-              <Text style={styles.inputLabel}>Main Category</Text>
+              <Text style={[styles.inputLabel, { color: colors.text }]}>Main Category</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
                 {SHOP_CATEGORIES.map((category) => (
                   <TouchableOpacity
                     key={category.slug}
-                    style={[styles.chip, form.mainCategory === category.slug && styles.chipActive]}
+                    style={[styles.chip, { borderColor: colors.border, backgroundColor: colors.surfaceLight }, form.mainCategory === category.slug && { backgroundColor: Colors.primary, borderColor: Colors.primary }]}
                     onPress={() => setForm((f) => ({ ...f, mainCategory: category.slug, subcategory: category.subcategories[0]?.id || '' }))}
                   >
-                    <Text style={[styles.chipText, form.mainCategory === category.slug && styles.chipTextActive]}>{category.name}</Text>
+                    <Text style={[styles.chipText, { color: colors.text }, form.mainCategory === category.slug && { color: '#fff' }]}>{category.name}</Text>
                   </TouchableOpacity>
                 ))}
               </ScrollView>
-              <Text style={styles.inputLabel}>Subcategory</Text>
+              <Text style={[styles.inputLabel, { color: colors.text }]}>Subcategory</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
                 {selectedCategory.subcategories.map((subcategory) => (
                   <TouchableOpacity
                     key={subcategory.id}
-                    style={[styles.chip, form.subcategory === subcategory.id && styles.chipActive]}
+                    style={[styles.chip, { borderColor: colors.border, backgroundColor: colors.surfaceLight }, form.subcategory === subcategory.id && { backgroundColor: Colors.primary, borderColor: Colors.primary }]}
                     onPress={() => setForm((f) => ({ ...f, subcategory: subcategory.id }))}
                   >
-                    <Text style={[styles.chipText, form.subcategory === subcategory.id && styles.chipTextActive]}>{subcategory.name}</Text>
+                    <Text style={[styles.chipText, { color: colors.text }, form.subcategory === subcategory.id && { color: '#fff' }]}>{subcategory.name}</Text>
                   </TouchableOpacity>
                 ))}
               </ScrollView>
@@ -331,40 +333,40 @@ export default function ProviderShop() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+  container: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md },
   headerTextWrap: { flex: 1, marginRight: Spacing.sm },
-  title: { fontSize: FontSizes.lg, fontWeight: 'bold', color: Colors.text },
-  subtitle: { fontSize: FontSizes.xs, color: Colors.textSecondary, marginTop: 2 },
+  title: { fontSize: FontSizes.lg, fontWeight: 'bold' },
+  subtitle: { fontSize: FontSizes.xs, marginTop: 2 },
   headerActions: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.primary, paddingHorizontal: Spacing.md, paddingVertical: 8, borderRadius: BorderRadius.full },
+  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: Spacing.md, paddingVertical: 8, borderRadius: BorderRadius.full },
   addBtnText: { color: '#fff', fontSize: FontSizes.sm, fontWeight: '700' },
-  ordersBtn: { borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface, paddingHorizontal: Spacing.md, paddingVertical: 8, borderRadius: BorderRadius.full },
-  ordersBtnText: { color: Colors.text, fontSize: FontSizes.sm, fontWeight: '600' },
+  ordersBtn: { borderWidth: 1, paddingHorizontal: Spacing.md, paddingVertical: 8, borderRadius: BorderRadius.full },
+  ordersBtnText: { fontSize: FontSizes.sm, fontWeight: '600' },
   segmentedControl: { flexDirection: 'row', paddingHorizontal: Spacing.lg, marginBottom: Spacing.sm, gap: Spacing.sm },
-  segmentButton: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: BorderRadius.full, backgroundColor: Colors.surface },
-  segmentButtonActive: { backgroundColor: Colors.primary },
-  segmentButtonText: { fontSize: FontSizes.sm, fontWeight: '600', color: Colors.textSecondary },
+  segmentButton: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: BorderRadius.full },
+  segmentButtonActive: {},
+  segmentButtonText: { fontSize: FontSizes.sm, fontWeight: '600' },
   segmentButtonTextActive: { color: '#fff' },
   centerState: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: Spacing.sm },
-  emptyText: { fontSize: FontSizes.sm, color: Colors.textSecondary, textAlign: 'center', paddingHorizontal: Spacing.xl },
+  emptyText: { fontSize: FontSizes.sm, textAlign: 'center', paddingHorizontal: Spacing.xl },
   content: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xl },
-  card: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: Colors.surface, borderRadius: BorderRadius.md, padding: Spacing.sm, marginBottom: Spacing.sm },
+  card: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, borderRadius: BorderRadius.md, padding: Spacing.sm, marginBottom: Spacing.sm },
   cardImage: { width: 52, height: 52, borderRadius: BorderRadius.sm },
-  cardImagePlaceholder: { backgroundColor: Colors.background, justifyContent: 'center', alignItems: 'center' },
-  cardName: { fontSize: FontSizes.sm, fontWeight: '700', color: Colors.text },
-  cardPrice: { fontSize: FontSizes.xs, color: Colors.textSecondary, marginTop: 2 },
-  cardMeta: { fontSize: 11, color: Colors.textSecondary, marginTop: 4 },
+  cardImagePlaceholder: { justifyContent: 'center', alignItems: 'center' },
+  cardName: { fontSize: FontSizes.sm, fontWeight: '700' },
+  cardPrice: { fontSize: FontSizes.xs, marginTop: 2 },
+  cardMeta: { fontSize: 11, marginTop: 4 },
   badge: { alignSelf: 'flex-start', paddingHorizontal: 6, paddingVertical: 2, borderRadius: BorderRadius.full, marginTop: 4 },
   badgeText: { fontSize: 10, fontWeight: '700' },
   cardActions: { flexDirection: 'row', gap: Spacing.sm },
-  imagePicker: { width: 100, height: 100, borderRadius: BorderRadius.md, borderWidth: 1.5, borderColor: Colors.border, borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center', alignSelf: 'center', marginBottom: Spacing.lg, overflow: 'hidden' },
+  imagePicker: { width: 100, height: 100, borderRadius: BorderRadius.md, borderWidth: 1.5, borderStyle: 'dashed', justifyContent: 'center', alignItems: 'center', alignSelf: 'center', marginBottom: Spacing.lg, overflow: 'hidden' },
   imagePickerPreview: { width: '100%', height: '100%' },
-  imagePickerText: { fontSize: FontSizes.xs, color: Colors.primary, fontWeight: '600', marginTop: 4 },
-  inputLabel: { fontSize: FontSizes.sm, color: Colors.text, fontWeight: '700', marginTop: Spacing.md, marginBottom: Spacing.xs },
+  imagePickerText: { fontSize: FontSizes.xs, fontWeight: '600', marginTop: 4 },
+  inputLabel: { fontSize: FontSizes.sm, fontWeight: '700', marginTop: Spacing.md, marginBottom: Spacing.xs },
   chipRow: { flexDirection: 'row', gap: Spacing.sm, paddingVertical: 4 },
-  chip: { paddingHorizontal: Spacing.md, paddingVertical: 8, borderRadius: BorderRadius.full, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border },
-  chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  chipText: { fontSize: FontSizes.xs, color: Colors.textSecondary, fontWeight: '600' },
+  chip: { paddingHorizontal: Spacing.md, paddingVertical: 8, borderRadius: BorderRadius.full, borderWidth: 1 },
+  chipActive: {},
+  chipText: { fontSize: FontSizes.xs, fontWeight: '600' },
   chipTextActive: { color: '#fff' },
 });

@@ -53,6 +53,7 @@ const PAYMENT_TONE_COLOR: Record<string, string> = {
 export default function Bookings() {
   const router = useRouter();
   const { user } = useAuth();
+  const { colors } = useTheme();
   const [selectedTab, setSelectedTab] = useState('Upcoming');
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -191,10 +192,10 @@ export default function Bookings() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <View style={styles.header}>
         <View style={styles.titleWrap}>
-          <Text style={styles.title}>My Bookings</Text>
+          <Text style={[styles.title, { color: colors.text }]}>My Bookings</Text>
         </View>
       </View>
 
@@ -202,62 +203,62 @@ export default function Bookings() {
         {tabs.map((tab) => (
           <TouchableOpacity
             key={tab}
-            style={[styles.tabButton, selectedTab === tab && styles.tabButtonActive]}
+            style={[styles.tabButton, { backgroundColor: colors.surface }, selectedTab === tab && { backgroundColor: colors.primary }]}
             onPress={() => setSelectedTab(tab)}
             accessibilityRole="button"
             accessibilityLabel={tab}
           >
-            <Text style={[styles.tabText, selectedTab === tab && styles.tabTextActive]}>{tab}</Text>
+            <Text style={[styles.tabText, { color: colors.textSecondary }, selectedTab === tab && { color: colors.text }]}>{tab}</Text>
           </TouchableOpacity>
         ))}
       </View>
 
       {loading ? (
         <View style={styles.emptyState}>
-          <ActivityIndicator size="large" color={Colors.primary} />
+          <ActivityIndicator size="large" color={colors.primary} />
         </View>
       ) : (
         <ScrollView
           contentContainerStyle={styles.bookingsList}
           showsVerticalScrollIndicator={false}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={Colors.primary} />
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />
           }
         >
           {error ? (
             <View style={styles.emptyState}>
-              <Ionicons name="alert-circle-outline" size={48} color={Colors.error} />
-              <Text style={styles.emptyText}>{error}</Text>
+              <Ionicons name="alert-circle-outline" size={48} color={colors.error} />
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>{error}</Text>
             </View>
           ) : filteredBookings.length === 0 ? (
             <View style={styles.emptyState}>
-              <Ionicons name="calendar-outline" size={64} color={Colors.textMuted} />
-              <Text style={styles.emptyText}>No bookings found</Text>
+              <Ionicons name="calendar-outline" size={64} color={colors.textMuted} />
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No bookings found</Text>
             </View>
           ) : (
             filteredBookings.map((item) => (
-              <View key={item.id} style={styles.bookingCard}>
+              <View key={item.id} style={[styles.bookingCard, { backgroundColor: colors.surface }]}>
                 <View style={styles.bookingHeader}>
                   <TouchableOpacity
-                    style={styles.providerIcon}
+                    style={[styles.providerIcon, { backgroundColor: colors.surfaceLight }]}
                     onPress={() => router.push(`/provider/${item.provider_id}`)}
                     accessibilityRole="button"
                     accessibilityLabel={item.provider_name}
                   >
-                    <Ionicons name="storefront" size={24} color={Colors.primary} />
+                    <Ionicons name="storefront" size={24} color={colors.primary} />
                   </TouchableOpacity>
                   <View style={styles.bookingInfo}>
-                    <Text style={styles.providerName}>{item.provider_name}</Text>
-                    <Text style={styles.serviceName}>{item.service_name}</Text>
+                    <Text style={[styles.providerName, { color: colors.text }]}>{item.provider_name}</Text>
+                    <Text style={[styles.serviceName, { color: colors.textSecondary }]}>{item.service_name}</Text>
                   </View>
                   <View
                     style={[
                       styles.statusBadge,
-                      { backgroundColor: `${statusColors[item.status] || Colors.textMuted}20` },
+                      { backgroundColor: `${statusColors[item.status] || colors.textMuted}20` },
                     ]}
                   >
                     <Text
-                      style={[styles.statusText, { color: statusColors[item.status] || Colors.textMuted }]}
+                      style={[styles.statusText, { color: statusColors[item.status] || colors.textMuted }]}
                     >
                       {formatStatusLabel(item.status)}
                     </Text>
@@ -266,16 +267,16 @@ export default function Bookings() {
 
                 <View style={styles.bookingDetails}>
                   <View style={styles.detailItem}>
-                    <Ionicons name="calendar-outline" size={16} color={Colors.textSecondary} />
-                    <Text style={styles.detailText}>{item.date}</Text>
+                    <Ionicons name="calendar-outline" size={16} color={colors.textSecondary} />
+                    <Text style={[styles.detailText, { color: colors.text }]}>{item.date}</Text>
                   </View>
                   <View style={styles.detailItem}>
-                    <Ionicons name="time-outline" size={16} color={Colors.textSecondary} />
-                    <Text style={styles.detailText}>{item.time}</Text>
+                    <Ionicons name="time-outline" size={16} color={colors.textSecondary} />
+                    <Text style={[styles.detailText, { color: colors.text }]}>{item.time}</Text>
                   </View>
                   <View style={styles.detailItem}>
-                    <Ionicons name="cash-outline" size={16} color={Colors.textSecondary} />
-                    <Text style={styles.detailText}>{formatCurrency(item.total_amount)}</Text>
+                    <Ionicons name="cash-outline" size={16} color={colors.textSecondary} />
+                    <Text style={[styles.detailText, { color: colors.text }]}>{formatCurrency(item.total_amount)}</Text>
                   </View>
                 </View>
 
@@ -303,18 +304,18 @@ export default function Bookings() {
                     the Pay button must never show for it. */}
                 {item.status === 'pending_payment' && (
                   <TouchableOpacity
-                    style={styles.payNowButton}
+                    style={[styles.payNowButton, { backgroundColor: colors.primary }]}
                     onPress={() => handlePayFromWallet(item)}
                     disabled={busyId === item.id}
                     accessibilityRole="button"
                     accessibilityLabel="Pay from wallet"
                   >
                     {busyId === item.id ? (
-                      <ActivityIndicator size="small" color={Colors.text} />
+                      <ActivityIndicator size="small" color={colors.text} />
                     ) : (
                       <>
-                        <Ionicons name="wallet-outline" size={16} color={Colors.text} />
-                        <Text style={styles.payNowButtonText}>Pay from Wallet</Text>
+                        <Ionicons name="wallet-outline" size={16} color={colors.text} />
+                        <Text style={[styles.payNowButtonText, { color: colors.text }]}>Pay from Wallet</Text>
                       </>
                     )}
                   </TouchableOpacity>
@@ -325,20 +326,20 @@ export default function Bookings() {
                 {['pending_payment', 'pending', 'confirmed'].includes(item.status) && (
                   <View style={styles.bookingActions}>
                     <TouchableOpacity
-                      style={styles.actionButtonSecondary}
+                      style={[styles.actionButtonSecondary, { backgroundColor: colors.surfaceLight }]}
                       onPress={() => handleCancel(item)}
                       disabled={busyId === item.id}
                       accessibilityRole="button"
                       accessibilityLabel="Cancel booking"
                     >
                       {busyId === item.id ? (
-                        <ActivityIndicator size="small" color={Colors.text} />
+                        <ActivityIndicator size="small" color={colors.text} />
                       ) : (
-                        <Text style={styles.actionButtonTextSecondary}>Cancel</Text>
+                        <Text style={[styles.actionButtonTextSecondary, { color: colors.text }]}>Cancel</Text>
                       )}
                     </TouchableOpacity>
                     <TouchableOpacity
-                      style={styles.actionButtonSecondary}
+                      style={[styles.actionButtonSecondary, { backgroundColor: colors.surfaceLight }]}
                       onPress={() => {
                         const providerAuthId = item.provider_auth_id || item.provider_id;
                         if (providerAuthId) {
@@ -348,35 +349,35 @@ export default function Bookings() {
                       accessibilityRole="button"
                       accessibilityLabel="Chat with provider"
                     >
-                      <Ionicons name="chatbubble-outline" size={16} color={Colors.text} />
-                      <Text style={styles.actionButtonTextSecondary}>Chat</Text>
+                      <Ionicons name="chatbubble-outline" size={16} color={colors.text} />
+                      <Text style={[styles.actionButtonTextSecondary, { color: colors.text }]}>Chat</Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      style={styles.actionButtonPrimary}
+                      style={[styles.actionButtonPrimary, { backgroundColor: colors.primary }]}
                       onPress={() => router.push(`/bookings/${item.id}`)}
                       accessibilityRole="button"
                       accessibilityLabel="View Details"
                     >
-                      <Text style={styles.actionButtonTextPrimary}>View Details</Text>
+                      <Text style={[styles.actionButtonTextPrimary, { color: colors.text }]}>View Details</Text>
                     </TouchableOpacity>
                   </View>
                 )}
 
                 {item.status === 'completed' && !reviewedBookingIds.has(item.id) && (
                   <TouchableOpacity
-                    style={styles.reviewButton}
+                    style={[styles.reviewButton, { backgroundColor: `${colors.primary}20` }]}
                     onPress={() => openReviewModal(item)}
                     accessibilityRole="button"
                     accessibilityLabel="Leave a review"
                   >
-                    <Ionicons name="star-outline" size={16} color={Colors.primary} />
-                    <Text style={styles.reviewButtonText}>Leave a Review</Text>
+                    <Ionicons name="star-outline" size={16} color={colors.primary} />
+                    <Text style={[styles.reviewButtonText, { color: colors.primary }]}>Leave a Review</Text>
                   </TouchableOpacity>
                 )}
                 {item.status === 'completed' && reviewedBookingIds.has(item.id) && (
                   <View style={styles.reviewedBadge}>
-                    <Ionicons name="checkmark-circle" size={16} color={Colors.success} />
-                    <Text style={styles.reviewedBadgeText}>Reviewed</Text>
+                    <Ionicons name="checkmark-circle" size={16} color={colors.success} />
+                    <Text style={[styles.reviewedBadgeText, { color: colors.success }]}>Reviewed</Text>
                   </View>
                 )}
               </View>
@@ -390,18 +391,18 @@ export default function Bookings() {
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.modalOverlay}
         >
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { backgroundColor: colors.background }]}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Rate your experience</Text>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Rate your experience</Text>
               <TouchableOpacity
                 onPress={() => setReviewModal(null)}
                 accessibilityRole="button"
                 accessibilityLabel="Close"
               >
-                <Ionicons name="close" size={24} color={Colors.text} />
+                <Ionicons name="close" size={24} color={colors.text} />
               </TouchableOpacity>
             </View>
-            <Text style={styles.modalSubtitle}>{reviewModal?.provider_name}</Text>
+            <Text style={[styles.modalSubtitle, { color: colors.textSecondary }]}>{reviewModal?.provider_name}</Text>
             <View style={styles.starsRow}>
               {[1, 2, 3, 4, 5].map((star) => (
                 <TouchableOpacity
@@ -413,15 +414,15 @@ export default function Bookings() {
                   <Ionicons
                     name={star <= reviewRating ? 'star' : 'star-outline'}
                     size={36}
-                    color={Colors.warning}
+                    color={colors.warning}
                   />
                 </TouchableOpacity>
               ))}
             </View>
             <TextInput
-              style={styles.commentInput}
+              style={[styles.commentInput, { backgroundColor: colors.surface, color: colors.text }]}
               placeholder="Share details of your experience..."
-              placeholderTextColor={Colors.textMuted}
+              placeholderTextColor={colors.textMuted}
               value={reviewComment}
               onChangeText={setReviewComment}
               multiline
@@ -443,7 +444,6 @@ export default function Bookings() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
   },
   header: {
     paddingHorizontal: Spacing.lg,
@@ -457,7 +457,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: FontSizes.xxl,
     fontWeight: 'bold',
-    color: Colors.text,
   },
   tabs: {
     flexDirection: 'row',
@@ -468,27 +467,18 @@ const styles = StyleSheet.create({
   tabButton: {
     flex: 1,
     paddingVertical: Spacing.sm,
-    backgroundColor: Colors.surface,
     borderRadius: BorderRadius.md,
     alignItems: 'center',
-  },
-  tabButtonActive: {
-    backgroundColor: Colors.primary,
   },
   tabText: {
     fontSize: FontSizes.sm,
     fontWeight: '600',
-    color: Colors.textSecondary,
-  },
-  tabTextActive: {
-    color: Colors.text,
   },
   bookingsList: {
     paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing.xl,
   },
   bookingCard: {
-    backgroundColor: Colors.surface,
     borderRadius: BorderRadius.lg,
     padding: Spacing.md,
     marginBottom: Spacing.md,
@@ -502,7 +492,6 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: BorderRadius.md,
-    backgroundColor: Colors.surfaceLight,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: Spacing.sm,
@@ -513,12 +502,10 @@ const styles = StyleSheet.create({
   providerName: {
     fontSize: FontSizes.md,
     fontWeight: '600',
-    color: Colors.text,
     marginBottom: 2,
   },
   serviceName: {
     fontSize: FontSizes.sm,
-    color: Colors.textSecondary,
   },
   statusBadge: {
     paddingHorizontal: Spacing.sm,
@@ -542,7 +529,6 @@ const styles = StyleSheet.create({
   },
   detailText: {
     fontSize: FontSizes.sm,
-    color: Colors.textSecondary,
   },
   paymentBadge: {
     flexDirection: 'row',
@@ -560,12 +546,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    backgroundColor: Colors.primary,
     borderRadius: BorderRadius.md,
     paddingVertical: Spacing.sm,
     marginBottom: Spacing.sm,
   },
-  payNowButtonText: { fontSize: FontSizes.sm, fontWeight: '700', color: Colors.text },
+  payNowButtonText: { fontSize: FontSizes.sm, fontWeight: '700' },
   bookingActions: {
     flexDirection: 'row',
     gap: Spacing.sm,
@@ -573,7 +558,6 @@ const styles = StyleSheet.create({
   actionButtonSecondary: {
     flex: 1,
     paddingVertical: Spacing.sm,
-    backgroundColor: Colors.surfaceLight,
     borderRadius: BorderRadius.sm,
     alignItems: 'center',
     flexDirection: 'row',
@@ -583,19 +567,16 @@ const styles = StyleSheet.create({
   actionButtonTextSecondary: {
     fontSize: FontSizes.sm,
     fontWeight: '600',
-    color: Colors.text,
   },
   actionButtonPrimary: {
     flex: 1,
     paddingVertical: Spacing.sm,
-    backgroundColor: Colors.primary,
     borderRadius: BorderRadius.sm,
     alignItems: 'center',
   },
   actionButtonTextPrimary: {
     fontSize: FontSizes.sm,
     fontWeight: '600',
-    color: Colors.text,
   },
   reviewButton: {
     flexDirection: 'row',
@@ -603,13 +584,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 4,
     paddingVertical: Spacing.sm,
-    backgroundColor: `${Colors.primary}20`,
     borderRadius: BorderRadius.sm,
   },
   reviewButtonText: {
     fontSize: FontSizes.sm,
     fontWeight: '600',
-    color: Colors.primary,
   },
   reviewedBadge: {
     flexDirection: 'row',
@@ -621,7 +600,6 @@ const styles = StyleSheet.create({
   reviewedBadgeText: {
     fontSize: FontSizes.sm,
     fontWeight: '600',
-    color: Colors.success,
   },
   modalOverlay: {
     flex: 1,
@@ -629,7 +607,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.5)',
   },
   modalContent: {
-    backgroundColor: Colors.background,
     borderTopLeftRadius: BorderRadius.lg,
     borderTopRightRadius: BorderRadius.lg,
     padding: Spacing.lg,
@@ -643,11 +620,9 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: FontSizes.lg,
     fontWeight: '700',
-    color: Colors.text,
   },
   modalSubtitle: {
     fontSize: FontSizes.sm,
-    color: Colors.textSecondary,
     marginBottom: Spacing.md,
   },
   starsRow: {
@@ -657,10 +632,8 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.lg,
   },
   commentInput: {
-    backgroundColor: Colors.surface,
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
-    color: Colors.text,
     fontSize: FontSizes.sm,
     minHeight: 90,
     textAlignVertical: 'top',
@@ -673,7 +646,6 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: FontSizes.md,
-    color: Colors.textSecondary,
     marginTop: Spacing.md,
   },
 });

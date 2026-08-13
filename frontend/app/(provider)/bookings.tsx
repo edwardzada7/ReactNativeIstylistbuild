@@ -16,6 +16,7 @@ import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/th
 import { bookingService } from '../../src/services/booking.service';
 import { walletService } from '../../src/services/wallet.service';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { useTheme } from '../../src/contexts/ThemeContext';
 import { formatCurrency } from '../../src/utils/currency';
 import { derivePaymentStatus, getPaymentStatusMeta, formatStatusLabel } from '../../src/utils/walletHelpers';
 import { Booking, Transaction } from '../../src/types';
@@ -64,6 +65,7 @@ const ACTIONS_FOR_STATUS: Record<string, { label: string; next: string; destruct
 export default function ProviderBookings() {
   const router = useRouter();
   const { user } = useAuth();
+  const { colors } = useTheme();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [filter, setFilter] = useState<typeof FILTERS[number]>('Pending');
@@ -147,9 +149,9 @@ export default function ProviderBookings() {
   };
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.title}>Bookings</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Bookings</Text>
       </View>
 
       <ScrollView
@@ -160,12 +162,12 @@ export default function ProviderBookings() {
         {FILTERS.map((f) => (
           <TouchableOpacity
             key={f}
-            style={[styles.filterChip, filter === f && styles.filterChipActive]}
+            style={[styles.filterChip, { backgroundColor: colors.surface, borderColor: colors.border }, filter === f && { backgroundColor: Colors.primary, borderColor: Colors.primary }]}
             onPress={() => setFilter(f)}
             accessibilityRole="button"
             accessibilityLabel={f}
           >
-            <Text style={[styles.filterText, filter === f && styles.filterTextActive]}>{f}</Text>
+            <Text style={[styles.filterText, { color: colors.text }, filter === f && { color: '#fff' }]}>{f}</Text>
           </TouchableOpacity>
         ))}
       </ScrollView>
@@ -176,7 +178,7 @@ export default function ProviderBookings() {
         </View>
       ) : error ? (
         <View style={styles.centerState}>
-          <Text style={styles.emptyText}>{error}</Text>
+          <Text style={[styles.emptyText, { color: colors.text }]}>{error}</Text>
         </View>
       ) : (
         <ScrollView
@@ -187,8 +189,8 @@ export default function ProviderBookings() {
         >
           {filtered.length === 0 ? (
             <View style={styles.centerState}>
-              <Ionicons name="calendar-outline" size={32} color={Colors.textMuted} />
-              <Text style={styles.emptyText}>No {filter.toLowerCase()} bookings.</Text>
+              <Ionicons name="calendar-outline" size={32} color={colors.textSecondary} />
+              <Text style={[styles.emptyText, { color: colors.text }]}>No {filter.toLowerCase()} bookings.</Text>
             </View>
           ) : (
             filtered.map((booking) => {
@@ -196,35 +198,35 @@ export default function ProviderBookings() {
               return (
                 <TouchableOpacity
                   key={booking.id}
-                  style={styles.card}
+                  style={[styles.card, { backgroundColor: colors.surface }]}
                   onPress={() => router.push(`/bookings/${booking.id}`)}
                   activeOpacity={0.85}
                   accessibilityRole="button"
                   accessibilityLabel="View booking details"
                 >
                   <View style={styles.cardHeader}>
-                    <Text style={styles.serviceName}>{booking.service_name}</Text>
+                    <Text style={[styles.serviceName, { color: colors.text }]}>{booking.service_name}</Text>
                     <View
                       style={[
                         styles.statusPill,
-                        { backgroundColor: (STATUS_COLOR[booking.status] || Colors.textMuted) + '22' },
+                        { backgroundColor: (STATUS_COLOR[booking.status] || colors.textSecondary) + '22' },
                       ]}
                     >
                       <Text
                         style={[
                           styles.statusText,
-                          { color: STATUS_COLOR[booking.status] || Colors.textMuted },
+                          { color: STATUS_COLOR[booking.status] || colors.textSecondary },
                         ]}
                       >
                         {formatStatusLabel(booking.status)}
                       </Text>
                     </View>
                   </View>
-                  <Text style={styles.meta}>
+                  <Text style={[styles.meta, { color: colors.textSecondary }]}>
                     {booking.date} {booking.time ? `· ${booking.time}` : ''}
                   </Text>
-                  {!!booking.notes && <Text style={styles.notes}>{`"${booking.notes}"`}</Text>}
-                  <Text style={styles.amount}>{formatCurrency(booking.total_amount)}</Text>
+                  {!!booking.notes && <Text style={[styles.notes, { color: colors.textSecondary }]}>{`"${booking.notes}"`}</Text>}
+                  <Text style={[styles.amount, { color: Colors.primary }]}>{formatCurrency(booking.total_amount)}</Text>
 
                   {(() => {
                     const paymentMeta = getPaymentStatusMeta(derivePaymentStatus(booking, transactions));
@@ -254,7 +256,8 @@ export default function ProviderBookings() {
                           key={action.label}
                           style={[
                             styles.actionBtn,
-                            action.destructive && styles.actionBtnDestructive,
+                            { backgroundColor: Colors.primary },
+                            action.destructive && [styles.actionBtnDestructive, { backgroundColor: colors.surfaceLight, borderColor: Colors.error }],
                           ]}
                           onPress={() => handleAction(booking, action.next, action.destructive)}
                           disabled={updatingId === booking.id}
@@ -262,12 +265,13 @@ export default function ProviderBookings() {
                           accessibilityLabel={action.label}
                         >
                           {updatingId === booking.id ? (
-                            <ActivityIndicator size="small" color={Colors.text} />
+                            <ActivityIndicator size="small" color={colors.text} />
                           ) : (
                             <Text
                               style={[
                                 styles.actionBtnText,
-                                action.destructive && styles.actionBtnTextDestructive,
+                                { color: colors.text },
+                                action.destructive && [styles.actionBtnTextDestructive, { color: Colors.error }],
                               ]}
                             >
                               {action.label}
@@ -288,26 +292,23 @@ export default function ProviderBookings() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+  container: { flex: 1 },
   header: { paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md },
-  title: { fontSize: FontSizes.xxl, fontWeight: 'bold', color: Colors.text },
+  title: { fontSize: FontSizes.xxl, fontWeight: 'bold' },
   filtersRow: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.md, gap: Spacing.sm },
   filterChip: {
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm,
-    backgroundColor: Colors.surface,
     borderRadius: BorderRadius.full,
     borderWidth: 1,
-    borderColor: Colors.border,
   },
-  filterChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  filterText: { fontSize: FontSizes.sm, color: Colors.text, fontWeight: '600' },
-  filterTextActive: { color: Colors.text },
+  filterChipActive: {},
+  filterText: { fontSize: FontSizes.sm, fontWeight: '600' },
+  filterTextActive: {},
   centerState: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: Spacing.sm, paddingTop: Spacing.xxl },
-  emptyText: { fontSize: FontSizes.sm, color: Colors.textSecondary },
+  emptyText: { fontSize: FontSizes.sm },
   list: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xl },
   card: {
-    backgroundColor: Colors.surface,
     borderRadius: BorderRadius.lg,
     padding: Spacing.md,
     marginBottom: Spacing.md,
@@ -318,12 +319,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 4,
   },
-  serviceName: { fontSize: FontSizes.md, fontWeight: '700', color: Colors.text },
+  serviceName: { fontSize: FontSizes.md, fontWeight: '700' },
   statusPill: { paddingHorizontal: Spacing.sm, paddingVertical: 2, borderRadius: BorderRadius.full },
   statusText: { fontSize: FontSizes.xs, fontWeight: '700', textTransform: 'capitalize' },
-  meta: { fontSize: FontSizes.sm, color: Colors.textSecondary, marginBottom: 4 },
-  notes: { fontSize: FontSizes.xs, color: Colors.textMuted, marginBottom: 4, fontStyle: 'italic' },
-  amount: { fontSize: FontSizes.md, fontWeight: '700', color: Colors.primary, marginBottom: Spacing.sm },
+  meta: { fontSize: FontSizes.sm, marginBottom: 4 },
+  notes: { fontSize: FontSizes.xs, marginBottom: 4, fontStyle: 'italic' },
+  amount: { fontSize: FontSizes.md, fontWeight: '700', marginBottom: Spacing.sm },
   paymentPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -338,12 +339,11 @@ const styles = StyleSheet.create({
   actionsRow: { flexDirection: 'row', gap: Spacing.sm },
   actionBtn: {
     flex: 1,
-    backgroundColor: Colors.primary,
     borderRadius: BorderRadius.sm,
     paddingVertical: Spacing.sm,
     alignItems: 'center',
   },
-  actionBtnDestructive: { backgroundColor: Colors.surfaceLight, borderWidth: 1, borderColor: Colors.error },
-  actionBtnText: { fontSize: FontSizes.sm, fontWeight: '700', color: Colors.text },
-  actionBtnTextDestructive: { color: Colors.error },
+  actionBtnDestructive: { borderWidth: 1 },
+  actionBtnText: { fontSize: FontSizes.sm, fontWeight: '700' },
+  actionBtnTextDestructive: {},
 });

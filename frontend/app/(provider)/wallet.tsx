@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { useTheme } from '../../src/contexts/ThemeContext';
 import { walletService } from '../../src/services/wallet.service';
 import { bookingService } from '../../src/services/booking.service';
 import { formatCurrency } from '../../src/utils/currency';
@@ -16,6 +17,7 @@ const netAmount = (b: Booking) => (b.total_amount || 0) - (b.platform_fee_amount
 export default function ProviderWallet() {
   const router = useRouter();
   const { user } = useAuth();
+  const { colors } = useTheme();
 
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -109,7 +111,7 @@ export default function ProviderWallet() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
         <View style={styles.centerState}>
           <ActivityIndicator size="large" color={Colors.primary} />
         </View>
@@ -118,7 +120,7 @@ export default function ProviderWallet() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
@@ -126,85 +128,85 @@ export default function ProviderWallet() {
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={Colors.primary} />
         }
       >
-        <Text style={styles.title}>Wallet</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Wallet</Text>
 
         {error ? (
-          <View style={styles.errorBanner}>
+          <View style={[styles.errorBanner, { backgroundColor: colors.surface }]}>
             <Ionicons name="alert-circle-outline" size={20} color={Colors.error} />
-            <Text style={styles.errorText}>{error}</Text>
+            <Text style={[styles.errorText, { color: colors.text }]}>{error}</Text>
           </View>
         ) : null}
 
-        <View style={styles.balanceCard}>
-          <Text style={styles.balanceLabel}>Available Balance</Text>
-          <Text style={styles.balanceValue}>{formatCurrency(stats.availableBalance)}</Text>
+        <View style={[styles.balanceCard, { backgroundColor: colors.surface }]}>
+          <Text style={[styles.balanceLabel, { color: colors.textSecondary }]}>Available Balance</Text>
+          <Text style={[styles.balanceValue, { color: colors.text }]}>{formatCurrency(stats.availableBalance)}</Text>
           <TouchableOpacity
-            style={styles.withdrawButton}
+            style={[styles.withdrawButton, { backgroundColor: colors.surfaceLight }]}
             onPress={() => router.push('/(provider)/withdraw')}
             accessibilityRole="button"
             accessibilityLabel="Withdraw funds"
           >
-            <Ionicons name="arrow-up-circle" size={18} color={Colors.text} />
-            <Text style={styles.withdrawButtonText}>Withdraw</Text>
+            <Ionicons name="arrow-up-circle" size={18} color={colors.text} />
+            <Text style={[styles.withdrawButtonText, { color: colors.text }]}>Withdraw</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.statsGrid}>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{formatCurrency(stats.inEscrow)}</Text>
-            <Text style={styles.statLabel}>In Escrow</Text>
+          <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.statValue, { color: colors.text }]}>{formatCurrency(stats.inEscrow)}</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>In Escrow</Text>
           </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{formatCurrency(stats.releasedEarnings)}</Text>
-            <Text style={styles.statLabel}>Released Earnings</Text>
+          <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.statValue, { color: colors.text }]}>{formatCurrency(stats.releasedEarnings)}</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Released Earnings</Text>
           </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{formatCurrency(stats.totalEarnings)}</Text>
-            <Text style={styles.statLabel}>Total Earnings</Text>
+          <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.statValue, { color: colors.text }]}>{formatCurrency(stats.totalEarnings)}</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Total Earnings</Text>
           </View>
-          <View style={styles.statCard}>
-            <Text style={styles.statValue}>{formatCurrency(stats.withdrawableBalance)}</Text>
-            <Text style={styles.statLabel}>Withdrawable</Text>
+          <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.statValue, { color: colors.text }]}>{formatCurrency(stats.withdrawableBalance)}</Text>
+            <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Withdrawable</Text>
           </View>
         </View>
-        <Text style={styles.escrowHint}>
+        <Text style={[styles.escrowHint, { color: colors.textSecondary }]}>
           Money from new bookings stays locked in escrow and only moves into your wallet once the
           service is marked completed and released.
         </Text>
 
         {/* Monthly earnings */}
-        <Text style={styles.sectionTitle}>Monthly Earnings</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Monthly Earnings</Text>
         {stats.monthlyEarnings.length === 0 ? (
-          <Text style={styles.emptyInline}>No completed bookings yet.</Text>
+          <Text style={[styles.emptyInline, { color: colors.textSecondary }]}>No completed bookings yet.</Text>
         ) : (
-          <View style={styles.monthlyCard}>
+          <View style={[styles.monthlyCard, { backgroundColor: colors.surface }]}>
             {stats.monthlyEarnings.map(([month, amount]) => (
               <View key={month} style={styles.monthlyRow}>
-                <Text style={styles.monthlyLabel}>{month}</Text>
-                <View style={styles.monthlyBarTrack}>
+                <Text style={[styles.monthlyLabel, { color: colors.text }]}>{month}</Text>
+                <View style={[styles.monthlyBarTrack, { backgroundColor: colors.surfaceLight }]}>
                   <View
                     style={[
                       styles.monthlyBarFill,
-                      { width: `${Math.max(6, (amount / stats.maxMonthly) * 100)}%` },
+                      { width: `${Math.max(6, (amount / stats.maxMonthly) * 100)}%`, backgroundColor: Colors.primary },
                     ]}
                   />
                 </View>
-                <Text style={styles.monthlyAmount}>{formatCurrency(amount)}</Text>
+                <Text style={[styles.monthlyAmount, { color: colors.text }]}>{formatCurrency(amount)}</Text>
               </View>
             ))}
           </View>
         )}
 
         {/* Withdrawal history */}
-        <Text style={styles.sectionTitle}>Withdrawal History</Text>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Withdrawal History</Text>
         {withdrawalHistory.length === 0 ? (
-          <Text style={styles.emptyInline}>No withdrawals yet.</Text>
+          <Text style={[styles.emptyInline, { color: colors.textSecondary }]}>No withdrawals yet.</Text>
         ) : (
           withdrawalHistory.map((w) => (
-            <View key={w.id} style={styles.withdrawalRow}>
+            <View key={w.id} style={[styles.withdrawalRow, { backgroundColor: colors.surface }]}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.withdrawalDesc}>{w.description || 'Withdrawal'}</Text>
-                <Text style={styles.withdrawalDate}>
+                <Text style={[styles.withdrawalDesc, { color: colors.text }]}>{w.description || 'Withdrawal'}</Text>
+                <Text style={[styles.withdrawalDate, { color: colors.textSecondary }]}>
                   {new Date(w.created_at).toLocaleDateString('en-NG', {
                     day: 'numeric',
                     month: 'short',
@@ -213,10 +215,11 @@ export default function ProviderWallet() {
                 </Text>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
-                <Text style={styles.withdrawalAmount}>{formatCurrency(w.amount)}</Text>
+                <Text style={[styles.withdrawalAmount, { color: colors.text }]}>{formatCurrency(w.amount)}</Text>
                 <Text
                   style={[
                     styles.withdrawalStatus,
+                    { color: colors.textSecondary },
                     w.status === 'completed' && { color: Colors.success },
                     w.status === 'failed' && { color: Colors.error },
                     w.status === 'pending' && { color: Colors.warning },
@@ -236,28 +239,26 @@ export default function ProviderWallet() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+  container: { flex: 1 },
   centerState: { flex: 1, justifyContent: 'center', alignItems: 'center' },
   scrollContent: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xl },
-  title: { fontSize: FontSizes.xxl, fontWeight: 'bold', color: Colors.text, marginVertical: Spacing.md },
+  title: { fontSize: FontSizes.xxl, fontWeight: 'bold', marginVertical: Spacing.md },
   errorBanner: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: Spacing.sm,
-    backgroundColor: `${Colors.error}15`,
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
     marginBottom: Spacing.md,
   },
-  errorText: { flex: 1, fontSize: FontSizes.sm, color: Colors.error },
+  errorText: { flex: 1, fontSize: FontSizes.sm },
   balanceCard: {
-    backgroundColor: Colors.primary,
     borderRadius: BorderRadius.lg,
     padding: Spacing.lg,
     marginBottom: Spacing.md,
   },
-  balanceLabel: { fontSize: FontSizes.sm, color: Colors.text, opacity: 0.85 },
-  balanceValue: { fontSize: 32, fontWeight: 'bold', color: Colors.text, marginTop: 4, marginBottom: Spacing.md },
+  balanceLabel: { fontSize: FontSizes.sm, opacity: 0.85 },
+  balanceValue: { fontSize: 32, fontWeight: 'bold', marginTop: 4, marginBottom: Spacing.md },
   withdrawButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -269,54 +270,49 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     paddingHorizontal: Spacing.md,
   },
-  withdrawButtonText: { fontSize: FontSizes.sm, fontWeight: '700', color: Colors.text },
+  withdrawButtonText: { fontSize: FontSizes.sm, fontWeight: '700' },
   statsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginBottom: Spacing.sm },
   escrowHint: {
     fontSize: FontSizes.xs,
-    color: Colors.textMuted,
     marginBottom: Spacing.lg,
     lineHeight: 16,
   },
   statCard: {
     flexBasis: '48%',
     flexGrow: 1,
-    backgroundColor: Colors.surface,
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
     alignItems: 'center',
   },
-  statValue: { fontSize: FontSizes.md, fontWeight: '700', color: Colors.text },
-  statLabel: { fontSize: FontSizes.xs, color: Colors.textSecondary, marginTop: 2, textAlign: 'center' },
-  sectionTitle: { fontSize: FontSizes.md, fontWeight: '700', color: Colors.text, marginBottom: Spacing.sm },
-  emptyInline: { fontSize: FontSizes.sm, color: Colors.textMuted, marginBottom: Spacing.lg },
+  statValue: { fontSize: FontSizes.md, fontWeight: '700' },
+  statLabel: { fontSize: FontSizes.xs, marginTop: 2, textAlign: 'center' },
+  sectionTitle: { fontSize: FontSizes.md, fontWeight: '700', marginBottom: Spacing.sm },
+  emptyInline: { fontSize: FontSizes.sm, marginBottom: Spacing.lg },
   monthlyCard: {
-    backgroundColor: Colors.surface,
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
     marginBottom: Spacing.lg,
     gap: Spacing.sm,
   },
   monthlyRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  monthlyLabel: { fontSize: FontSizes.xs, color: Colors.textSecondary, width: 64 },
+  monthlyLabel: { fontSize: FontSizes.xs, width: 64 },
   monthlyBarTrack: {
     flex: 1,
     height: 8,
-    backgroundColor: Colors.border,
     borderRadius: 4,
     overflow: 'hidden',
   },
-  monthlyBarFill: { height: '100%', backgroundColor: Colors.primary, borderRadius: 4 },
-  monthlyAmount: { fontSize: FontSizes.xs, fontWeight: '700', color: Colors.text, width: 84, textAlign: 'right' },
+  monthlyBarFill: { height: '100%', borderRadius: 4 },
+  monthlyAmount: { fontSize: FontSizes.xs, fontWeight: '700', width: 84, textAlign: 'right' },
   withdrawalRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: Colors.surface,
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
     marginBottom: Spacing.sm,
   },
-  withdrawalDesc: { fontSize: FontSizes.sm, fontWeight: '600', color: Colors.text },
-  withdrawalDate: { fontSize: FontSizes.xs, color: Colors.textMuted, marginTop: 2 },
-  withdrawalAmount: { fontSize: FontSizes.sm, fontWeight: '700', color: Colors.text },
-  withdrawalStatus: { fontSize: FontSizes.xs, color: Colors.textMuted, marginTop: 2, textTransform: 'capitalize' },
+  withdrawalDesc: { fontSize: FontSizes.sm, fontWeight: '600' },
+  withdrawalDate: { fontSize: FontSizes.xs, marginTop: 2 },
+  withdrawalAmount: { fontSize: FontSizes.sm, fontWeight: '700' },
+  withdrawalStatus: { fontSize: FontSizes.xs, marginTop: 2, textTransform: 'capitalize' },
 });

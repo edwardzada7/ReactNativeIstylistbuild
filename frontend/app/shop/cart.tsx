@@ -10,6 +10,7 @@ import { useAuth } from '../../src/contexts/AuthContext';
 import { shopService } from '../../src/services/shop.service';
 import { useCartStore } from '../../src/store/cartStore';
 import { formatCurrency } from '../../src/utils/currency';
+import { useTheme } from '../../src/contexts/ThemeContext';
 
 const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_BASE_URL ||
@@ -20,6 +21,7 @@ type CheckoutStep = 'cart' | 'checkout' | 'success' | 'failed' | 'cancelled';
 export default function Cart() {
   const router = useRouter();
   const { user } = useAuth();
+  const { colors } = useTheme();
   const { lines, setQuantity, removeItem, clear, total } = useCartStore();
   const [checkingOut, setCheckingOut] = useState(false);
   const [step, setStep] = useState<CheckoutStep>('cart');
@@ -134,12 +136,12 @@ export default function Cart() {
 
   if (step === 'checkout' && checkoutUrl) {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => setStep('cart')} accessibilityRole="button" accessibilityLabel="Go back">
-            <Ionicons name="arrow-back" size={24} color={Colors.text} />
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={styles.title}>Complete Payment</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Complete Payment</Text>
           <View style={{ width: 24 }} />
         </View>
         <View style={{ flex: 1 }}>
@@ -149,14 +151,14 @@ export default function Cart() {
             startInLoadingState
             renderLoading={() => (
               <View style={styles.centerState}>
-                <ActivityIndicator size="large" color={Colors.primary} />
+                <ActivityIndicator size="large" color={colors.primary} />
               </View>
             )}
           />
           {verifying ? (
             <View style={styles.overlay}>
-              <ActivityIndicator size="large" color={Colors.primary} />
-              <Text style={styles.overlayText}>Confirming payment...</Text>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text style={[styles.overlayText, { color: colors.text }]}>Confirming payment...</Text>
             </View>
           ) : null}
         </View>
@@ -166,18 +168,18 @@ export default function Cart() {
 
   if (step === 'success') {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
         <View style={styles.header}>
           <View style={{ width: 24 }} />
-          <Text style={styles.title}>Order Placed</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Order Placed</Text>
           <View style={{ width: 24 }} />
         </View>
         <View style={styles.centerState}>
-          <View style={styles.resultIcon}>
-            <Ionicons name="checkmark" size={42} color={Colors.text} />
+          <View style={[styles.resultIcon, { backgroundColor: colors.success }]}>
+            <Ionicons name="checkmark" size={42} color={colors.text} />
           </View>
-          <Text style={styles.resultTitle}>Payment Successful</Text>
-          <Text style={styles.resultSubtitle}>Your shop order has been placed and your cart is clear.</Text>
+          <Text style={[styles.resultTitle, { color: colors.text }]}>Payment Successful</Text>
+          <Text style={[styles.resultSubtitle, { color: colors.textSecondary }]}>Your shop order has been placed and your cart is clear.</Text>
           <Button title="View Orders" onPress={() => router.replace('/shop/orders')} fullWidth size="large" />
         </View>
       </SafeAreaView>
@@ -186,20 +188,20 @@ export default function Cart() {
 
   if (step === 'failed' || step === 'cancelled') {
     return (
-      <SafeAreaView style={styles.container} edges={['top']}>
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => setStep('cart')} accessibilityRole="button" accessibilityLabel="Go back">
-            <Ionicons name="arrow-back" size={24} color={Colors.text} />
+            <Ionicons name="arrow-back" size={24} color={colors.text} />
           </TouchableOpacity>
-          <Text style={styles.title}>{step === 'cancelled' ? 'Payment Cancelled' : 'Payment Failed'}</Text>
+          <Text style={[styles.title, { color: colors.text }]}>{step === 'cancelled' ? 'Payment Cancelled' : 'Payment Failed'}</Text>
           <View style={{ width: 24 }} />
         </View>
         <View style={styles.centerState}>
-          <View style={[styles.resultIcon, { backgroundColor: step === 'cancelled' ? Colors.warning : Colors.error }]}>
-            <Ionicons name={step === 'cancelled' ? 'alert' : 'close'} size={42} color={Colors.text} />
+          <View style={[styles.resultIcon, { backgroundColor: step === 'cancelled' ? colors.warning : colors.error }]}>
+            <Ionicons name={step === 'cancelled' ? 'alert' : 'close'} size={42} color={colors.text} />
           </View>
-          <Text style={styles.resultTitle}>{step === 'cancelled' ? 'Payment Cancelled' : 'Payment Failed'}</Text>
-          <Text style={styles.resultSubtitle}>{error || 'Your payment could not be completed. Your cart is still intact.'}</Text>
+          <Text style={[styles.resultTitle, { color: colors.text }]}>{step === 'cancelled' ? 'Payment Cancelled' : 'Payment Failed'}</Text>
+          <Text style={[styles.resultSubtitle, { color: colors.textSecondary }]}>{error || 'Your payment could not be completed. Your cart is still intact.'}</Text>
           <Button title="Try Again" onPress={() => setStep('cart')} fullWidth size="large" />
         </View>
       </SafeAreaView>
@@ -207,59 +209,59 @@ export default function Cart() {
   }
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back">
-          <Ionicons name="arrow-back" size={24} color={Colors.text} />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>My Cart</Text>
+        <Text style={[styles.title, { color: colors.text }]}>My Cart</Text>
         <TouchableOpacity onPress={() => router.push('/shop/orders')} accessibilityRole="button" accessibilityLabel="Order history">
-          <Ionicons name="receipt-outline" size={22} color={Colors.text} />
+          <Ionicons name="receipt-outline" size={22} color={colors.text} />
         </TouchableOpacity>
       </View>
 
       {lines.length === 0 ? (
         <View style={styles.centerState}>
-          <Ionicons name="cart-outline" size={32} color={Colors.textMuted} />
-          <Text style={styles.emptyText}>Your cart is empty.</Text>
+          <Ionicons name="cart-outline" size={32} color={colors.textMuted} />
+          <Text style={[styles.emptyText, { color: colors.textSecondary }]}>Your cart is empty.</Text>
         </View>
       ) : (
         <>
           <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
             {lines.map((line) => (
-              <View key={line.productId} style={styles.line}>
+              <View key={line.productId} style={[styles.line, { backgroundColor: colors.surface }]}>
                 {line.image ? (
                   <Image source={{ uri: line.image }} style={styles.lineImage} />
                 ) : (
-                  <View style={[styles.lineImage, styles.lineImagePlaceholder]}>
-                    <Ionicons name="image-outline" size={20} color={Colors.textMuted} />
+                  <View style={[styles.lineImage, styles.lineImagePlaceholder, { backgroundColor: colors.background }]}>
+                    <Ionicons name="image-outline" size={20} color={colors.textMuted} />
                   </View>
                 )}
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.lineName} numberOfLines={1}>{line.name}</Text>
-                  <Text style={styles.linePrice}>{formatCurrency(line.price)}</Text>
+                  <Text style={[styles.lineName, { color: colors.text }]} numberOfLines={1}>{line.name}</Text>
+                  <Text style={[styles.linePrice, { color: colors.primary }]}>{formatCurrency(line.price)}</Text>
                 </View>
                 <View style={styles.qtyRow}>
-                  <TouchableOpacity style={styles.qtyBtn} onPress={() => setQuantity(line.productId, line.quantity - 1)} accessibilityLabel="Decrease quantity">
-                    <Ionicons name="remove" size={16} color={Colors.text} />
+                  <TouchableOpacity style={[styles.qtyBtn, { backgroundColor: colors.background }]} onPress={() => setQuantity(line.productId, line.quantity - 1)} accessibilityLabel="Decrease quantity">
+                    <Ionicons name="remove" size={16} color={colors.text} />
                   </TouchableOpacity>
-                  <Text style={styles.qtyText}>{line.quantity}</Text>
-                  <TouchableOpacity style={styles.qtyBtn} onPress={() => setQuantity(line.productId, line.quantity + 1)} accessibilityLabel="Increase quantity">
-                    <Ionicons name="add" size={16} color={Colors.text} />
+                  <Text style={[styles.qtyText, { color: colors.text }]}>{line.quantity}</Text>
+                  <TouchableOpacity style={[styles.qtyBtn, { backgroundColor: colors.background }]} onPress={() => setQuantity(line.productId, line.quantity + 1)} accessibilityLabel="Increase quantity">
+                    <Ionicons name="add" size={16} color={colors.text} />
                   </TouchableOpacity>
                 </View>
                 <TouchableOpacity onPress={() => removeItem(line.productId)} accessibilityLabel="Remove item">
-                  <Ionicons name="trash-outline" size={18} color={Colors.error} />
+                  <Ionicons name="trash-outline" size={18} color={colors.error} />
                 </TouchableOpacity>
               </View>
             ))}
           </ScrollView>
-          <View style={styles.footer}>
+          <View style={[styles.footer, { borderTopColor: colors.border }]}>
             <View style={styles.totalRow}>
-              <Text style={styles.totalLabel}>Total</Text>
-              <Text style={styles.totalValue}>{formatCurrency(total())}</Text>
+              <Text style={[styles.totalLabel, { color: colors.textSecondary }]}>Total</Text>
+              <Text style={[styles.totalValue, { color: colors.text }]}>{formatCurrency(total())}</Text>
             </View>
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+            {error ? <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text> : null}
             <Button title={checkingOut ? 'Preparing Checkout...' : 'Checkout'} onPress={handleCheckout} loading={checkingOut} fullWidth size="large" />
           </View>
         </>
@@ -269,36 +271,35 @@ export default function Cart() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+  container: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md },
-  title: { fontSize: FontSizes.lg, fontWeight: 'bold', color: Colors.text },
+  title: { fontSize: FontSizes.lg, fontWeight: 'bold' },
   centerState: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: Spacing.sm, paddingHorizontal: Spacing.xl },
-  emptyText: { fontSize: FontSizes.sm, color: Colors.textSecondary },
+  emptyText: { fontSize: FontSizes.sm },
   content: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xl },
-  line: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: Colors.surface, borderRadius: BorderRadius.md, padding: Spacing.sm, marginBottom: Spacing.sm },
+  line: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, borderRadius: BorderRadius.md, padding: Spacing.sm, marginBottom: Spacing.sm },
   lineImage: { width: 48, height: 48, borderRadius: BorderRadius.sm },
-  lineImagePlaceholder: { backgroundColor: Colors.background, justifyContent: 'center', alignItems: 'center' },
-  lineName: { fontSize: FontSizes.sm, fontWeight: '600', color: Colors.text },
-  linePrice: { fontSize: FontSizes.xs, color: Colors.primary, fontWeight: '700', marginTop: 2 },
+  lineImagePlaceholder: { justifyContent: 'center', alignItems: 'center' },
+  lineName: { fontSize: FontSizes.sm, fontWeight: '600' },
+  linePrice: { fontSize: FontSizes.xs, fontWeight: '700', marginTop: 2 },
   qtyRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  qtyBtn: { width: 26, height: 26, borderRadius: 13, backgroundColor: Colors.background, justifyContent: 'center', alignItems: 'center' },
-  qtyText: { fontSize: FontSizes.sm, fontWeight: '600', color: Colors.text, minWidth: 18, textAlign: 'center' },
-  footer: { padding: Spacing.lg, borderTopWidth: 1, borderTopColor: Colors.border },
+  qtyBtn: { width: 26, height: 26, borderRadius: 13, justifyContent: 'center', alignItems: 'center' },
+  qtyText: { fontSize: FontSizes.sm, fontWeight: '600', minWidth: 18, textAlign: 'center' },
+  footer: { padding: Spacing.lg, borderTopWidth: 1 },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: Spacing.md },
-  totalLabel: { fontSize: FontSizes.md, color: Colors.textSecondary },
-  totalValue: { fontSize: FontSizes.lg, fontWeight: '800', color: Colors.text },
-  errorText: { fontSize: FontSizes.sm, color: Colors.error, marginBottom: Spacing.sm, textAlign: 'center' },
+  totalLabel: { fontSize: FontSizes.md },
+  totalValue: { fontSize: FontSizes.lg, fontWeight: '800' },
+  errorText: { fontSize: FontSizes.sm, marginBottom: Spacing.sm, textAlign: 'center' },
   overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', gap: Spacing.md },
-  overlayText: { fontSize: FontSizes.sm, color: Colors.text },
+  overlayText: { fontSize: FontSizes.sm },
   resultIcon: {
     width: 88,
     height: 88,
     borderRadius: 44,
-    backgroundColor: Colors.success,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: Spacing.lg,
   },
-  resultTitle: { fontSize: FontSizes.xl, fontWeight: 'bold', color: Colors.text, marginBottom: Spacing.sm },
-  resultSubtitle: { fontSize: FontSizes.sm, color: Colors.textSecondary, textAlign: 'center', marginBottom: Spacing.xl },
+  resultTitle: { fontSize: FontSizes.xl, fontWeight: 'bold', marginBottom: Spacing.sm },
+  resultSubtitle: { fontSize: FontSizes.sm, textAlign: 'center', marginBottom: Spacing.xl },
 });

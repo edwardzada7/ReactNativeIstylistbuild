@@ -87,16 +87,15 @@ export const walletService = {
     });
   },
 
-  // KNOWN BACKEND LIMITATION: no withdrawal-request creation endpoint could
-  // be found on the production API after testing 20+ plausible route names
-  // (e.g. /wallet/withdraw, /wallets/{id}/withdraw, /withdrawal-requests,
-  // /wallets/{id}/payout, /wallets/{id}/cashout - all 404). This throws a
-  // clear, typed error so the UI can show a "coming soon" message instead of
-  // silently failing or pretending the request succeeded.
-  async requestWithdrawal(_data: WithdrawRequest): Promise<never> {
-    const err: any = new Error('Withdrawals are not yet supported by the production API.');
-    err.friendlyMessage =
-      'Withdrawal requests are coming soon. This feature is not yet available on the server.';
-    throw err;
+  // Real contract (verified against production web app source,
+  // frontend/src/screens/WalletScreen.jsx handleWithdrawRequest):
+  // POST /withdrawals/request?auth_id={authId}
+  // Body: { amount, bank_name, account_name, account_number, note? }
+  // Returns: { ok: boolean, message?: string }
+  async requestWithdrawal(data: WithdrawRequest & { authId: string }): Promise<{ ok: boolean; message?: string }> {
+    const { authId, ...withdrawalData } = data;
+    return apiService.post('/withdrawals/request', withdrawalData, {
+      params: { auth_id: authId },
+    });
   },
 };

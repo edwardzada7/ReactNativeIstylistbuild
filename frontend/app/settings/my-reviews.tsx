@@ -6,6 +6,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { reviewService } from '../../src/services/review.service';
 import { Review } from '../../src/types';
+import { useTheme } from '../../src/contexts/ThemeContext';
 
 const Stars = ({ rating }: { rating: number }) => (
   <View style={{ flexDirection: 'row', gap: 2 }}>
@@ -22,6 +23,7 @@ const Stars = ({ rating }: { rating: number }) => (
  */
 export default function MyReviews() {
   const router = useRouter();
+  const { colors } = useTheme();
   const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -45,12 +47,12 @@ export default function MyReviews() {
   );
 
   return (
-    <SafeAreaView style={styles.container} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back">
-          <Ionicons name="arrow-back" size={24} color={Colors.text} />
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={styles.title}>My Reviews</Text>
+        <Text style={[styles.title, { color: colors.text }]}>My Reviews</Text>
         <View style={{ width: 24 }} />
       </View>
       {loading ? (
@@ -74,21 +76,21 @@ export default function MyReviews() {
         >
           {reviews.length === 0 ? (
             <View style={styles.centerState}>
-              <Ionicons name="star-outline" size={32} color={Colors.textMuted} />
-              <Text style={styles.emptyText}>You haven&apos;t written any reviews yet.</Text>
+              <Ionicons name="star-outline" size={32} color={colors.textSecondary} />
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>You haven&apos;t written any reviews yet.</Text>
             </View>
           ) : (
             reviews.map((review) => (
-              <View key={review.id} style={styles.card}>
+              <View key={review.id} style={[styles.card, { backgroundColor: colors.surface }]}>
                 <View style={styles.cardHeader}>
                   <Stars rating={review.rating} />
                   {!!review.created_at && (
-                    <Text style={styles.date}>
+                    <Text style={[styles.date, { color: colors.textSecondary }]}>
                       {new Date(review.created_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })}
                     </Text>
                   )}
                 </View>
-                {!!review.comment && <Text style={styles.comment}>{review.comment}</Text>}
+                {!!review.comment && <Text style={[styles.comment, { color: colors.textSecondary }]}>{review.comment}</Text>}
               </View>
             ))
           )}
@@ -99,7 +101,7 @@ export default function MyReviews() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: Colors.background },
+  container: { flex: 1 },
   centerState: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: Spacing.sm, paddingTop: Spacing.xxl },
   header: {
     flexDirection: 'row',
@@ -108,11 +110,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
   },
-  title: { fontSize: FontSizes.lg, fontWeight: 'bold', color: Colors.text },
+  title: { fontSize: FontSizes.lg, fontWeight: 'bold' },
   content: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xl },
-  emptyText: { fontSize: FontSizes.sm, color: Colors.textSecondary, textAlign: 'center', paddingHorizontal: Spacing.xl },
-  card: { backgroundColor: Colors.surface, borderRadius: BorderRadius.md, padding: Spacing.md, marginBottom: Spacing.sm },
+  emptyText: { fontSize: FontSizes.sm, textAlign: 'center', paddingHorizontal: Spacing.xl },
+  card: { borderRadius: BorderRadius.md, padding: Spacing.md, marginBottom: Spacing.sm },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.sm },
-  date: { fontSize: FontSizes.xs, color: Colors.textMuted },
-  comment: { fontSize: FontSizes.sm, color: Colors.textSecondary, lineHeight: 20 },
+  date: { fontSize: FontSizes.xs },
+  comment: { fontSize: FontSizes.sm, lineHeight: 20 },
 });
