@@ -140,7 +140,7 @@ class ProductReviewUpdateInput(BaseModel):
 class PaystackShopInitializeInput(BaseModel):
     amount: float
     email: str
-    items: Optional[List[OrderItemInput]] = None
+    items: List[OrderItemInput] = Field(min_length=1)  # Required: at least 1 item
     name: Optional[str] = None
     phone: Optional[str] = None
     redirect_url: Optional[str] = None
@@ -632,7 +632,7 @@ async def initialize_paystack_shop_checkout(request: Request, payload: PaystackS
         logger.exception("[paystack-init] auth verification failed: %s", exc)
         raise HTTPException(status_code=500, detail="Could not verify user session") from exc
 
-    validation = _validate_shop_checkout_items(payload.items or [], payload.amount)
+    validation = _validate_shop_checkout_items(payload.items, payload.amount)
     amount_kobo = int(round(float(payload.amount) * 100))
     if amount_kobo <= 0:
         raise HTTPException(status_code=400, detail="Amount must be greater than zero")
@@ -641,7 +641,7 @@ async def initialize_paystack_shop_checkout(request: Request, payload: PaystackS
     _create_pending_shop_order(
         auth_id=auth_id,
         reference=reference,
-        items=payload.items or [],
+        items=payload.items,
         products=validation["products"],
         provider_auth_id=validation["provider_auth_id"],
         customer_name=payload.name or payload.email or auth_id,
@@ -659,7 +659,7 @@ async def initialize_paystack_shop_checkout(request: Request, payload: PaystackS
             "name": payload.name or '',
             "phone": payload.phone or '',
             "purpose": 'shop_checkout',
-            "items": [item.dict() for item in (payload.items or [])],
+            "items": [item.dict() for item in payload.items],
         },
     }
     logger.info("[paystack-init] outbound payload=%s", paystack_payload)
@@ -985,6 +985,133 @@ def send_chat_message(payload: SendMessageInput, authorization: Optional[str] = 
     if resp.status_code not in (200, 201):
         raise HTTPException(status_code=502, detail="Could not send message")
     return resp.json()[0]
+
+
+# ============================================================================
+# User Profile Management - GET and PATCH /users/by-auth/{auth_id}
+# ============================================================================
+
+@api_router.get("/users/by-auth/{auth_id}")
+def get_user_by_auth_id(auth_id: str):
+    """Fetch user profile by auth_id from the users table in Supabase.
+    This is the primary endpoint for loading user profile on app startup."""
+    try:
+        resp = requests.get(
+            f"{SUPABASE_URL}/rest/v1/users?auth_id=eq.{auth_id}&select=*",
+            headers=_supabase_headers(),
+            timeout=10,
+        )
+        if resp.status_code != 200:
+            raise HTTPException(status_code=502, detail="Could not fetch user from database")
+        
+        users = resp.json()
+        if not users:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        return users[0]
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("[get_user_by_auth_id] failed to fetch user: %s", exc)
+        raise HTTPException(status_code=500, detail="Internal server error") from exc
+
+
+class UpdateUserInput(BaseModel):
+    account_type: Optional[str] = None
+    name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    gender: Optional[str] = None
+    country: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    location_address: Optional[str] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    profile_completed: Optional[bool] = None
+
+
+@api_router.patch("/users/by-auth/{auth_id}")
+def update_user_by_auth_id(auth_id: str, payload: UpdateUserInput, authorization: Optional[str] = Header(None)):
+    """Update user profile fields by auth_id.
+    Currently handles account_type updates for Individual/Business selection.
+    Requires authentication token to verify ownership."""
+    try:
+        # Verify that the requester is updating their own profile
+        requesting_auth_id = _verify_supabase_user(authorization)
+        if requesting_auth_id != auth_id:
+            raise HTTPException(status_code=403, detail="Unauthorized: can only update own profile")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("[update_user_by_auth_id] auth verification failed: %s", exc)
+        raise HTTPException(status_code=401, detail="Invalid or expired session") from exc
+    
+    # Build update payload with only non-None fields
+    update_data = {}
+    if payload.account_type is not None:
+        if payload.account_type not in ('individual', 'business'):
+            raise HTTPException(status_code=400, detail="Invalid account_type: must be 'individual' or 'business'")
+        update_data['account_type'] = payload.account_type
+    
+    if payload.name is not None:
+        update_data['name'] = payload.name
+    if payload.email is not None:
+        update_data['email'] = payload.email
+    if payload.phone is not None:
+        update_data['phone'] = payload.phone
+    if payload.gender is not None:
+        update_data['gender'] = payload.gender
+    if payload.country is not None:
+        update_data['country'] = payload.country
+    if payload.city is not None:
+        update_data['city'] = payload.city
+    if payload.state is not None:
+        update_data['state'] = payload.state
+    if payload.location_address is not None:
+        update_data['location_address'] = payload.location_address
+    if payload.latitude is not None:
+        update_data['latitude'] = payload.latitude
+    if payload.longitude is not None:
+        update_data['longitude'] = payload.longitude
+    if payload.profile_completed is not None:
+        update_data['profile_completed'] = payload.profile_completed
+    
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    
+    try:
+        # Update in Supabase users table
+        resp = requests.patch(
+            f"{SUPABASE_URL}/rest/v1/users?auth_id=eq.{auth_id}",
+            headers=_supabase_headers(),
+            json=update_data,
+            timeout=10,
+        )
+        
+        if resp.status_code not in (200, 201, 204):
+            logger.error("[update_user_by_auth_id] update failed: status=%s body=%s", resp.status_code, resp.text)
+            raise HTTPException(status_code=502, detail="Could not update user profile")
+        
+        # Return the updated user
+        fetch_resp = requests.get(
+            f"{SUPABASE_URL}/rest/v1/users?auth_id=eq.{auth_id}&select=*",
+            headers=_supabase_headers(),
+            timeout=10,
+        )
+        if fetch_resp.status_code != 200:
+            raise HTTPException(status_code=502, detail="Could not fetch updated user")
+        
+        users = fetch_resp.json()
+        if not users:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        return users[0]
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("[update_user_by_auth_id] failed to update user: %s", exc)
+        raise HTTPException(status_code=500, detail="Internal server error") from exc
 
 
 # Include the router in the main app
