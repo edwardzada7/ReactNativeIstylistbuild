@@ -140,7 +140,7 @@ class ProductReviewUpdateInput(BaseModel):
 class PaystackShopInitializeInput(BaseModel):
     amount: float
     email: str
-    items: List[OrderItemInput] = Field(min_length=1)  # Required: at least 1 item
+    items: Optional[List[OrderItemInput]] = None
     name: Optional[str] = None
     phone: Optional[str] = None
     redirect_url: Optional[str] = None
@@ -632,7 +632,7 @@ async def initialize_paystack_shop_checkout(request: Request, payload: PaystackS
         logger.exception("[paystack-init] auth verification failed: %s", exc)
         raise HTTPException(status_code=500, detail="Could not verify user session") from exc
 
-    validation = _validate_shop_checkout_items(payload.items, payload.amount)
+    validation = _validate_shop_checkout_items(payload.items or [], payload.amount)
     amount_kobo = int(round(float(payload.amount) * 100))
     if amount_kobo <= 0:
         raise HTTPException(status_code=400, detail="Amount must be greater than zero")
@@ -641,7 +641,7 @@ async def initialize_paystack_shop_checkout(request: Request, payload: PaystackS
     _create_pending_shop_order(
         auth_id=auth_id,
         reference=reference,
-        items=payload.items,
+        items=payload.items or [],
         products=validation["products"],
         provider_auth_id=validation["provider_auth_id"],
         customer_name=payload.name or payload.email or auth_id,
@@ -659,7 +659,7 @@ async def initialize_paystack_shop_checkout(request: Request, payload: PaystackS
             "name": payload.name or '',
             "phone": payload.phone or '',
             "purpose": 'shop_checkout',
-            "items": [item.dict() for item in payload.items],
+            "items": [item.dict() for item in (payload.items or [])],
         },
     }
     logger.info("[paystack-init] outbound payload=%s", paystack_payload)
