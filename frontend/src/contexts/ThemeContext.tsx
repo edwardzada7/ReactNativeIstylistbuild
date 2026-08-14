@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors } from '../constants/theme';
+import { useAuth } from './AuthContext';
 
 type ThemeMode = 'light' | 'dark';
 
@@ -14,7 +15,7 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
-const THEME_STORAGE_KEY = '@istylist_theme_mode';
+const DEFAULT_THEME_STORAGE_KEY = '@istylist_theme_mode';
 
 export const useTheme = () => {
   const context = useContext(ThemeContext);
@@ -29,31 +30,35 @@ interface ThemeProviderProps {
 }
 
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
+  const { user } = useAuth();
   const [mode, setMode] = useState<ThemeMode>('light');
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load theme from storage on mount
-  useEffect(() => {
-    loadTheme();
-  }, []);
+  const storageKey = user?.auth_id ? `@istylist_theme_mode:${user.auth_id}` : DEFAULT_THEME_STORAGE_KEY;
 
-  const loadTheme = async () => {
-    try {
-      const savedMode = await AsyncStorage.getItem(THEME_STORAGE_KEY);
-      if (savedMode === 'dark' || savedMode === 'light') {
-        setMode(savedMode);
+  useEffect(() => {
+    const loadTheme = async () => {
+      try {
+        const savedMode = await AsyncStorage.getItem(storageKey);
+        if (savedMode === 'dark' || savedMode === 'light') {
+          setMode(savedMode);
+        } else {
+          setMode('light');
+        }
+      } catch (error) {
+        console.error('[ThemeContext] Failed to load theme:', error);
+      } finally {
+        setIsLoading(false);
       }
-      // Default to light if no preference saved
-    } catch (error) {
-      console.error('[ThemeContext] Failed to load theme:', error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    };
+
+    setIsLoading(true);
+    loadTheme();
+  }, [storageKey]);
 
   const saveTheme = async (newMode: ThemeMode) => {
     try {
-      await AsyncStorage.setItem(THEME_STORAGE_KEY, newMode);
+      await AsyncStorage.setItem(storageKey, newMode);
     } catch (error) {
       console.error('[ThemeContext] Failed to save theme:', error);
     }

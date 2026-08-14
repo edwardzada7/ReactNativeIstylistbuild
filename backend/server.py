@@ -112,7 +112,7 @@ class OrderItemInput(BaseModel):
 
 
 class CreateOrderInput(BaseModel):
-    items: List[OrderItemInput]
+    items: List[OrderItemInput] = Field(..., min_items=1)
     payment_reference: Optional[str] = None
     payment_status: Optional[str] = None
     subtotal: Optional[float] = None
@@ -140,7 +140,7 @@ class ProductReviewUpdateInput(BaseModel):
 class PaystackShopInitializeInput(BaseModel):
     amount: float
     email: str
-    items: Optional[List[OrderItemInput]] = None
+    items: List[OrderItemInput] = Field(..., min_items=1)
     name: Optional[str] = None
     phone: Optional[str] = None
     redirect_url: Optional[str] = None
@@ -1088,11 +1088,21 @@ def update_user_by_auth_id(auth_id: str, payload: UpdateUserInput, authorization
             json=update_data,
             timeout=10,
         )
-        
+
         if resp.status_code not in (200, 201, 204):
             logger.error("[update_user_by_auth_id] update failed: status=%s body=%s", resp.status_code, resp.text)
             raise HTTPException(status_code=502, detail="Could not update user profile")
-        
+
+        if payload.account_type is not None:
+            stylist_resp = requests.patch(
+                f"{SUPABASE_URL}/rest/v1/stylists?auth_id=eq.{auth_id}",
+                headers=_supabase_headers(),
+                json={"account_type": payload.account_type},
+                timeout=10,
+            )
+            if stylist_resp.status_code not in (200, 201, 204):
+                logger.warning("[update_user_by_auth_id] stylist account_type sync failed: status=%s body=%s", stylist_resp.status_code, stylist_resp.text)
+
         # Return the updated user
         fetch_resp = requests.get(
             f"{SUPABASE_URL}/rest/v1/users?auth_id=eq.{auth_id}&select=*",
