@@ -162,6 +162,7 @@ export default function BookingDetails() {
   const canProviderDecline = isProvider && booking.status === 'pending';
   const canProviderComplete = isProvider && booking.status === 'confirmed';
   const canProviderCancel = isProvider && ['pending', 'confirmed'].includes(booking.status) && booking.status !== 'pending';
+  const canProviderMarkNoShow = isProvider && booking.status === 'confirmed';
   const canRebook = !isProvider && ['completed', 'canceled', 'declined'].includes(booking.status);
 
   const services = booking.services && booking.services.length > 0 ? booking.services : null;
@@ -354,13 +355,25 @@ export default function BookingDetails() {
             />
           )}
 
+          {canProviderMarkNoShow && (
+            <Button
+              title="Mark as No-Show"
+              variant="outline"
+              onPress={() => handleStatusUpdate('provider_no_show')}
+              loading={updating}
+              fullWidth
+              style={styles.actionSpacing}
+            />
+          )}
+
           {!canCustomerPay &&
             !canCustomerCancel &&
             !canRebook &&
             !canProviderConfirm &&
             !canProviderDecline &&
             !canProviderComplete &&
-            !canProviderCancel && <Text style={[styles.rowText, { color: colors.text }]}>No actions available for this booking.</Text>}
+            !canProviderCancel &&
+            !canProviderMarkNoShow && <Text style={[styles.rowText, { color: colors.text }]}>No actions available for this booking.</Text>}
         </View>
       </ScrollView>
     </SafeAreaView>

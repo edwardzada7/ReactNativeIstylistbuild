@@ -58,6 +58,7 @@ const ACTIONS_FOR_STATUS: Record<string, { label: string; next: string; destruct
   ],
   confirmed: [
     { label: 'Mark Completed', next: 'completed' },
+    { label: 'Mark No-Show', next: 'provider_no_show', destructive: true },
     { label: 'Cancel', next: 'canceled', destructive: true },
   ],
 };

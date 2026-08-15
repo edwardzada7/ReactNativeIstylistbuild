@@ -99,14 +99,13 @@ export default function ProviderDashboard() {
     loadData();
   };
 
+  const cancelledStatuses = ['canceled', 'cancelled', 'declined', 'rejected', 'no_show_pending', 'user_no_show', 'provider_no_show', 'disputed'];
   const { todays, pending, upcoming, completed, cancelled, totalEarnings, pendingPayout } = useMemo(() => {
-    const todays = bookings.filter((b) => isSameDay(b.scheduled_at) && b.status !== 'cancelled');
+    const todays = bookings.filter((b) => isSameDay(b.scheduled_at) && !cancelledStatuses.includes((b.status || '').toLowerCase()));
     const pending = bookings.filter((b) => b.status === 'pending');
-    const upcoming = bookings.filter((b) =>
-      ['confirmed', 'arrived'].includes(b.status)
-    );
+    const upcoming = bookings.filter((b) => ['confirmed', 'arrived'].includes((b.status || '').toLowerCase()));
     const completed = bookings.filter((b) => b.status === 'completed');
-    const cancelled = bookings.filter((b) => ['cancelled', 'rejected'].includes(b.status));
+    const cancelled = bookings.filter((b) => cancelledStatuses.includes((b.status || '').toLowerCase()));
     const totalEarnings = completed.reduce((sum, b) => sum + (b.total_amount || 0), 0);
     // Real earnings still tied up in active (unfinished) bookings - a
     // best-effort "pending" figure derived from real booking data since the
@@ -114,6 +113,17 @@ export default function ProviderDashboard() {
     const pendingPayout = upcoming.reduce((sum, b) => sum + (b.total_amount || 0), 0);
     return { todays, pending, upcoming, completed, cancelled, totalEarnings, pendingPayout };
   }, [bookings]);
+
+  const analytics = useMemo(() => {
+    const total = bookings.length;
+    const pendingCount = bookings.filter((b) => ['pending', 'pending_payment'].includes((b.status || '').toLowerCase())).length;
+    const completedCount = bookings.filter((b) => (b.status || '').toLowerCase() === 'completed').length;
+    const cancelledCount = bookings.filter((b) => cancelledStatuses.includes((b.status || '').toLowerCase())).length;
+    const noShowCount = bookings.filter((b) => ['no_show_pending', 'user_no_show', 'provider_no_show'].includes((b.status || '').toLowerCase())).length;
+    return { total, pendingCount, completedCount, cancelledCount, noShowCount };
+  }, [bookings]);
+
+  const servicePreview = useMemo(() => (profile?.services || []).slice(0, 3), [profile?.services]);
 
   const orderStats = useMemo(() => {
     const total = shopOrders.length;
@@ -252,6 +262,57 @@ export default function ProviderDashboard() {
               </TouchableOpacity>
             ))}
           </View>
+        </View>
+
+        <View style={[styles.analyticsCard, { backgroundColor: colors.surface }]}> 
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Booking Analytics</Text>
+            <Text style={[styles.sectionCount, { color: colors.primary, backgroundColor: colors.background }]}>{analytics.total}</Text>
+          </View>
+          <View style={styles.analyticsGrid}>
+            <View style={styles.analyticsMetric}>
+              <Text style={[styles.analyticsValue, { color: colors.text }]}>{analytics.total}</Text>
+              <Text style={[styles.analyticsLabel, { color: colors.textSecondary }]}>Total</Text>
+            </View>
+            <View style={styles.analyticsMetric}>
+              <Text style={[styles.analyticsValue, { color: colors.text }]}>{analytics.pendingCount}</Text>
+              <Text style={[styles.analyticsLabel, { color: colors.textSecondary }]}>Pending</Text>
+            </View>
+            <View style={styles.analyticsMetric}>
+              <Text style={[styles.analyticsValue, { color: colors.text }]}>{analytics.completedCount}</Text>
+              <Text style={[styles.analyticsLabel, { color: colors.textSecondary }]}>Completed</Text>
+            </View>
+            <View style={styles.analyticsMetric}>
+              <Text style={[styles.analyticsValue, { color: colors.text }]}>{analytics.cancelledCount}</Text>
+              <Text style={[styles.analyticsLabel, { color: colors.textSecondary }]}>Cancelled</Text>
+            </View>
+            <View style={styles.analyticsMetric}>
+              <Text style={[styles.analyticsValue, { color: colors.text }]}>{analytics.noShowCount}</Text>
+              <Text style={[styles.analyticsLabel, { color: colors.textSecondary }]}>No-Show</Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={[styles.trayCard, { backgroundColor: colors.surface }]}> 
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Services</Text>
+            <Text style={[styles.sectionCount, { color: colors.primary, backgroundColor: colors.background }]}>{profile?.services?.length ?? 0}</Text>
+          </View>
+          {servicePreview.length === 0 ? (
+            <Text style={[styles.emptyInline, { color: colors.textSecondary }]}>No services added yet.</Text>
+          ) : (
+            servicePreview.map((service) => (
+              <View key={service.id} style={styles.trayItem}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.bookingService, { color: colors.text }]}>{service.name}</Text>
+                  {!!service.description && (
+                    <Text style={[styles.bookingMeta, { color: colors.textSecondary }]} numberOfLines={2}>{service.description}</Text>
+                  )}
+                </View>
+                <Text style={[styles.bookingAmount, { color: colors.text }]}>{formatCurrency(service.price)}</Text>
+              </View>
+            ))
+          )}
         </View>
 
         <TouchableOpacity
@@ -405,6 +466,44 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   section: { marginBottom: Spacing.lg, paddingHorizontal: Spacing.lg },
+  analyticsCard: {
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.lg,
+  },
+  analyticsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: Spacing.sm,
+    marginTop: Spacing.sm,
+  },
+  analyticsMetric: {
+    flexBasis: '30%',
+    flexGrow: 1,
+    minWidth: 80,
+    padding: Spacing.sm,
+    borderRadius: BorderRadius.sm,
+    backgroundColor: 'rgba(0,0,0,0.02)',
+    alignItems: 'center',
+  },
+  analyticsValue: { fontSize: FontSizes.md, fontWeight: '700' },
+  analyticsLabel: { fontSize: FontSizes.xs, marginTop: 2 },
+  trayCard: {
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginHorizontal: Spacing.lg,
+    marginBottom: Spacing.lg,
+  },
+  trayItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: Spacing.sm,
+    paddingVertical: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
+  },
   ordersCard: {
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
