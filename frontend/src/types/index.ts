@@ -107,6 +107,28 @@ export interface Service {
   home_service?: boolean;
 }
 
+export interface StaffAvailabilityDay {
+  day_of_week: number;
+  is_available: boolean;
+  start_time?: string | null;
+  end_time?: string | null;
+}
+
+export interface StaffMember {
+  id: string;
+  business_auth_id?: string;
+  name: string;
+  role?: string | null;
+  photo_url?: string | null;
+  bio?: string | null;
+  is_active: boolean;
+  display_order?: number;
+  service_ids?: number[];
+  weekly?: StaffAvailabilityDay[];
+  created_at?: string;
+  updated_at?: string;
+}
+
 // Catalog sub-service (production `/api/catalog/sub-services`): the actual
 // bookable service templates (e.g. "Haircut", "Box Braids") that providers
 // pick from when adding a service. Distinct from `Service` because creating

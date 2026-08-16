@@ -8,6 +8,7 @@ import {
   ProviderAvailability,
   CatalogSubService,
   DayAvailability,
+  StaffMember,
 } from '../types';
 import {
   normalizeProvider,
@@ -63,6 +64,21 @@ export const providerService = {
   async getProviderServices(providerId: string): Promise<Service[]> {
     const raw = await apiService.get<any>(`/provider-services/${providerId}`);
     return asList(raw).map(normalizeService);
+  },
+
+  // Real Manage Staff contract: public provider staff list is served at
+  // `/providers/{provider_id}/staff` and includes active/inactive rows.
+  async getProviderStaff(providerId: string, activeOnly = true): Promise<StaffMember[]> {
+    const raw = await apiService.get<any>(`/providers/${providerId}/staff`, {
+      params: { active_only: activeOnly },
+    });
+    const list = Array.isArray(raw?.staff) ? raw.staff : asList(raw);
+    return list.map((item: any) => ({
+      ...item,
+      id: String(item.id),
+      is_active: !!item.is_active,
+      service_ids: Array.isArray(item.service_ids) ? item.service_ids.map(Number) : [],
+    }));
   },
 
   // GROUND TRUTH (Phase 6.4 - verified against production web app source,

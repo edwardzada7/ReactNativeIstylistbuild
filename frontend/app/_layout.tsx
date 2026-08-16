@@ -1,10 +1,10 @@
 import React from 'react';
-import { Stack } from 'expo-router';
+import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import { LogBox } from 'react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { AuthProvider } from '@/src/contexts/AuthContext';
+import { AuthProvider, useAuth } from '@/src/contexts/AuthContext';
 import { ThemeProvider } from '@/src/contexts/ThemeContext';
 import { useIconFonts } from '@/src/hooks/use-icon-fonts';
 
@@ -27,8 +27,11 @@ const queryClient = new QueryClient({
   },
 });
 
-export default function RootLayout() {
+function AppShell() {
   const [loaded, error] = useIconFonts();
+  const router = useRouter();
+  const segments = useSegments();
+  const { isAuthenticated, isLoading } = useAuth();
 
   useEffect(() => {
     if (loaded || error) {
@@ -36,23 +39,39 @@ export default function RootLayout() {
     }
   }, [loaded, error]);
 
+  useEffect(() => {
+    if (isLoading) return;
+
+    const current = segments[0];
+    const protectedGroup = current === '(tabs)' || current === '(provider)' || current === '(admin)';
+    if (!isAuthenticated && protectedGroup) {
+      router.replace('/(auth)/login');
+    }
+  }, [segments, isAuthenticated, isLoading, router]);
+
   // If the CDN is unreachable we fall through on error rather than wedging
   // the app — icons will tofu, but the app still boots.
   if (!loaded && !error) return null;
 
   return (
+    <ThemeProvider>
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="index" />
+        <Stack.Screen name="(onboarding)" />
+        <Stack.Screen name="(auth)" />
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="(provider)" />
+        <Stack.Screen name="(admin)" />
+      </Stack>
+    </ThemeProvider>
+  );
+}
+
+export default function RootLayout() {
+  return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <ThemeProvider>
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="index" />
-            <Stack.Screen name="(onboarding)" />
-            <Stack.Screen name="(auth)" />
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="(provider)" />
-            <Stack.Screen name="(admin)" />
-          </Stack>
-        </ThemeProvider>
+        <AppShell />
       </AuthProvider>
     </QueryClientProvider>
   );

@@ -16,6 +16,7 @@ import { BrandLogo } from '../src/components/branding';
 import { notificationService } from '../src/services/notification.service';
 import { Notification } from '../src/types';
 import { useTheme } from '../src/contexts/ThemeContext';
+import { formatRelativeTime } from '../src/utils/date';
 
 const TYPE_ICON: Record<string, string> = {
   booking: 'calendar-outline',
@@ -25,18 +26,7 @@ const TYPE_ICON: Record<string, string> = {
   system: 'notifications-outline',
 };
 
-const timeAgo = (iso?: string) => {
-  if (!iso) return '';
-  const diffMs = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diffMs / 60000);
-  if (mins < 1) return 'Just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  if (days < 7) return `${days}d ago`;
-  return new Date(iso).toLocaleDateString('en-NG', { day: 'numeric', month: 'short' });
-};
+const timeAgo = (iso?: string | null) => formatRelativeTime(iso);
 
 /**
  * Notifications (Phase 3A). Real data via notificationService, which reads

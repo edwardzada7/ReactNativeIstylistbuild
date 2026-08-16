@@ -94,11 +94,6 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
     border: Colors.light.border,
   };
 
-  // Don't render children until theme is loaded to prevent flash
-  if (isLoading) {
-    return null;
-  }
-
   return (
     <ThemeContext.Provider
       value={{

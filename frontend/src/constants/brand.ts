@@ -18,7 +18,9 @@ export const BrandTypography = {
 
 export const BrandAssets = {
   logo: require('../../assets/images/logo.png') as ImageSourcePropType,
+  appImage: require('../../assets/images/app-image.png') as ImageSourcePropType,
   appIcon: require('../../assets/images/app-icon.png') as ImageSourcePropType,
+  splashImage: require('../../assets/images/splash-image.png') as ImageSourcePropType,
   splashLogo: require('../../assets/images/splash-logo.png') as ImageSourcePropType,
   favicon: require('../../assets/images/favicon.png') as ImageSourcePropType,
 };

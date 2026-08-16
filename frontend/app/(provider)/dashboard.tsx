@@ -135,6 +135,7 @@ export default function ProviderDashboard() {
 
   const quickActions = [
     { icon: 'time-outline', label: 'Availability', onPress: () => router.push('/(provider)/availability') },
+    { icon: 'people-outline', label: 'Manage Staff', onPress: () => router.push('/(provider)/staff') },
     { icon: 'cut-outline', label: 'Services', onPress: () => router.push('/(provider)/services') },
     { icon: 'star-outline', label: 'Reviews', onPress: () => router.push('/(provider)/reviews') },
     { icon: 'wallet-outline', label: 'Wallet', onPress: () => router.push('/(provider)/wallet') },

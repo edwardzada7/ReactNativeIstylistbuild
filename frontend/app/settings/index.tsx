@@ -25,8 +25,13 @@ export default function Settings() {
         text: 'Logout',
         style: 'destructive',
         onPress: async () => {
-          await logout();
-          router.replace('/(auth)/login');
+          try {
+            await logout();
+          } catch (err) {
+            console.error('[settings] logout failed', err);
+          } finally {
+            router.replace('/(auth)/login');
+          }
         },
       },
     ]);

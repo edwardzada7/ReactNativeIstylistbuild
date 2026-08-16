@@ -1,11 +1,9 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, StyleSheet, Image } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
-import { Colors, FontSizes, Spacing } from '../src/constants/theme';
-import { BrandColors } from '../src/constants/brand';
-import { BrandLogo } from '../src/components/branding';
+import { BrandColors, BrandAssets } from '../src/constants/brand';
 import { useAuth } from '../src/contexts/AuthContext';
 import { Loading } from '../src/components/common';
 
@@ -14,24 +12,21 @@ export default function Index() {
   const { isAuthenticated, isLoading, user } = useAuth();
 
   useEffect(() => {
-    if (!isLoading) {
-      const timer = setTimeout(() => {
-        if (isAuthenticated) {
-          if (user?.role === 'admin') {
-            router.replace('/(admin)/feed-moderation');
-          } else if (user?.role === 'provider') {
-            router.replace('/(provider)/dashboard');
-          } else {
-            router.replace('/(tabs)');
-          }
-        } else {
-          router.replace('/(onboarding)');
-        }
-      }, 2000);
+    if (isLoading) return;
 
-      return () => clearTimeout(timer);
+    if (isAuthenticated) {
+      if (user?.role === 'admin') {
+        router.replace('/(admin)/feed-moderation');
+      } else if (user?.role === 'provider') {
+        router.replace('/(provider)/dashboard');
+      } else {
+        router.replace('/(tabs)');
+      }
+      return;
     }
-  }, [isLoading, isAuthenticated, user?.role]);
+
+    router.replace('/(auth)/login');
+  }, [isLoading, isAuthenticated, user?.role, router]);
 
   if (isLoading) {
     return <Loading />;
@@ -44,16 +39,8 @@ export default function Index() {
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
     >
-      <Animated.View
-        entering={FadeIn.duration(1000)}
-        exiting={FadeOut.duration(500)}
-        style={styles.content}
-      >
-        <View style={styles.logoContainer}>
-          <BrandLogo size={112} />
-        </View>
-        <Text style={styles.title}>iStylist</Text>
-        <Text style={styles.tagline}>Your Beauty & Style Partner</Text>
+      <Animated.View entering={FadeIn.duration(600)} exiting={FadeOut.duration(200)} style={styles.content}>
+        <Image source={BrandAssets.appImage} style={styles.brandImage} resizeMode="contain" />
       </Animated.View>
     </LinearGradient>
   );
@@ -66,26 +53,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   content: {
+    width: '100%',
     alignItems: 'center',
-  },
-  logoContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: Spacing.lg,
+    paddingHorizontal: 24,
   },
-  title: {
-    fontSize: FontSizes.xxxl,
-    fontWeight: 'bold',
-    color: Colors.text,
-    marginBottom: Spacing.sm,
-  },
-  tagline: {
-    fontSize: FontSizes.lg,
-    color: Colors.text,
-    opacity: 0.9,
+  brandImage: {
+    width: '100%',
+    maxWidth: 420,
+    height: 480,
   },
 });

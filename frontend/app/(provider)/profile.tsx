@@ -224,8 +224,13 @@ export default function ProviderProfile() {
         text: 'Logout',
         style: 'destructive',
         onPress: async () => {
-          await logout();
-          router.replace('/(auth)/login');
+          try {
+            await logout();
+          } catch (err) {
+            console.error('[provider-profile] logout failed', err);
+          } finally {
+            router.replace('/(auth)/login');
+          }
         },
       },
     ]);
