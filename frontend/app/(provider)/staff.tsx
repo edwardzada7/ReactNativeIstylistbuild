@@ -223,10 +223,15 @@ export default function ProviderManageStaff() {
 
     setSavingProfile(true);
     try {
+      const payload = {
+        ...profileForm,
+        photo_url: profileForm.photo_url || undefined,
+      };
+
       if (editingStaff) {
-        await staffService.update(editingStaff.id, authId, profileForm);
+        await staffService.update(editingStaff.id, authId, payload);
       } else {
-        await staffService.create(authId, profileForm);
+        await staffService.create(authId, payload);
       }
       setProfileVisible(false);
       await refreshAll();

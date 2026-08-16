@@ -20,7 +20,7 @@ import { walletService } from '../../src/services/wallet.service';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { formatCurrency } from '../../src/utils/currency';
-import { Provider, Service } from '../../src/types';
+import { Provider, Service, StaffMember } from '../../src/types';
 
 const NEXT_DAYS = 14;
 
@@ -44,10 +44,12 @@ export default function CreateBooking() {
   }>();
 
   const [provider, setProvider] = useState<Provider | null>(null);
+  const [staffOptions, setStaffOptions] = useState<StaffMember[]>([]);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [slots, setSlots] = useState<string[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
+  const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(true);
   const [slotsLoading, setSlotsLoading] = useState(false);
@@ -84,6 +86,18 @@ export default function CreateBooking() {
       }
     })();
   }, [providerId, serviceId]);
+
+  useEffect(() => {
+    (async () => {
+      if (!providerId) return;
+      try {
+        const activeStaff = await providerService.getProviderStaff(providerId, true);
+        setStaffOptions(activeStaff);
+      } catch {
+        setStaffOptions([]);
+      }
+    })();
+  }, [providerId]);
 
   useEffect(() => {
     (async () => {
@@ -144,6 +158,7 @@ export default function CreateBooking() {
         service_duration_minutes: selectedService.duration || 30,
         notes: notes.trim() || undefined,
         status: 'pending_payment',
+        ...(selectedStaffId ? { staff_id: selectedStaffId } : {}),
       });
 
       // Bug 3 guard: only attempt wallet payment if the booking response
@@ -414,6 +429,56 @@ export default function CreateBooking() {
           </View>
         )}
 
+        {staffOptions.length > 0 && (
+          <>
+            <Text style={[styles.sectionTitle, { color: colors.text, marginTop: Spacing.lg }]}>Choose Staff (optional)</Text>
+            <View style={[styles.staffPicker, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+              <TouchableOpacity
+                style={[
+                  styles.staffOption,
+                  { borderColor: colors.border },
+                  selectedStaffId === null && styles.staffOptionSelected,
+                ]}
+                onPress={() => setSelectedStaffId(null)}
+                accessibilityRole="button"
+                accessibilityLabel="No staff preference"
+              >
+                <Text style={[styles.staffOptionText, { color: colors.text }, selectedStaffId === null && styles.staffOptionTextSelected]}>
+                  Any staff / No preference
+                </Text>
+              </TouchableOpacity>
+
+              {staffOptions.map((member) => (
+                <TouchableOpacity
+                  key={member.id}
+                  style={[
+                    styles.staffOption,
+                    { borderColor: colors.border },
+                    selectedStaffId === member.id && styles.staffOptionSelected,
+                  ]}
+                  onPress={() => setSelectedStaffId(member.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={member.name}
+                >
+                  <View style={styles.staffOptionRow}>
+                    <View style={styles.staffAvatarWrap}>
+                      {member.photo_url ? (
+                        <Image source={{ uri: member.photo_url }} style={styles.staffAvatar} />
+                      ) : (
+                        <Ionicons name="person-circle-outline" size={22} color={colors.textSecondary} />
+                      )}
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.staffOptionText, { color: colors.text }, selectedStaffId === member.id && styles.staffOptionTextSelected]}>{member.name}</Text>
+                      {member.role ? <Text style={[styles.staffOptionMeta, { color: colors.textSecondary }]}>{member.role}</Text> : null}
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </>
+        )}
+
         {/* Notes */}
         <Text style={[styles.sectionTitle, { color: colors.text, marginTop: Spacing.lg }]}>Notes (optional)</Text>
         <TextInput
@@ -580,6 +645,34 @@ const styles = StyleSheet.create({
   },
   slotChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   slotChipText: { fontSize: FontSizes.sm, fontWeight: '600' },
+  staffPicker: {
+    borderWidth: 1,
+    borderRadius: BorderRadius.md,
+    overflow: 'hidden',
+    marginBottom: Spacing.lg,
+  },
+  staffOption: {
+    borderBottomWidth: 1,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+  },
+  staffOptionSelected: {
+    backgroundColor: `${Colors.primary}12`,
+  },
+  staffOptionText: { fontSize: FontSizes.sm, fontWeight: '600' },
+  staffOptionTextSelected: { color: Colors.primary },
+  staffOptionMeta: { fontSize: FontSizes.xs, marginTop: 2 },
+  staffOptionRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  staffAvatarWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    overflow: 'hidden',
+    backgroundColor: '#F3E8FF',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  staffAvatar: { width: 36, height: 36, borderRadius: 18 },
   notesInput: {
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
