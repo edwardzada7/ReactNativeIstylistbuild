@@ -12,7 +12,6 @@ import {
   Switch,
   KeyboardAvoidingView,
   Platform,
-  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -25,6 +24,7 @@ import { supabase } from '../../src/lib/supabase';
 import { providerService } from '../../src/services/provider.service';
 import staffService from '../../src/services/staff.service';
 import { Service, StaffAvailabilityDay, StaffMember } from '../../src/types';
+import { ProfileAvatar } from '../../src/components/common';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -190,7 +190,7 @@ export default function ProviderManageStaff() {
       setPhotoUploadLoading(true);
       const { error: uploadError } = await supabase.storage.from('profile-images').upload(storagePath, arrayBuffer, {
         contentType: mimeType,
-        upsert: true,
+        upsert: false,
       });
 
       if (uploadError) {
@@ -369,13 +369,12 @@ export default function ProviderManageStaff() {
           cards.map((member) => (
             <View key={member.id} style={[styles.card, { backgroundColor: colors.surface }]}> 
               <View style={styles.cardTop}>
-                <View style={styles.avatarWrap}>
-                  {member.photo_url ? (
-                    <Image source={{ uri: member.photo_url }} style={styles.avatar} />
-                  ) : (
-                    <Ionicons name="person" size={26} color={Colors.primary} />
-                  )}
-                </View>
+                <ProfileAvatar 
+                  uri={member.photo_url} 
+                  name={member.name} 
+                  size={40}
+                  type="customer"
+                />
                 <View style={styles.cardInfo}>
                   <View style={styles.nameRow}>
                     <Text style={[styles.name, { color: colors.text }]}>{member.name}</Text>

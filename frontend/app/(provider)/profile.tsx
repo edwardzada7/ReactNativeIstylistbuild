@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, FlatList, Image, ActivityIndicator, Switch } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, FlatList, Image as RNImage, ActivityIndicator, Switch } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -142,7 +142,7 @@ export default function ProviderProfile() {
         return;
       }
       const mimeType = 'image/jpeg';
-      const path = `providers/${user.auth_id}/profile.jpg`;
+      const path = `providers/${user.auth_id}/profile-${Date.now()}.jpg`;
 
       const { error: uploadError } = await supabase.storage.from('profile-images').upload(path, arrayBuffer, {
         contentType: mimeType,
@@ -240,7 +240,7 @@ export default function ProviderProfile() {
     if (!user?.auth_id) return;
     try {
       const res = await apiService.get<{ account_type?: string }>(`/users/by-auth/${user.auth_id}`);
-      setAccountType((res.data?.account_type as 'individual' | 'business') || 'individual');
+      setAccountType((res?.account_type as 'individual' | 'business') || 'individual');
     } catch (err) {
       console.error('[provider-profile] failed to load account type', err);
     }
@@ -250,7 +250,7 @@ export default function ProviderProfile() {
     if (!user?.auth_id) return;
     try {
       const res = await apiService.get<{ status: string }>(`/kyc/me?auth_id=${encodeURIComponent(user.auth_id)}`);
-      setKycStatus((res.data?.status as 'not_submitted' | 'pending' | 'verified' | 'rejected') || 'not_submitted');
+      setKycStatus((res?.status as 'not_submitted' | 'pending' | 'verified' | 'rejected') || 'not_submitted');
     } catch (err) {
       console.error('[provider-profile] failed to load KYC status', err);
     }
@@ -312,7 +312,7 @@ export default function ProviderProfile() {
           <TouchableOpacity onPress={handleAvatarPress} accessibilityRole="button" accessibilityLabel="Update profile image">
             <View style={[styles.avatarContainer, { backgroundColor: colors.surface }]}>
               {avatarUrl ? (
-                <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
+                <RNImage source={{ uri: avatarUrl }} style={styles.avatarImage} />
               ) : (
                 <Ionicons name="storefront" size={40} color={colors.primary} />
               )}
@@ -458,7 +458,7 @@ export default function ProviderProfile() {
                 accessibilityLabel="View post"
               >
                 {item.image_url && (
-                  <Image source={{ uri: item.image_url }} style={styles.postImage} />
+                  <RNImage source={{ uri: item.image_url }} style={styles.postImage} />
                 )}
                 <View style={styles.postMeta}>
                   <Ionicons name="heart" size={14} color={colors.error} />

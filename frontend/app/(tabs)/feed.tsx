@@ -5,7 +5,7 @@ import {
   StyleSheet,
   FlatList,
   TouchableOpacity,
-  Image,
+  Image as RNImage,
   ActivityIndicator,
   RefreshControl,
   Alert,
@@ -19,6 +19,7 @@ import { feedService } from '../../src/services/feed.service';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { Post } from '../../src/types';
+import { ProfileAvatar } from '../../src/components/common';
 
 export default function Feed() {
   const router = useRouter();
@@ -168,18 +169,12 @@ export default function Feed() {
           onPress={() => item.provider?.id && router.push(`/provider/${item.provider.id}`)}
           accessibilityRole="button"
         >
-          <View style={[styles.avatar, { backgroundColor: colors.primary }]}>
-            {item.provider?.photo_url || item.provider?.profile_image_url || item.provider?.avatar ? (
-              <Image
-                source={{ uri: item.provider?.photo_url || item.provider?.profile_image_url || item.provider?.avatar }}
-                style={styles.avatarImage}
-              />
-            ) : (
-              <Text style={[styles.avatarText, { color: '#fff' }]}>
-                {(item.provider?.display_name || item.provider?.name || 'P').charAt(0).toUpperCase()}
-              </Text>
-            )}
-          </View>
+          <ProfileAvatar 
+            uri={item.provider?.photo_url || item.provider?.profile_image_url || item.provider?.avatar} 
+            name={item.provider?.display_name || item.provider?.business_name || item.provider?.name || 'Provider'} 
+            size={44}
+            type="provider"
+          />
           <View>
             <Text style={[styles.userName, { color: colors.text }]}>
               {item.provider?.display_name || 
@@ -203,7 +198,7 @@ export default function Feed() {
       </View>
 
       {item.image_url && (
-        <Image source={{ uri: item.image_url }} style={styles.postImage} />
+        <RNImage source={{ uri: item.image_url }} style={styles.postImage} />
       )}
 
       {item.caption && (

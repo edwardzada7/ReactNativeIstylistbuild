@@ -12,12 +12,12 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { FlashList } from '@shopify/flash-list';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { Image } from 'expo-image';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { providerService } from '../../src/services/provider.service';
 import { formatPriceRange } from '../../src/utils/currency';
 import { Provider, Category } from '../../src/types';
 import { useTheme } from '../../src/contexts/ThemeContext';
+import { ProfileAvatar } from '../../src/components/common';
 
 const PAGE_SIZE = 10;
 
@@ -121,12 +121,13 @@ export default function Search() {
       accessibilityRole="button"
       accessibilityLabel={item.business_name}
     >
-      <View style={[styles.resultIcon, { backgroundColor: colors.surfaceLight }]}>
-        {item.profile_image_url || item.avatar ? (
-          <Image source={{ uri: item.profile_image_url || item.avatar }} style={styles.resultPhoto} contentFit="cover" />
-        ) : (
-          <Ionicons name="storefront" size={32} color={colors.primary} />
-        )}
+      <View style={styles.resultPhotoContainer}>
+        <ProfileAvatar 
+          uri={item.profile_image_url || item.avatar} 
+          name={item.business_name} 
+          size={48}
+          type="provider"
+        />
       </View>
       <View style={styles.resultInfo}>
         <Text style={[styles.resultName, { color: colors.text }]} numberOfLines={1}>
@@ -302,18 +303,8 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.lg,
     marginBottom: Spacing.md,
   },
-  resultIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: BorderRadius.md,
-    justifyContent: 'center',
-    alignItems: 'center',
+  resultPhotoContainer: {
     marginRight: Spacing.md,
-    overflow: 'hidden',
-  },
-  resultPhoto: {
-    width: '100%',
-    height: '100%',
   },
   resultInfo: {
     flex: 1,

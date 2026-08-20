@@ -17,6 +17,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { BrandColors } from '../../src/constants/brand';
 import { BrandLogo } from '../../src/components/branding';
+import { ProfileAvatar } from '../../src/components/common';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { providerService } from '../../src/services/provider.service';
@@ -134,18 +135,12 @@ export default function Home() {
       accessibilityRole="button"
       accessibilityLabel={item.business_name}
     >
-      <View style={[styles.providerImage, { backgroundColor: colors.surfaceLight }]}>
-        {item.profile_image_url || item.avatar ? (
-          <Image
-            source={{ uri: item.profile_image_url || item.avatar }}
-            style={styles.providerImagePhoto}
-            contentFit="cover"
-            transition={150}
-          />
-        ) : (
-          <Ionicons name="person" size={32} color={colors.primary} />
-        )}
-      </View>
+      <ProfileAvatar 
+        uri={item.profile_image_url || item.avatar} 
+        name={item.business_name} 
+        size={80}
+        type="provider"
+      />
       <View style={styles.providerInfo}>
         <Text style={[styles.providerName, { color: colors.text }]} numberOfLines={1}>
           {item.business_name}
@@ -507,23 +502,12 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.md,
     padding: Spacing.md,
     borderRadius: BorderRadius.lg,
-  },
-  providerImage: {
-    width: 80,
-    height: 80,
-    borderRadius: BorderRadius.md,
-    justifyContent: 'center',
     alignItems: 'center',
-    marginRight: Spacing.md,
-    overflow: 'hidden',
-  },
-  providerImagePhoto: {
-    width: '100%',
-    height: '100%',
   },
   providerInfo: {
     flex: 1,
     justifyContent: 'center',
+    marginLeft: Spacing.md,
   },
   providerName: {
     fontSize: FontSizes.md,

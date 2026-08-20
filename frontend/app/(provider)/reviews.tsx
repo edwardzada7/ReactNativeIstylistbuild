@@ -16,6 +16,7 @@ import { useAuth } from '../../src/contexts/AuthContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { providerService } from '../../src/services/provider.service';
 import { Review } from '../../src/types';
+import { ProfileAvatar } from '../../src/components/common';
 
 const Stars = ({ rating, size = 14 }: { rating: number; size?: number }) => (
   <View style={{ flexDirection: 'row', gap: 2 }}>
@@ -124,9 +125,12 @@ export default function ProviderReviews() {
             reviews.map((review) => (
               <View key={review.id} style={[styles.reviewCard, { backgroundColor: colors.surface }]}>
                 <View style={styles.reviewHeader}>
-                  <View style={[styles.avatarCircle, { backgroundColor: colors.surfaceLight }]}>
-                    <Ionicons name="person" size={18} color={Colors.primary} />
-                  </View>
+                  <ProfileAvatar 
+                    uri={review.customer?.profile_image_url || review.customer?.avatar} 
+                    name={review.customer_name} 
+                    size={32}
+                    type="customer"
+                  />
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.customerName, { color: colors.text }]}>{review.customer_name}</Text>
                     {!!review.created_at && (

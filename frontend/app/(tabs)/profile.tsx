@@ -168,7 +168,7 @@ export default function Profile() {
         return;
       }
       const mimeType = 'image/jpeg';
-      const path = `customers/${user.auth_id}/profile.jpg`;
+      const path = `customers/${user.auth_id}/profile-${Date.now()}.jpg`;
 
       const { error: uploadError } = await supabase.storage.from('profile-images').upload(path, arrayBuffer, {
         contentType: mimeType,
@@ -356,7 +356,7 @@ export default function Profile() {
                     <Ionicons name={item.icon as any} size={22} color={colors.text} />
                     <Text style={[styles.menuItemLabel, { color: colors.text }]}>{item.label}</Text>
                   </View>
-                  {item.isToggle ? (
+                  {'isToggle' in item && item.isToggle ? (
                     <Switch
                       value={item.value}
                       onValueChange={item.onToggle}

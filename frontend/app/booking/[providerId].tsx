@@ -8,12 +8,13 @@ import {
   ActivityIndicator,
   Alert,
   TextInput,
+  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
-import { Button } from '../../src/components/common';
+import { Button, ProfileAvatar } from '../../src/components/common';
 import { providerService } from '../../src/services/provider.service';
 import { bookingService } from '../../src/services/booking.service';
 import { walletService } from '../../src/services/wallet.service';
@@ -461,13 +462,12 @@ export default function CreateBooking() {
                   accessibilityLabel={member.name}
                 >
                   <View style={styles.staffOptionRow}>
-                    <View style={styles.staffAvatarWrap}>
-                      {member.photo_url ? (
-                        <Image source={{ uri: member.photo_url }} style={styles.staffAvatar} />
-                      ) : (
-                        <Ionicons name="person-circle-outline" size={22} color={colors.textSecondary} />
-                      )}
-                    </View>
+                    <ProfileAvatar 
+                      uri={member.photo_url} 
+                      name={member.name} 
+                      size={36}
+                      type="customer"
+                    />
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.staffOptionText, { color: colors.text }, selectedStaffId === member.id && styles.staffOptionTextSelected]}>{member.name}</Text>
                       {member.role ? <Text style={[styles.staffOptionMeta, { color: colors.textSecondary }]}>{member.role}</Text> : null}
@@ -663,16 +663,6 @@ const styles = StyleSheet.create({
   staffOptionTextSelected: { color: Colors.primary },
   staffOptionMeta: { fontSize: FontSizes.xs, marginTop: 2 },
   staffOptionRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  staffAvatarWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    overflow: 'hidden',
-    backgroundColor: '#F3E8FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  staffAvatar: { width: 36, height: 36, borderRadius: 18 },
   notesInput: {
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
