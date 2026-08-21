@@ -34,7 +34,7 @@ export default function EditProfile() {
     city: user?.city || '',
     address: user?.address || '',
   });
-  const [gender, setGender] = useState<string | undefined>(user?.gender);
+  const [gender, setGender] = useState<string | null>(user?.gender ?? null);
   const [saving, setSaving] = useState(false);
 
   // `user` from AuthContext can still be hydrating when this screen mounts
@@ -51,7 +51,7 @@ export default function EditProfile() {
         city: user.city || '',
         address: user.address || '',
       });
-      setGender(user.gender);
+      setGender(user.gender ?? null);
     }
   }, [user]);
 
@@ -66,7 +66,7 @@ export default function EditProfile() {
       await apiService.put(`/users/${user.id}`, {
         name: form.full_name.trim(),
         phone: form.phone.trim() || undefined,
-        gender,
+        gender: gender ?? undefined,
         country: form.country.trim() || undefined,
         state: form.state.trim() || undefined,
         city: form.city.trim() || undefined,

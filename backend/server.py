@@ -1124,6 +1124,49 @@ def update_user_by_auth_id(auth_id: str, payload: UpdateUserInput, authorization
         raise HTTPException(status_code=500, detail="Internal server error") from exc
 
 
+@api_router.delete("/users/by-auth/{auth_id}")
+def delete_user_by_auth_id(auth_id: str, authorization: Optional[str] = Header(None)):
+    """Delete the authenticated user's profile and Supabase auth record."""
+    try:
+        requesting_auth_id = _verify_supabase_user(authorization)
+        if requesting_auth_id != auth_id:
+            raise HTTPException(status_code=403, detail="Unauthorized: can only delete own account")
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("[delete_user_by_auth_id] auth verification failed: %s", exc)
+        raise HTTPException(status_code=401, detail="Invalid or expired session") from exc
+
+    try:
+        delete_user_resp = requests.delete(
+            f"{SUPABASE_URL}/rest/v1/users?auth_id=eq.{auth_id}",
+            headers=_supabase_headers(),
+            timeout=10,
+        )
+        if delete_user_resp.status_code not in (200, 201, 204):
+            logger.error("[delete_user_by_auth_id] users delete failed: status=%s body=%s", delete_user_resp.status_code, delete_user_resp.text)
+            raise HTTPException(status_code=502, detail="Could not delete profile")
+
+        admin_delete_resp = requests.delete(
+            f"{SUPABASE_URL}/auth/v1/admin/users/{auth_id}",
+            headers={
+                "Authorization": f"Bearer {SUPABASE_SERVICE_ROLE_KEY}",
+                "apikey": SUPABASE_SERVICE_ROLE_KEY,
+                "Content-Type": "application/json",
+            },
+            timeout=10,
+        )
+        if admin_delete_resp.status_code not in (200, 201, 202, 204):
+            logger.warning("[delete_user_by_auth_id] auth user delete failed: status=%s body=%s", admin_delete_resp.status_code, admin_delete_resp.text)
+
+        return {"status": "deleted", "auth_id": auth_id}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("[delete_user_by_auth_id] failed to delete user: %s", exc)
+        raise HTTPException(status_code=500, detail="Internal server error") from exc
+
+
 # Include the router in the main app
 @app.on_event('startup')
 async def startup_register_proxy_routes():

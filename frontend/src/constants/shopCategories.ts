@@ -187,7 +187,7 @@ export function normalizeSubcategory(mainCategorySlug?: string | null, value?: s
   if (!value) return null;
   const trimmed = value.trim();
   if (!trimmed) return null;
-  const slug = mainCategorySlug ?? getShopCategoryBySlug(trimmed)?.slug;
+  const slug = (mainCategorySlug ?? getShopCategoryBySlug(trimmed)?.slug) as ShopMainCategorySlug | undefined;
   if (!slug) return trimmed;
   const lookup = SUBCATEGORY_LOOKUP.get(slug);
   if (!lookup) return trimmed;

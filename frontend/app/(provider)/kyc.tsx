@@ -81,10 +81,10 @@ export default function ProviderKYC() {
     if (!authId) return;
     try {
       setLoading(true);
-      const res = await apiService.get<{ status: string; submission: any }>(`/kyc/me?auth_id=${encodeURIComponent(authId)}`);
-      setStatus((res.data?.status as any) || 'not_submitted');
-      setExisting(res.data?.submission || null);
-      const s = res.data?.submission;
+      const res = await apiService.get<{ status?: string; submission?: any }>(`/kyc/me?auth_id=${encodeURIComponent(authId)}`);
+      setStatus((res.status as any) || 'not_submitted');
+      setExisting(res.submission || null);
+      const s = res.submission;
       if (s) {
         setAccountType(s.account_type || 'individual');
         if (s.account_type === 'individual') {
@@ -276,7 +276,7 @@ export default function ProviderKYC() {
                 style={[styles.input, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
                 value={individual.full_name}
                 onChangeText={(v) => setIndividual({ ...individual, full_name: v })}
-                disabled={readOnly}
+                editable={!readOnly}
                 placeholder="Enter your full name"
                 placeholderTextColor={colors.textMuted}
               />
@@ -286,7 +286,7 @@ export default function ProviderKYC() {
                 style={[styles.input, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
                 value={individual.phone_number}
                 onChangeText={(v) => setIndividual({ ...individual, phone_number: v })}
-                disabled={readOnly}
+                editable={!readOnly}
                 placeholder="+234..."
                 placeholderTextColor={colors.textMuted}
                 keyboardType="phone-pad"
@@ -297,7 +297,7 @@ export default function ProviderKYC() {
                 style={[styles.input, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
                 value={individual.date_of_birth}
                 onChangeText={(v) => setIndividual({ ...individual, date_of_birth: v })}
-                disabled={readOnly}
+                editable={!readOnly}
                 placeholder="YYYY-MM-DD"
                 placeholderTextColor={colors.textMuted}
               />
@@ -308,7 +308,7 @@ export default function ProviderKYC() {
                   style={{ color: colors.text }}
                   value={individual.id_type}
                   onChangeText={(v) => setIndividual({ ...individual, id_type: v })}
-                  disabled={readOnly}
+                  editable={!readOnly}
                 />
               </View>
 
@@ -317,7 +317,7 @@ export default function ProviderKYC() {
                 style={[styles.input, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
                 value={individual.id_number}
                 onChangeText={(v) => setIndividual({ ...individual, id_number: v })}
-                disabled={readOnly}
+                editable={!readOnly}
                 placeholder="Enter your ID number"
                 placeholderTextColor={colors.textMuted}
               />
@@ -353,7 +353,7 @@ export default function ProviderKYC() {
                 style={[styles.input, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
                 value={business.business_name}
                 onChangeText={(v) => setBusiness({ ...business, business_name: v })}
-                disabled={readOnly}
+                editable={!readOnly}
                 placeholder="Enter business name"
                 placeholderTextColor={colors.textMuted}
               />
@@ -363,7 +363,7 @@ export default function ProviderKYC() {
                 style={[styles.input, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
                 value={business.registration_number}
                 onChangeText={(v) => setBusiness({ ...business, registration_number: v })}
-                disabled={readOnly}
+                editable={!readOnly}
                 placeholder="Enter registration number"
                 placeholderTextColor={colors.textMuted}
               />
@@ -373,7 +373,7 @@ export default function ProviderKYC() {
                 style={[styles.input, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
                 value={business.business_address}
                 onChangeText={(v) => setBusiness({ ...business, business_address: v })}
-                disabled={readOnly}
+                editable={!readOnly}
                 placeholder="Enter business address"
                 placeholderTextColor={colors.textMuted}
               />
@@ -383,7 +383,7 @@ export default function ProviderKYC() {
                 style={[styles.input, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
                 value={business.contact_person}
                 onChangeText={(v) => setBusiness({ ...business, contact_person: v })}
-                disabled={readOnly}
+                editable={!readOnly}
                 placeholder="Enter contact person name"
                 placeholderTextColor={colors.textMuted}
               />
@@ -393,7 +393,7 @@ export default function ProviderKYC() {
                 style={[styles.input, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
                 value={business.contact_phone}
                 onChangeText={(v) => setBusiness({ ...business, contact_phone: v })}
-                disabled={readOnly}
+                editable={!readOnly}
                 placeholder="+234..."
                 placeholderTextColor={colors.textMuted}
                 keyboardType="phone-pad"

@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useRef } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { authService } from '../services/auth.service';
@@ -140,6 +142,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
+      try {
+        await AsyncStorage.clear();
+      } catch (err) {
+        console.warn('[auth] AsyncStorage clear failed during logout', err);
+      }
+      try {
+        await SecureStore.deleteItemAsync('istylist_supabase_encryption_key');
+      } catch (err) {
+        console.warn('[auth] SecureStore clear failed during logout', err);
+      }
       setSession(null);
       setUser(null);
     }

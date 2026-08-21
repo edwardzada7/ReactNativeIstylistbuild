@@ -28,6 +28,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: Colors.background,
   },
+  logo: {
+    width: 120,
+    height: 120,
+    marginBottom: 16,
+  },
   text: {
     marginTop: 16,
     fontSize: FontSizes.md,

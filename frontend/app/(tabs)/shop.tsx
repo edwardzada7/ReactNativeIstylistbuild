@@ -23,11 +23,11 @@ import { useAuth } from '../../src/contexts/AuthContext';
 import { formatCurrency } from '../../src/utils/currency';
 import { useTheme } from '../../src/contexts/ThemeContext';
 
-/**
- * Shop - Customer product listing (Phase 3A). Real data via
- * shopService.getProducts() (Supabase, approved+in-stock products only).
- */
-export default function CustomerShop() {
+interface SharedShopScreenProps {
+  showManageButton?: boolean;
+}
+
+export function SharedShopScreen({ showManageButton = false }: SharedShopScreenProps) {
   const router = useRouter();
   const { isProvider } = useAuth();
   const { colors } = useTheme();
@@ -57,7 +57,10 @@ export default function CustomerShop() {
     }, [loadData])
   );
 
-  const activeCategory = useMemo(() => SHOP_CATEGORIES.find((category) => category.slug === selectedCategory) ?? null, [selectedCategory]);
+  const activeCategory = useMemo(
+    () => SHOP_CATEGORIES.find((category) => category.slug === selectedCategory) ?? null,
+    [selectedCategory]
+  );
 
   const filtered = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -66,7 +69,12 @@ export default function CustomerShop() {
       const productCategorySlug = getShopCategoryBySlug(product.main_category || product.category || '')?.slug ?? null;
       const matchesCategory = !selectedCategory || productCategorySlug === selectedCategory;
       const productSubcategory = product.subcategory || null;
-      const matchesSubcategory = !selectedSubcategory || activeCategory?.subcategories.some((subcategory) => subcategory.name === productSubcategory || subcategory.id === productSubcategory) || false;
+      const matchesSubcategory =
+        !selectedSubcategory ||
+        activeCategory?.subcategories.some(
+          (subcategory) => subcategory.name === productSubcategory || subcategory.id === productSubcategory
+        ) ||
+        false;
       return matchesQuery && matchesCategory && matchesSubcategory;
     });
   }, [activeCategory?.subcategories, products, search, selectedCategory, selectedSubcategory]);
@@ -92,7 +100,7 @@ export default function CustomerShop() {
           <Text style={[styles.title, { color: colors.text }]}>Shop</Text>
         </View>
         <View style={styles.headerActions}>
-          {isProvider && (
+          {(showManageButton || isProvider) && (
             <TouchableOpacity
               style={[styles.manageButton, { backgroundColor: colors.surface, borderColor: colors.border }]}
               onPress={() => router.push('/(provider)/shop')}
@@ -130,14 +138,25 @@ export default function CustomerShop() {
       <View style={styles.categorySection}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Explore by category</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.cardRow}>
-          <TouchableOpacity style={[styles.categoryCard, { backgroundColor: colors.surface, borderColor: colors.border }, !selectedCategory && { backgroundColor: colors.primary, borderColor: colors.primary }]} onPress={() => handleCategorySelection(null)}>
+          <TouchableOpacity
+            style={[
+              styles.categoryCard,
+              { backgroundColor: colors.surface, borderColor: colors.border },
+              !selectedCategory && { backgroundColor: colors.primary, borderColor: colors.primary },
+            ]}
+            onPress={() => handleCategorySelection(null)}
+          >
             <Text style={styles.categoryCardIcon}>🛍</Text>
             <Text style={[styles.categoryCardText, { color: colors.text }, !selectedCategory && { color: '#fff' }]}>All</Text>
           </TouchableOpacity>
           {SHOP_CATEGORIES.map((category) => (
             <TouchableOpacity
               key={category.slug}
-              style={[styles.categoryCard, { backgroundColor: colors.surface, borderColor: colors.border }, selectedCategory === category.slug && { backgroundColor: colors.primary, borderColor: colors.primary }]}
+              style={[
+                styles.categoryCard,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+                selectedCategory === category.slug && { backgroundColor: colors.primary, borderColor: colors.primary },
+              ]}
               onPress={() => handleCategorySelection(category.slug)}
             >
               <Text style={styles.categoryCardIcon}>{category.icon}</Text>
@@ -147,13 +166,24 @@ export default function CustomerShop() {
         </ScrollView>
         {activeCategory ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-            <TouchableOpacity style={[styles.subchip, { backgroundColor: colors.background, borderColor: colors.border }, !selectedSubcategory && { backgroundColor: colors.primary, borderColor: colors.primary }]} onPress={() => setSelectedSubcategory(null)}>
+            <TouchableOpacity
+              style={[
+                styles.subchip,
+                { backgroundColor: colors.background, borderColor: colors.border },
+                !selectedSubcategory && { backgroundColor: colors.primary, borderColor: colors.primary },
+              ]}
+              onPress={() => setSelectedSubcategory(null)}
+            >
               <Text style={[styles.subchipText, { color: colors.textSecondary }, !selectedSubcategory && { color: '#fff' }]}>All in {activeCategory.name}</Text>
             </TouchableOpacity>
             {activeCategory.subcategories.map((subcategory) => (
               <TouchableOpacity
                 key={subcategory.id}
-                style={[styles.subchip, { backgroundColor: colors.background, borderColor: colors.border }, selectedSubcategory === subcategory.id && { backgroundColor: colors.primary, borderColor: colors.primary }]}
+                style={[
+                  styles.subchip,
+                  { backgroundColor: colors.background, borderColor: colors.border },
+                  selectedSubcategory === subcategory.id && { backgroundColor: colors.primary, borderColor: colors.primary },
+                ]}
                 onPress={() => setSelectedSubcategory(subcategory.id)}
               >
                 <Text style={[styles.subchipText, { color: colors.textSecondary }, selectedSubcategory === subcategory.id && { color: '#fff' }]}>{subcategory.name}</Text>
@@ -196,7 +226,12 @@ export default function CustomerShop() {
             columnWrapperStyle={{ gap: Spacing.sm }}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={colors.primary} />}
             renderItem={({ item }) => (
-              <TouchableOpacity style={[styles.card, { backgroundColor: colors.surface }]} onPress={() => router.push(`/shop/${item.id}`)} accessibilityRole="button" accessibilityLabel={item.name}>
+              <TouchableOpacity
+                style={[styles.card, { backgroundColor: colors.surface }]}
+                onPress={() => router.push(`/shop/${item.id}`)}
+                accessibilityRole="button"
+                accessibilityLabel={item.name}
+              >
                 {item.image_urls?.[0] ? (
                   <Image source={{ uri: item.image_urls[0] }} style={styles.cardImage} />
                 ) : (
@@ -207,7 +242,9 @@ export default function CustomerShop() {
                 <Text style={[styles.cardName, { color: colors.text }]} numberOfLines={1}>{item.name}</Text>
                 <Text style={[styles.cardPrice, { color: colors.primary }]}>{formatCurrency(item.price)}</Text>
                 {item.main_category || item.category ? (
-                  <Text style={[styles.cardMeta, { color: colors.textSecondary }]} numberOfLines={1}>{item.subcategory || item.main_category || item.category}</Text>
+                  <Text style={[styles.cardMeta, { color: colors.textSecondary }]} numberOfLines={1}>
+                    {item.subcategory || item.main_category || item.category}
+                  </Text>
                 ) : null}
               </TouchableOpacity>
             )}
@@ -216,6 +253,11 @@ export default function CustomerShop() {
       )}
     </SafeAreaView>
   );
+}
+
+export default function CustomerShop() {
+  const { isProvider } = useAuth();
+  return <SharedShopScreen showManageButton={isProvider} />;
 }
 
 const styles = StyleSheet.create({
@@ -258,9 +300,9 @@ const styles = StyleSheet.create({
   clearButtonText: { color: '#fff', fontSize: FontSizes.sm, fontWeight: '700' },
   grid: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xl, gap: Spacing.sm },
   card: { flex: 1, borderRadius: BorderRadius.md, padding: Spacing.sm, marginBottom: Spacing.sm },
-  cardImage: { width: '100%', height: 120, borderRadius: BorderRadius.sm, marginBottom: Spacing.sm },
-  cardImagePlaceholder: { justifyContent: 'center', alignItems: 'center' },
-  cardName: { fontSize: FontSizes.sm, fontWeight: '600' },
-  cardPrice: { fontSize: FontSizes.sm, fontWeight: '700', marginTop: 2 },
+  cardImage: { width: '100%', height: 150, borderRadius: BorderRadius.md },
+  cardImagePlaceholder: { alignItems: 'center', justifyContent: 'center' },
+  cardName: { fontSize: FontSizes.sm, fontWeight: '700', marginTop: Spacing.sm },
+  cardPrice: { fontSize: FontSizes.sm, fontWeight: '700', marginTop: 4 },
   cardMeta: { fontSize: FontSizes.xs, marginTop: 4 },
 });

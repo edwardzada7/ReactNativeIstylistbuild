@@ -47,7 +47,7 @@ export default function ProviderTabsLayout() {
       <Tabs.Screen
         name="feed"
         options={{
-          title: 'Feed',
+          title: 'Feeds',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="newspaper" size={size} color={color} />
           ),

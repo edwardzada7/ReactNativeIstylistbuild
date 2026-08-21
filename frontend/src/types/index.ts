@@ -57,6 +57,24 @@ export interface OTPRequest {
   code: string;
 }
 
+export interface Product {
+  id: number;
+  name: string;
+  description: string | null;
+  price: number;
+  stock: number;
+  image_urls?: string[] | null;
+  stylist_auth_id?: string;
+  approved?: boolean;
+  category?: string | null;
+  main_category?: string | null;
+  subcategory?: string | null;
+  featured_collection?: string | null;
+  moderation_status?: 'pending' | 'approved' | 'rejected';
+  status?: string;
+  created_at?: string;
+}
+
 // Provider Types
 export interface Provider {
   id: string;

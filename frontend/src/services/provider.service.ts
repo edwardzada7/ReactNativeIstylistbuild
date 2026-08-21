@@ -219,6 +219,26 @@ export const providerService = {
     return normalizeService(raw);
   },
 
+  async updateProviderService(
+    serviceId: string | number,
+    updates: Partial<{
+      description: string;
+      price: number;
+      duration_minutes: number;
+      is_active: boolean;
+      name: string;
+      in_store: boolean;
+      home_service: boolean;
+    }>
+  ): Promise<Service> {
+    const raw = await apiService.patch<any>(`/provider-services/${serviceId}`, updates);
+    return normalizeService(raw);
+  },
+
+  async deleteProviderService(serviceId: string | number): Promise<void> {
+    await apiService.delete(`/provider-services/${serviceId}`);
+  },
+
   // --- Portfolio (Phase 3A) ---------------------------------------------
   // Reuses the EXISTING `stylists.portfolio` jsonb column (confirmed via
   // direct DB audit - the official field for this, no new table). Read is

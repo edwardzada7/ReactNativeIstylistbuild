@@ -160,6 +160,8 @@ export const shopService = {
     main_category: string | null;
     subcategory: string | null;
     featured_collection: string | null;
+    moderation_status: 'pending' | 'approved' | 'rejected';
+    status: string;
   }>): Promise<void> {
     const payload = { ...input };
     try {

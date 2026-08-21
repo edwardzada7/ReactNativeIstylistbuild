@@ -258,6 +258,14 @@ export default function ProviderProfile() {
 
   const handleAccountTypeChange = async (newType: 'individual' | 'business') => {
     if (!user?.auth_id) return;
+
+    const token = await apiService.getAccessToken();
+    console.log('[provider-profile] updating account type', {
+      authId: user.auth_id,
+      payload: { account_type: newType },
+      hasAccessToken: Boolean(token),
+    });
+
     try {
       await apiService.patch(`/users/by-auth/${user.auth_id}`, { account_type: newType });
       setAccountType(newType);
@@ -266,9 +274,14 @@ export default function ProviderProfile() {
       // Reload account type from server to confirm persistence
       await loadAccountType();
       Alert.alert('Success', `Account type updated to ${newType}`);
-    } catch (err) {
-      console.error('[provider-profile] failed to update account type', err);
-      Alert.alert('Error', 'Failed to update account type');
+    } catch (err: any) {
+      console.error('[provider-profile] failed to update account type', {
+        message: err?.message,
+        status: err?.response?.status,
+        data: err?.response?.data,
+        friendlyMessage: err?.friendlyMessage,
+      });
+      Alert.alert('Error', err?.friendlyMessage || 'Failed to update account type');
     }
   };
 
