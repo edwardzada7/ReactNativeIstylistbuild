@@ -253,6 +253,8 @@ export interface WithdrawRequest {
   bank_name: string;
   account_number: string;
   account_name: string;
+  currency?: string;
+  user_id?: string;
 }
 
 // Derived client-side (the production API has no dedicated payment_status /
@@ -324,8 +326,10 @@ export interface Review {
 
 export interface CreateReviewRequest {
   booking_id: string;
+  provider_id?: string;
   rating: number;
-  comment: string;
+  comment?: string;
+  review_text?: string;
   images?: string[];
 }
 
@@ -442,11 +446,13 @@ export interface SupportTicket {
 export interface Report {
   id: string;
   reporter_id: string;
-  reported_id: string;
+  target_id?: string;
+  target_type?: 'POST' | 'PRODUCT';
+  reported_id?: string;
   reported_user?: User;
-  type: 'user' | 'post' | 'review';
+  type?: 'user' | 'post' | 'review';
   reason: string;
-  description: string;
+  description?: string;
   status: 'pending' | 'reviewing' | 'resolved' | 'dismissed';
   created_at: string;
 }

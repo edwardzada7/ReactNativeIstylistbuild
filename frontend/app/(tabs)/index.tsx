@@ -24,6 +24,7 @@ import { providerService } from '../../src/services/provider.service';
 import { notificationService } from '../../src/services/notification.service';
 import { formatPriceRange } from '../../src/utils/currency';
 import { Category, Provider } from '../../src/types';
+import { formatRating } from '../../src/utils/display';
 
 export default function Home() {
   const router = useRouter();
@@ -151,7 +152,7 @@ export default function Home() {
         <View style={styles.providerMeta}>
           <View style={styles.rating}>
             <Ionicons name="star" size={14} color={colors.warning} />
-            <Text style={[styles.ratingText, { color: colors.text }]}>{item.rating ? item.rating.toFixed(1) : 'New'}</Text>
+            <Text style={[styles.ratingText, { color: colors.text }]}>{formatRating(item.rating)}</Text>
             <Text style={[styles.reviewsText, { color: colors.textSecondary }]}>({item.review_count})</Text>
           </View>
           <Text style={[styles.price, { color: colors.textSecondary }]}>{formatPriceRange(item.price_range)}</Text>

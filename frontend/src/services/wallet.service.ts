@@ -29,6 +29,30 @@ function normalizeTransaction(raw: any): Transaction {
   };
 }
 
+const normalizeWithdrawalPayload = (data: WithdrawRequest & { authId?: string; user_id?: string }) => {
+  const amount = Number(data.amount);
+  const bankName = String(data.bank_name ?? '').trim();
+  const accountNumber = String(data.account_number ?? '').replace(/\D/g, '').slice(0, 10);
+  const accountName = String(data.account_name ?? '').trim();
+  const currency = String(data.currency ?? 'NGN').trim().toUpperCase() || 'NGN';
+  const userId = String(data.user_id ?? data.authId ?? '').trim();
+
+  if (!Number.isFinite(amount) || amount <= 0) throw new Error('Withdrawal amount must be greater than zero.');
+  if (!bankName) throw new Error('Please select a bank before withdrawing.');
+  if (!accountNumber) throw new Error('Please enter a valid account number.');
+  if (!accountName) throw new Error('Please enter the account holder name.');
+  if (!userId) throw new Error('Your user profile is missing. Please sign in again.');
+
+  return {
+    amount,
+    bank_name: bankName,
+    account_number: accountNumber,
+    account_name: accountName,
+    currency,
+    user_id: userId,
+  };
+};
+
 export const walletService = {
   // Real contract (verified via direct API probe): GET /api/wallets returns
   // EVERY wallet in the system - there is no per-user filter param on the
@@ -90,12 +114,14 @@ export const walletService = {
   // Real contract (verified against production web app source,
   // frontend/src/screens/WalletScreen.jsx handleWithdrawRequest):
   // POST /withdrawals/request?auth_id={authId}
-  // Body: { amount, bank_name, account_name, account_number, note? }
+  // Body: { amount, bank_name, account_name, account_number, currency, user_id, note? }
   // Returns: { ok: boolean, message?: string }
-  async requestWithdrawal(data: WithdrawRequest & { authId: string }): Promise<{ ok: boolean; message?: string }> {
+  async requestWithdrawal(data: WithdrawRequest & { authId?: string; user_id?: string }): Promise<{ ok: boolean; message?: string }> {
     const { authId, ...withdrawalData } = data;
-    return apiService.post('/withdrawals/request', withdrawalData, {
-      params: { auth_id: authId },
+    const payload = normalizeWithdrawalPayload({ ...withdrawalData, authId, user_id: withdrawalData.user_id ?? authId });
+
+    return apiService.post('/withdrawals/request', payload, {
+      params: { auth_id: payload.user_id },
     });
   },
 };

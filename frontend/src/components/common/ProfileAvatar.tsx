@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Image, StyleSheet, ViewStyle } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
-import { BorderRadius, Spacing } from '../../constants/theme';
+import { withCacheBuster } from '../../utils/display';
 
 interface ProfileAvatarProps {
   uri?: string | null;
@@ -22,12 +22,17 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
   const { colors } = useTheme();
   const iconName = type === 'provider' ? 'storefront' : 'person-circle-outline';
   const iconSize = size * 0.6;
+  const [imageUri, setImageUri] = useState<string | null>(() => withCacheBuster(uri));
+
+  useEffect(() => {
+    setImageUri(withCacheBuster(uri));
+  }, [uri]);
 
   return (
     <View style={[styles.container, { width: size, height: size, borderRadius: size / 2 }, style]}>
-      {uri ? (
+      {imageUri ? (
         <Image
-          source={{ uri }}
+          source={{ uri: imageUri }}
           style={[styles.image, { width: size, height: size, borderRadius: size / 2 }]}
           onError={() => {
             // Image loading failed - will show fallback

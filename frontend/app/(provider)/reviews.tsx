@@ -16,6 +16,7 @@ import { useAuth } from '../../src/contexts/AuthContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { providerService } from '../../src/services/provider.service';
 import { Review } from '../../src/types';
+import { formatRating } from '../../src/utils/display';
 import { ProfileAvatar } from '../../src/components/common';
 
 const Stars = ({ rating, size = 14 }: { rating: number; size?: number }) => (
@@ -106,7 +107,7 @@ export default function ProviderReviews() {
 
           <View style={[styles.summaryCard, { backgroundColor: colors.surface }]}>
             <Text style={[styles.summaryRating, { color: colors.text }]}>
-              {summary?.rating ? summary.rating.toFixed(1) : 'New'}
+              {formatRating(summary?.rating)}
             </Text>
             <Stars rating={summary?.rating || 0} size={18} />
             <Text style={[styles.summaryCount, { color: colors.textSecondary }]}>

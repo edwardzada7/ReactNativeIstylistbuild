@@ -20,6 +20,7 @@ import { Button } from '../../src/components/common';
 import { providerService } from '../../src/services/provider.service';
 import { feedService } from '../../src/services/feed.service';
 import { formatCurrency, formatPriceRange } from '../../src/utils/currency';
+import { formatRating } from '../../src/utils/display';
 import { Provider, Review, Post } from '../../src/types';
 import { useTheme } from '../../src/contexts/ThemeContext';
 
@@ -184,7 +185,7 @@ export default function ProviderProfile() {
             <View style={styles.metaItem}>
               <Ionicons name="star" size={16} color={Colors.warning} />
               <Text style={[styles.metaText, { color: colors.text }]}>
-                {provider.rating ? provider.rating.toFixed(1) : 'New'} ({provider.review_count})
+                {formatRating(provider.rating)} ({provider.review_count})
               </Text>
             </View>
             {(provider.location_address || provider.location) && provider.location !== 'Location not set' ? (

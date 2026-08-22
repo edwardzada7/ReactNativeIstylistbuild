@@ -148,14 +148,34 @@ export default function Bookings() {
 
   const submitReview = async () => {
     if (!reviewModal) return;
+
+    const bookingId = String(reviewModal.id ?? '').trim();
+    const providerId = String(reviewModal.provider_id ?? reviewModal.provider_auth_id ?? '').trim();
+    const normalizedRating = Number(reviewRating);
+    const sanitizedComment = String(reviewComment ?? '').trim();
+
+    if (!bookingId) {
+      Alert.alert('Missing booking', 'This review is missing the booking reference.');
+      return;
+    }
+    if (!Number.isFinite(normalizedRating) || Math.round(normalizedRating) < 1 || Math.round(normalizedRating) > 5) {
+      Alert.alert('Invalid rating', 'Please select a rating between 1 and 5.');
+      return;
+    }
+    if (!sanitizedComment) {
+      Alert.alert('Review required', 'Please write a short review before submitting.');
+      return;
+    }
+
     setSubmittingReview(true);
     try {
       await reviewService.createReview({
-        booking_id: reviewModal.id,
-        rating: reviewRating,
-        comment: reviewComment.trim(),
+        booking_id: bookingId,
+        provider_id: providerId || undefined,
+        rating: Math.round(normalizedRating),
+        comment: sanitizedComment,
       });
-      setReviewedBookingIds((prev) => new Set(prev).add(reviewModal.id));
+      setReviewedBookingIds((prev) => new Set(prev).add(bookingId));
       setReviewModal(null);
       Alert.alert('Thank you!', 'Your review has been submitted.');
     } catch (err: any) {

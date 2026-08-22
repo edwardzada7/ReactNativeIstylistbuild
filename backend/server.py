@@ -121,6 +121,9 @@ class CreateOrderInput(BaseModel):
     customer_name: Optional[str] = None
     provider_auth_id: Optional[str] = None
     order_status: Optional[str] = None
+    payment_method: Optional[str] = None
+    delivery_address: Optional[str] = None
+    currency: Optional[str] = 'NGN'
 
 
 class UpdateOrderStatusInput(BaseModel):
@@ -128,13 +131,23 @@ class UpdateOrderStatusInput(BaseModel):
 
 
 class ProductReviewCreateInput(BaseModel):
+    product_id: Optional[int] = None
+    order_id: Optional[int] = None
+    item_id: Optional[int] = None
+    user_id: Optional[str] = None
     rating: int = Field(ge=1, le=5)
     review_text: str = Field(default='')
+    comment: Optional[str] = None
 
 
 class ProductReviewUpdateInput(BaseModel):
+    product_id: Optional[int] = None
+    order_id: Optional[int] = None
+    item_id: Optional[int] = None
+    user_id: Optional[str] = None
     rating: int = Field(ge=1, le=5)
     review_text: str = Field(default='')
+    comment: Optional[str] = None
 
 
 class PaystackShopInitializeInput(BaseModel):
@@ -508,13 +521,18 @@ async def get_product_reviews(product_id: int, authorization: Optional[str] = He
 async def create_product_review(product_id: int, payload: ProductReviewCreateInput, authorization: Optional[str] = Header(None)):
     user = _get_supabase_user_details(authorization)
     auth_id = user["id"]
+    safe_product_id = int(payload.product_id or product_id)
+    review_text = (payload.review_text or payload.comment or '').strip()
+    if not review_text:
+        raise HTTPException(status_code=422, detail="Review comment is required")
+
     user_meta = user.get("user_metadata") or {}
     full_name = user_meta.get("full_name") or user_meta.get("name") or user.get("email") or "Customer"
     avatar = user_meta.get("avatar_url") or user_meta.get("avatar") or None
-    verified_purchase = await _user_has_purchased_product(auth_id, product_id)
+    verified_purchase = await _user_has_purchased_product(auth_id, safe_product_id)
 
     existing_resp = requests.get(
-        f"{SUPABASE_URL}/rest/v1/product_reviews?product_id=eq.{product_id}&user_id=eq.{auth_id}&select=id",
+        f"{SUPABASE_URL}/rest/v1/product_reviews?product_id=eq.{safe_product_id}&user_id=eq.{auth_id}&select=id",
         headers=_supabase_headers(),
         timeout=10,
     )
@@ -523,14 +541,16 @@ async def create_product_review(product_id: int, payload: ProductReviewCreateInp
     existing_reviews = existing_resp.json() or []
 
     review_payload = {
-        "product_id": product_id,
-        "user_id": auth_id,
+        "product_id": safe_product_id,
+        "user_id": payload.user_id or auth_id,
         "user_full_name": full_name,
         "user_avatar": avatar,
-        "rating": payload.rating,
-        "review_text": payload.review_text,
+        "rating": int(payload.rating),
+        "review_text": review_text,
         "created_at": datetime.utcnow().isoformat(),
         "verified_purchase": verified_purchase,
+        **({"order_id": int(payload.order_id)} if payload.order_id is not None else {}),
+        **({"item_id": int(payload.item_id)} if payload.item_id is not None else {}),
     }
 
     if existing_reviews:
@@ -560,8 +580,13 @@ async def create_product_review(product_id: int, payload: ProductReviewCreateInp
 async def update_product_review(product_id: int, review_id: int, payload: ProductReviewUpdateInput, authorization: Optional[str] = Header(None)):
     user = _get_supabase_user_details(authorization)
     auth_id = user["id"]
+    safe_product_id = int(payload.product_id or product_id)
+    review_text = (payload.review_text or payload.comment or '').strip()
+    if not review_text:
+        raise HTTPException(status_code=422, detail="Review comment is required")
+
     existing_resp = requests.get(
-        f"{SUPABASE_URL}/rest/v1/product_reviews?id=eq.{review_id}&product_id=eq.{product_id}&user_id=eq.{auth_id}&select=id",
+        f"{SUPABASE_URL}/rest/v1/product_reviews?id=eq.{review_id}&product_id=eq.{safe_product_id}&user_id=eq.{auth_id}&select=id",
         headers=_supabase_headers(),
         timeout=10,
     )
@@ -574,9 +599,13 @@ async def update_product_review(product_id: int, review_id: int, payload: Produc
         f"{SUPABASE_URL}/rest/v1/product_reviews?id=eq.{review_id}",
         headers=_supabase_headers(),
         json={
-            "rating": payload.rating,
-            "review_text": payload.review_text,
+            "product_id": safe_product_id,
+            "user_id": payload.user_id or auth_id,
+            "rating": int(payload.rating),
+            "review_text": review_text,
             "updated_at": datetime.utcnow().isoformat(),
+            **({"order_id": int(payload.order_id)} if payload.order_id is not None else {}),
+            **({"item_id": int(payload.item_id)} if payload.item_id is not None else {}),
         },
         timeout=10,
     )

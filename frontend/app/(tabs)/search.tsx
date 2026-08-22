@@ -16,6 +16,7 @@ import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/th
 import { providerService } from '../../src/services/provider.service';
 import { formatPriceRange } from '../../src/utils/currency';
 import { Provider, Category } from '../../src/types';
+import { formatRating } from '../../src/utils/display';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { ProfileAvatar } from '../../src/components/common';
 
@@ -139,7 +140,7 @@ export default function Search() {
         <View style={styles.resultMeta}>
           <View style={styles.metaItem}>
             <Ionicons name="star" size={14} color={colors.warning} />
-            <Text style={[styles.metaText, { color: colors.textSecondary }]}>{item.rating ? item.rating.toFixed(1) : 'New'}</Text>
+            <Text style={[styles.metaText, { color: colors.textSecondary }]}>{formatRating(item.rating)}</Text>
           </View>
           <View style={styles.metaItem}>
             <Ionicons name="location" size={14} color={colors.textSecondary} />

@@ -19,7 +19,7 @@ import { feedService } from '../../src/services/feed.service';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { Post } from '../../src/types';
-import { ProfileAvatar } from '../../src/components/common';
+import { ProfileAvatar, ReportModal } from '../../src/components/common';
 
 export default function Feed() {
   const router = useRouter();
@@ -28,6 +28,7 @@ export default function Feed() {
   const [feedData, setFeedData] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [reportTargetId, setReportTargetId] = useState<string | null>(null);
 
   const loadFeed = useCallback(async () => {
     try {
@@ -171,7 +172,7 @@ export default function Feed() {
         >
           <ProfileAvatar 
             uri={item.provider?.photo_url || item.provider?.profile_image_url || item.provider?.avatar} 
-            name={item.provider?.display_name || item.provider?.business_name || item.provider?.name || 'Provider'} 
+            name={item.provider?.display_name || item.provider?.business_name || item.provider?.name || item.provider?.full_name || item.user?.full_name || item.user?.name || 'Provider'} 
             size={44}
             type="provider"
           />
@@ -180,6 +181,9 @@ export default function Feed() {
               {item.provider?.display_name || 
                item.provider?.business_name || 
                item.provider?.name || 
+              item.provider?.full_name ||
+              item.user?.full_name ||
+              item.user?.name ||
                'Provider'}
             </Text>
             <Text style={[styles.timestamp, { color: colors.textSecondary }]}>{item.created_at ? new Date(item.created_at).toLocaleDateString() : ''}</Text>
@@ -226,6 +230,15 @@ export default function Feed() {
         <TouchableOpacity style={styles.actionButton} onPress={() => handleShare(item)}>
           <Ionicons name="share-social-outline" size={20} color={colors.textSecondary} />
         </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.actionButton}
+          onPress={() => setReportTargetId(String(item.id))}
+          accessibilityRole="button"
+          accessibilityLabel="Report post"
+        >
+          <Ionicons name="flag-outline" size={20} color={colors.textSecondary} />
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -270,6 +283,13 @@ export default function Feed() {
           }
         />
       )}
+      <ReportModal
+        visible={reportTargetId !== null}
+        targetId={reportTargetId}
+        targetType="POST"
+        onClose={() => setReportTargetId(null)}
+        onSubmitted={() => Alert.alert('Report submitted', 'Thank you. We will review this post.')}
+      />
     </SafeAreaView>
   );
 }

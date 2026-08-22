@@ -92,9 +92,21 @@ export default function BookingDetails() {
 
   const handleStatusUpdate = async (newStatus: string) => {
     if (!booking) return;
+
+    const status = String(newStatus ?? '').trim();
+    const authId = String(user?.auth_id ?? '').trim();
+    if (!status) {
+      Alert.alert('Missing status', 'A valid booking status is required.');
+      return;
+    }
+    if (!authId) {
+      Alert.alert('Missing profile', 'Your account is not available for this action.');
+      return;
+    }
+
     setUpdating(true);
     try {
-      await bookingService.updateBookingStatus(booking.id, newStatus, role, user?.auth_id || '');
+      await bookingService.updateBookingStatus(booking.id, status, role, authId);
       await fetchBooking();
     } catch (err: any) {
       Alert.alert('Error', err?.friendlyMessage || 'Failed to update booking');

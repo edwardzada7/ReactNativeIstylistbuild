@@ -190,8 +190,25 @@ export const shopService = {
     customer_name?: string;
     provider_auth_id?: string;
     order_status?: string;
+    payment_method?: string;
+    delivery_address?: string;
+    currency?: string;
   }): Promise<any> {
-    return await apiService.post('/shop/orders', input);
+    const sanitizedItems = (input.items || []).filter((item) => item && Number.isFinite(item.product_id) && Number.isFinite(item.quantity) && item.quantity > 0);
+    const subtotal = Number(input.subtotal ?? 0);
+    const deliveryFee = Number(input.delivery_fee ?? 0);
+    const totalAmount = Number(input.total_amount ?? subtotal + deliveryFee);
+
+    return await apiService.post('/shop/orders', {
+      ...input,
+      items: sanitizedItems,
+      subtotal: Number.isFinite(subtotal) ? subtotal : 0,
+      delivery_fee: Number.isFinite(deliveryFee) ? deliveryFee : 0,
+      total_amount: Number.isFinite(totalAmount) ? totalAmount : 0,
+      payment_method: (input.payment_method || 'paystack').trim() || 'paystack',
+      delivery_address: (input.delivery_address || '').trim() || 'Delivery address not provided',
+      currency: (input.currency || 'NGN').trim().toUpperCase() || 'NGN',
+    });
   },
 
   async initializePaystackCheckout(input: {
@@ -202,28 +219,24 @@ export const shopService = {
     phone?: string;
     redirect_url?: string;
     currency?: string;
+    payment_method?: string;
+    delivery_address?: string;
   }): Promise<{ status: boolean; authorization_url?: string; reference?: string; message?: string }> {
-    // Ensure required backend fields are present and serialised predictably
+    const sanitizedItems = (input.items || []).filter((item) => item && Number.isFinite(item.product_id) && Number.isFinite(item.quantity) && item.quantity > 0);
+    const amount = Number(input.amount || 0);
     const body: Record<string, any> = {
-      amount: Number(input.amount),
+      amount: Number.isFinite(amount) ? amount : 0,
       email: input.email,
-      currency: input.currency || 'NGN',
+      currency: (input.currency || 'NGN').trim().toUpperCase() || 'NGN',
+      payment_method: (input.payment_method || 'paystack').trim() || 'paystack',
+      ...(sanitizedItems.length > 0 ? { items: sanitizedItems } : {}),
     };
-    
-    // Only include optional fields if they have values
-    if (input.items && input.items.length > 0) {
-      body.items = input.items;
-    }
-    if (input.name) {
-      body.name = input.name;
-    }
-    if (input.phone) {
-      body.phone = input.phone;
-    }
-    if (input.redirect_url) {
-      body.redirect_url = input.redirect_url;
-    }
-    
+
+    if (input.name) body.name = input.name;
+    if (input.phone) body.phone = input.phone;
+    if (input.redirect_url) body.redirect_url = input.redirect_url;
+    if (input.delivery_address) body.delivery_address = input.delivery_address.trim();
+
     return apiService.post('/payments/paystack/shop/initialize', body);
   },
 
@@ -237,18 +250,23 @@ export const shopService = {
     phone?: string;
     currency?: string;
     provider_auth_id?: string;
+    payment_method?: string;
+    delivery_address?: string;
   }): Promise<{ status: string; message?: string; order?: any }> {
+    const sanitizedItems = (input.items || []).filter((item) => item && Number.isFinite(item.product_id) && Number.isFinite(item.quantity) && item.quantity > 0);
     return apiService.get('/payments/paystack/shop/verify', {
       params: {
         reference: input.reference,
         ...(input.transaction_id ? { transaction_id: input.transaction_id } : {}),
-        ...(input.amount !== undefined ? { amount: input.amount } : {}),
-        ...(input.currency ? { currency: input.currency } : {}),
+        ...(input.amount !== undefined ? { amount: Number(input.amount) || 0 } : {}),
+        ...(input.currency ? { currency: input.currency.trim().toUpperCase() } : {}),
         ...(input.email ? { email: input.email } : {}),
         ...(input.name ? { name: input.name } : {}),
         ...(input.phone ? { phone: input.phone } : {}),
         ...(input.provider_auth_id ? { provider_auth_id: input.provider_auth_id } : {}),
-        ...(input.items ? { items: JSON.stringify(input.items) } : {}),
+        ...(input.payment_method ? { payment_method: input.payment_method.trim() } : {}),
+        ...(input.delivery_address ? { delivery_address: input.delivery_address.trim() } : {}),
+        ...(sanitizedItems.length > 0 ? { items: JSON.stringify(sanitizedItems) } : {}),
       },
     });
   },
@@ -324,16 +342,57 @@ export const shopService = {
     return await apiService.get<ProductReviewsResponse>(`/shop/products/${productId}/reviews`);
   },
 
-  async createProductReview(productId: number, input: { rating: number; review_text: string }): Promise<ProductReview> {
+  async createProductReview(
+    productId: number,
+    input: { rating: number; review_text: string; comment?: string; product_id?: number; user_id?: string; order_id?: number | null; item_id?: number | null }
+  ): Promise<ProductReview> {
     const authId = await apiService.getAuthId();
     if (!authId) throw new Error('Not authenticated');
-    return await apiService.post<ProductReview>(`/shop/products/${productId}/reviews`, input);
+
+    const reviewText = String(input.review_text ?? input.comment ?? '').trim();
+    const rating = Number(input.rating);
+    const normalizedPayload = {
+      product_id: Number(input.product_id ?? productId),
+      user_id: String(input.user_id ?? authId),
+      order_id: input.order_id != null ? Number(input.order_id) : null,
+      item_id: input.item_id != null ? Number(input.item_id) : null,
+      rating: Number.isFinite(rating) ? Math.min(5, Math.max(1, Math.round(rating))) : 5,
+      review_text: reviewText,
+      comment: reviewText,
+    };
+
+    if (!normalizedPayload.review_text) {
+      throw new Error('Please write a review before submitting.');
+    }
+
+    return await apiService.post<ProductReview>(`/shop/products/${productId}/reviews`, normalizedPayload);
   },
 
-  async updateProductReview(productId: number, reviewId: number, input: { rating: number; review_text: string }): Promise<ProductReview> {
+  async updateProductReview(
+    productId: number,
+    reviewId: number,
+    input: { rating: number; review_text: string; comment?: string; product_id?: number; user_id?: string; order_id?: number | null; item_id?: number | null }
+  ): Promise<ProductReview> {
     const authId = await apiService.getAuthId();
     if (!authId) throw new Error('Not authenticated');
-    return await apiService.patch<ProductReview>(`/shop/products/${productId}/reviews/${reviewId}`, input);
+
+    const reviewText = String(input.review_text ?? input.comment ?? '').trim();
+    const rating = Number(input.rating);
+    const normalizedPayload = {
+      product_id: Number(input.product_id ?? productId),
+      user_id: String(input.user_id ?? authId),
+      order_id: input.order_id != null ? Number(input.order_id) : null,
+      item_id: input.item_id != null ? Number(input.item_id) : null,
+      rating: Number.isFinite(rating) ? Math.min(5, Math.max(1, Math.round(rating))) : 5,
+      review_text: reviewText,
+      comment: reviewText,
+    };
+
+    if (!normalizedPayload.review_text) {
+      throw new Error('Please write a review before submitting.');
+    }
+
+    return await apiService.patch<ProductReview>(`/shop/products/${productId}/reviews/${reviewId}`, normalizedPayload);
   },
 
   async deleteProductReview(productId: number, reviewId: number): Promise<void> {

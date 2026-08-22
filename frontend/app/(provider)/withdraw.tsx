@@ -59,7 +59,12 @@ export default function ProviderWithdraw() {
 
   const handleSubmit = async () => {
     const amount = Number(form.amount);
-    if (!amount || amount <= 0) {
+    const bankName = String(form.bank_name ?? '').trim();
+    const accountNumber = String(form.account_number ?? '').replace(/\D/g, '').slice(0, 10);
+    const accountName = String(form.account_name ?? '').trim();
+    const userId = String(user?.auth_id ?? user?.id ?? '').trim();
+
+    if (!Number.isFinite(amount) || amount <= 0) {
       Alert.alert('Missing info', 'Please enter a valid withdrawal amount.');
       return;
     }
@@ -67,18 +72,24 @@ export default function ProviderWithdraw() {
       Alert.alert('Insufficient balance', `You can withdraw up to ${formatCurrency(wallet.balance)}.`);
       return;
     }
-    if (!form.bank_name || !form.account_number.trim() || !form.account_name.trim()) {
+    if (!bankName || !accountNumber || !accountName) {
       Alert.alert('Missing info', 'Please fill in bank, account number and account name.');
+      return;
+    }
+    if (!userId) {
+      Alert.alert('Missing profile', 'Your user profile is missing. Please sign in again.');
       return;
     }
     setSubmitting(true);
     try {
       const response = await walletService.requestWithdrawal({
-        authId: user?.auth_id || '',
+        authId: userId,
+        user_id: userId,
+        currency: 'NGN',
         amount,
-        bank_name: form.bank_name,
-        account_number: form.account_number.trim(),
-        account_name: form.account_name.trim(),
+        bank_name: bankName,
+        account_number: accountNumber,
+        account_name: accountName,
       });
       if (response.ok) {
         Alert.alert('Success', 'Your withdrawal request has been submitted successfully.');

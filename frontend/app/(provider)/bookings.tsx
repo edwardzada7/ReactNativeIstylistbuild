@@ -128,9 +128,21 @@ export default function ProviderBookings() {
 
   const handleAction = async (booking: Booking, next: string, destructive?: boolean) => {
     const proceed = async () => {
+      const authId = String(user?.auth_id ?? '').trim();
+      const status = String(next ?? '').trim();
+
+      if (!status) {
+        Alert.alert('Missing status', 'A valid booking status is required.');
+        return;
+      }
+      if (!authId) {
+        Alert.alert('Missing profile', 'Your account is not available for this action.');
+        return;
+      }
+
       setUpdatingId(booking.id);
       try {
-        const updated = await bookingService.updateBookingStatus(booking.id, next, 'provider', user?.auth_id || '');
+        const updated = await bookingService.updateBookingStatus(booking.id, status, 'provider', authId);
         setBookings((prev) => prev.map((b) => (b.id === booking.id ? updated : b)));
       } catch (err: any) {
         Alert.alert('Error', err?.friendlyMessage || 'Could not update this booking.');

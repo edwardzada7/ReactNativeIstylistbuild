@@ -22,6 +22,7 @@ import { useCartStore } from '../../src/store/cartStore';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { formatCurrency } from '../../src/utils/currency';
 import { useTheme } from '../../src/contexts/ThemeContext';
+import { ReportModal } from '../../src/components/common';
 
 interface SharedShopScreenProps {
   showManageButton?: boolean;
@@ -37,6 +38,7 @@ export function SharedShopScreen({ showManageButton = false }: SharedShopScreenP
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<ShopMainCategorySlug | null>('beauty');
   const [selectedSubcategory, setSelectedSubcategory] = useState<string | null>(null);
+  const [reportTargetId, setReportTargetId] = useState<number | null>(null);
   const cartCount = useCartStore((s) => s.lines.reduce((n, l) => n + l.quantity, 0));
 
   const loadData = useCallback(async () => {
@@ -226,12 +228,12 @@ export function SharedShopScreen({ showManageButton = false }: SharedShopScreenP
             columnWrapperStyle={{ gap: Spacing.sm }}
             refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={colors.primary} />}
             renderItem={({ item }) => (
-              <TouchableOpacity
-                style={[styles.card, { backgroundColor: colors.surface }]}
-                onPress={() => router.push(`/shop/${item.id}`)}
-                accessibilityRole="button"
-                accessibilityLabel={item.name}
-              >
+              <View style={[styles.card, { backgroundColor: colors.surface }]}>
+                <TouchableOpacity
+                  onPress={() => router.push(`/shop/${item.id}`)}
+                  accessibilityRole="button"
+                  accessibilityLabel={item.name}
+                >
                 {item.image_urls?.[0] ? (
                   <Image source={{ uri: item.image_urls[0] }} style={styles.cardImage} />
                 ) : (
@@ -246,11 +248,26 @@ export function SharedShopScreen({ showManageButton = false }: SharedShopScreenP
                     {item.subcategory || item.main_category || item.category}
                   </Text>
                 ) : null}
-              </TouchableOpacity>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.reportButton}
+                  onPress={() => setReportTargetId(item.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Report ${item.name}`}
+                >
+                  <Ionicons name="flag-outline" size={18} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
             )}
           />
         </>
       )}
+      <ReportModal
+        visible={reportTargetId !== null}
+        targetId={reportTargetId}
+        targetType="PRODUCT"
+        onClose={() => setReportTargetId(null)}
+      />
     </SafeAreaView>
   );
 }
@@ -278,6 +295,7 @@ const styles = StyleSheet.create({
   manageButtonText: { fontSize: FontSizes.xs, fontWeight: '600' },
   cartBadge: { position: 'absolute', top: -6, right: -8, borderRadius: 8, minWidth: 16, height: 16, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 3 },
   cartBadgeText: { color: '#fff', fontSize: 10, fontWeight: '700' },
+  reportButton: { position: 'absolute', top: Spacing.sm, right: Spacing.sm, padding: 4 },
   searchWrap: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, borderRadius: BorderRadius.full, paddingHorizontal: Spacing.md, marginHorizontal: Spacing.lg, marginTop: Spacing.md, marginBottom: Spacing.sm, height: 44 },
   searchInput: { flex: 1, fontSize: FontSizes.sm },
   categorySection: { marginHorizontal: Spacing.lg, marginBottom: Spacing.sm },

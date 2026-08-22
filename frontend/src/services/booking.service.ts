@@ -7,6 +7,23 @@ const asList = (raw: any): any[] => {
   return raw?.data || raw?.bookings || raw?.results || [];
 };
 
+const normalizeBookingStatus = (status: string): string => {
+  const value = String(status ?? '').trim();
+  if (!value) return '';
+
+  const normalized = value
+    .toLowerCase()
+    .replace(/\s+/g, '_')
+    .replace(/-/g, '_')
+    .replace(/[^a-z0-9_]/g, '');
+
+  if (!normalized) return '';
+  if (['no_show', 'noshow', 'no-show'].includes(normalized)) return 'no_show';
+  if (['provider_no_show', 'user_no_show'].includes(normalized)) return normalized;
+  if (['cancelled', 'canceled'].includes(normalized)) return 'canceled';
+  return normalized;
+};
+
 export const bookingService = {
   // Create booking. GROUND TRUTH (Phase 6 - verified against production
   // web app source, frontend/src/screens/ProviderProfileScreen.jsx
@@ -55,8 +72,14 @@ export const bookingService = {
     role: 'customer' | 'provider',
     authId: string
   ): Promise<Booking> {
-    const raw = await apiService.put<any>(`/bookings/${id}`, undefined, {
-      params: { status, role, auth_id: authId },
+    const bookingId = String(id ?? '').trim();
+    const safeStatus = normalizeBookingStatus(status);
+
+    if (!bookingId) throw new Error('Booking id is required.');
+    if (!safeStatus) throw new Error('A valid booking status is required.');
+
+    const raw = await apiService.put<any>(`/bookings/${bookingId}`, undefined, {
+      params: { status: safeStatus, role, auth_id: authId || undefined },
     });
     return normalizeBooking(raw);
   },

@@ -22,6 +22,7 @@ import { bookingService } from '../../src/services/booking.service';
 import { resolveCurrentLocation } from '../../src/services/location.service';
 import { supabase } from '../../src/lib/supabase';
 import { Booking } from '../../src/types';
+import { withCacheBuster } from '../../src/utils/display';
 
 const comingSoon = (feature: string) =>
   Alert.alert('Coming soon', `${feature} is being wired up in a later phase.`);
@@ -81,7 +82,7 @@ export default function Profile() {
   const [locationLabel, setLocationLabel] = useState('');
 
   useEffect(() => {
-    setAvatarUrl(user?.profile_image_url || user?.avatar || null);
+    setAvatarUrl(withCacheBuster(user?.profile_image_url || user?.avatar));
     const nextLocation = user?.location_address || [user?.city, user?.state, user?.country].filter(Boolean).join(', ') || '';
     setLocationLabel(nextLocation);
     setLocationStatus(nextLocation ? 'updated' : 'idle');
@@ -183,9 +184,11 @@ export default function Profile() {
       const { error: updateError } = await supabase.from('users').update({ profile_image_url: publicUrl }).eq('auth_id', user.auth_id);
       if (updateError) throw updateError;
 
-      setAvatarUrl(publicUrl);
-      updateUser({ profile_image_url: publicUrl });
+      const refreshedUrl = withCacheBuster(publicUrl) as string;
+      setAvatarUrl(refreshedUrl);
+      updateUser({ profile_image_url: refreshedUrl, avatar: refreshedUrl });
       await refreshUser();
+      updateUser({ profile_image_url: refreshedUrl, avatar: refreshedUrl });
       Alert.alert('Success', 'Your profile image has been updated.');
     } catch (err) {
       console.error('[profile-avatar] upload failed', err);

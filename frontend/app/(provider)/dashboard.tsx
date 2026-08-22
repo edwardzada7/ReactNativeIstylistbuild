@@ -22,6 +22,7 @@ import { notificationService } from '../../src/services/notification.service';
 import { shopService, Order } from '../../src/services/shop.service';
 import { formatCurrency } from '../../src/utils/currency';
 import { Booking, Provider } from '../../src/types';
+import { formatRating, withCacheBuster } from '../../src/utils/display';
 
 const isSameDay = (isoDate: string) => {
   if (!isoDate) return false;
@@ -201,7 +202,7 @@ export default function ProviderDashboard() {
             >
               {user?.profile_image_url || user?.avatar ? (
                 <Image
-                  source={{ uri: user.profile_image_url || user.avatar }}
+                  source={{ uri: withCacheBuster(user.profile_image_url || user.avatar) || undefined }}
                   style={styles.profileAvatar}
                 />
               ) : (
@@ -234,7 +235,7 @@ export default function ProviderDashboard() {
           </View>
           <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
             <Text style={[styles.statValue, { color: colors.text }]}>
-              {profile?.rating ? profile.rating.toFixed(1) : 'New'}
+              {formatRating(profile?.rating)}
             </Text>
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Average Rating</Text>
           </View>

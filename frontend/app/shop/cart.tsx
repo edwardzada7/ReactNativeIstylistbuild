@@ -43,8 +43,22 @@ export default function Cart() {
       return;
     }
 
-    const items = lines.map((l) => ({ product_id: l.productId, quantity: l.quantity }));
-    const amount = total();
+    const items = lines
+      .map((l) => ({ product_id: Number(l.productId), quantity: Number(l.quantity) }))
+      .filter((item) => Number.isFinite(item.product_id) && item.product_id > 0 && Number.isFinite(item.quantity) && item.quantity > 0);
+    const amount = Number(total()) || 0;
+    const paymentMethod = 'paystack';
+    const deliveryAddress = [user.address, user.location_address, user.location, 'Delivery address not provided']
+      .find((value) => typeof value === 'string' && value.trim().length > 0) || 'Delivery address not provided';
+
+    if (!items.length) {
+      Alert.alert('Cart Empty', 'Your cart items are invalid. Please review them before checking out.');
+      return;
+    }
+    if (!amount || amount <= 0) {
+      Alert.alert('Cart Empty', 'Your cart total must be greater than zero before checkout.');
+      return;
+    }
 
     setCheckingOut(true);
     setError(null);
@@ -57,6 +71,8 @@ export default function Cart() {
         phone: user.phone || undefined,
         redirect_url: REDIRECT_URL,
         currency: 'NGN',
+        payment_method: paymentMethod,
+        delivery_address: deliveryAddress,
       });
 
       if (response?.status && response.authorization_url) {
@@ -107,12 +123,15 @@ export default function Cart() {
           reference: reference || '',
           transaction_id: transactionId,
           items: pendingItems,
-          amount: pendingAmount ?? total(),
+          amount: pendingAmount ?? (Number(total()) || 0),
           email: user?.email || undefined,
-          name: user?.full_name || undefined,
+          name: user?.full_name || user?.name || undefined,
           phone: user?.phone || undefined,
           currency: 'NGN',
           provider_auth_id: lines.find((line) => line.stylistAuthId)?.stylistAuthId || undefined,
+          payment_method: 'paystack',
+          delivery_address: [user?.address, user?.location_address, user?.location, 'Delivery address not provided']
+            .find((value) => typeof value === 'string' && value.trim().length > 0) || 'Delivery address not provided',
         })
         .then((res) => {
           if (res?.status === 'success') {

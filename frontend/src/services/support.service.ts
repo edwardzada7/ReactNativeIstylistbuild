@@ -21,10 +21,10 @@ export const supportService = {
 
   // Report user/content
   async createReport(data: {
-    reported_id: string;
-    type: 'user' | 'post' | 'review';
+    target_id: string;
+    target_type: 'POST' | 'PRODUCT';
     reason: string;
-    description: string;
+    description?: string;
   }): Promise<Report> {
     return await apiService.post<Report>('/reports', data);
   },

@@ -7,6 +7,28 @@ const asList = (raw: any): any[] => {
   return raw?.data || raw?.reviews || [];
 };
 
+const normalizeReviewPayload = (data: CreateReviewRequest) => {
+  const bookingId = String(data.booking_id ?? '').trim();
+  const rating = Number(data.rating);
+  const comment = String(data.comment ?? data.review_text ?? '').trim();
+  const providerId = data.provider_id ? String(data.provider_id).trim() : '';
+
+  if (!bookingId) throw new Error('Review requires a valid booking id.');
+  if (!Number.isFinite(rating) || Math.round(rating) < 1 || Math.round(rating) > 5) {
+    throw new Error('Review rating must be between 1 and 5.');
+  }
+  if (!comment) throw new Error('Please write a short review before submitting.');
+
+  const payload: Record<string, any> = {
+    booking_id: bookingId,
+    rating: Math.round(rating),
+    comment,
+  };
+
+  if (providerId) payload.provider_id = providerId;
+  return payload;
+};
+
 export const reviewService = {
   // Write a review for a completed booking.
   // Real production contract (verified via direct API probe): `auth_id` of the
@@ -17,13 +39,10 @@ export const reviewService = {
   // array straight into Alert.alert() downstream, which crashed the app.
   async createReview(data: CreateReviewRequest): Promise<Review> {
     const authId = await apiService.getAuthId();
+    const payload = normalizeReviewPayload(data);
     const raw = await apiService.post<any>(
       '/reviews',
-      {
-        booking_id: data.booking_id,
-        rating: data.rating,
-        comment: data.comment,
-      },
+      payload,
       authId ? { params: { auth_id: authId } } : undefined
     );
     return normalizeReview(raw);

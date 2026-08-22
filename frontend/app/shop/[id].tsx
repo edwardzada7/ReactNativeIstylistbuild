@@ -8,6 +8,7 @@ import { Button } from '../../src/components/common';
 import { shopService, Product } from '../../src/services/shop.service';
 import { useCartStore } from '../../src/store/cartStore';
 import { formatCurrency } from '../../src/utils/currency';
+import { formatRating } from '../../src/utils/display';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { ProductReview } from '../../src/types';
@@ -98,16 +99,33 @@ export default function ProductDetail() {
 
   const submitReview = async () => {
     if (!product || !isAuthenticated) return;
-    if (!reviewText.trim()) {
+
+    const cleanedText = reviewText.trim();
+    const normalizedRating = Number(reviewRating);
+    const validRating = Number.isFinite(normalizedRating) ? Math.min(5, Math.max(1, Math.round(normalizedRating))) : 5;
+
+    if (!cleanedText) {
       Alert.alert('Review required', 'Please write a short review before submitting.');
       return;
     }
+
     setSubmitting(true);
     try {
+      const userId = user?.auth_id || user?.id || undefined;
+      const payloadBase = {
+        product_id: Number(product.id),
+        user_id: userId,
+        order_id: null,
+        item_id: null,
+        rating: validRating,
+        review_text: cleanedText,
+        comment: cleanedText,
+      };
+
       if (editingReview) {
-        await shopService.updateProductReview(product.id, editingReview.id, { rating: reviewRating, review_text: reviewText.trim() });
+        await shopService.updateProductReview(product.id, editingReview.id, payloadBase);
       } else {
-        await shopService.createProductReview(product.id, { rating: reviewRating, review_text: reviewText.trim() });
+        await shopService.createProductReview(product.id, payloadBase);
       }
       setComposerVisible(false);
       setEditingReview(null);
@@ -217,7 +235,7 @@ export default function ProductDetail() {
 
           <View style={[styles.summaryCard, { backgroundColor: colors.surfaceLight }]}>
             <View style={styles.summaryLeft}>
-              <Text style={[styles.averageText, { color: colors.text }]}>{averageRating ? averageRating.toFixed(1) : '0.0'}</Text>
+              <Text style={[styles.averageText, { color: colors.text }]}>{formatRating(averageRating)}</Text>
               <View style={styles.starRow}>{renderStars(averageRating || 0, Colors.warning, 18)}</View>
               <Text style={[styles.reviewCountText, { color: colors.textSecondary }]}>({reviewCount} Review{reviewCount === 1 ? '' : 's'})</Text>
             </View>

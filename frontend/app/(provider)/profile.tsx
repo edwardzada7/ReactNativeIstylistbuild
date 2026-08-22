@@ -14,6 +14,7 @@ import { resolveCurrentLocation } from '../../src/services/location.service';
 import { supabase } from '../../src/lib/supabase';
 import { Provider, Post } from '../../src/types';
 import apiService from '../../src/services/api';
+import { formatRating, withCacheBuster } from '../../src/utils/display';
 
 export default function ProviderProfile() {
   const router = useRouter();
@@ -38,7 +39,7 @@ export default function ProviderProfile() {
       setLocationLabel(nextLocation);
       setLocationStatus(nextLocation ? 'updated' : 'idle');
       if (data.profile_image_url || data.avatar) {
-        setAvatarUrl(data.profile_image_url || data.avatar || null);
+        setAvatarUrl(withCacheBuster(data.profile_image_url || data.avatar));
       }
     } catch (err) {
       console.error('[provider-profile-tab] failed to load', err);
@@ -77,7 +78,7 @@ export default function ProviderProfile() {
   }, [user?.id, user?.auth_id]);
 
   useEffect(() => {
-    setAvatarUrl(user?.profile_image_url || user?.avatar || null);
+    setAvatarUrl(withCacheBuster(user?.profile_image_url || user?.avatar));
     const nextLocation = user?.location_address || [user?.city, user?.state, user?.country].filter(Boolean).join(', ') || '';
     setLocationLabel(nextLocation);
     setLocationStatus(nextLocation ? 'updated' : 'idle');
@@ -157,9 +158,11 @@ export default function ProviderProfile() {
       const { error: updateError } = await supabase.from('stylists').update({ profile_image_url: publicUrl }).eq('auth_id', user.auth_id);
       if (updateError) throw updateError;
 
-      setAvatarUrl(publicUrl);
-      updateUser({ profile_image_url: publicUrl });
+      const refreshedUrl = withCacheBuster(publicUrl) as string;
+      setAvatarUrl(refreshedUrl);
+      updateUser({ profile_image_url: refreshedUrl, avatar: refreshedUrl });
       await refreshUser();
+      updateUser({ profile_image_url: refreshedUrl, avatar: refreshedUrl });
       Alert.alert('Success', 'Your profile image has been updated.');
     } catch (err) {
       console.error('[provider-avatar] upload failed', err);
@@ -363,7 +366,7 @@ export default function ProviderProfile() {
 
         <View style={[styles.statsContainer, { backgroundColor: colors.surface }]}>
           <View style={styles.statItem}>
-            <Text style={[styles.statValue, { color: colors.text }]}>{profile?.rating ? profile.rating.toFixed(1) : 'New'}</Text>
+            <Text style={[styles.statValue, { color: colors.text }]}>{formatRating(profile?.rating)}</Text>
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Rating</Text>
           </View>
           <View style={[styles.statDivider, { backgroundColor: colors.border, height: 40 }]} />
