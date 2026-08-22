@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from '@/src/contexts/AuthContext';
 import { ThemeProvider } from '@/src/contexts/ThemeContext';
 import { useIconFonts } from '@/src/hooks/use-icon-fonts';
+import { UnreadMessagesProvider } from '@/src/contexts/UnreadMessagesContext';
 
 // Disable logbox errors etc so that users can see the app
 // and agent works as expected.
@@ -54,16 +55,18 @@ function AppShell() {
   if (!loaded && !error) return null;
 
   return (
-    <ThemeProvider>
-      <Stack screenOptions={{ headerShown: false }}>
-        <Stack.Screen name="index" />
-        <Stack.Screen name="(onboarding)" />
-        <Stack.Screen name="(auth)" />
-        <Stack.Screen name="(tabs)" />
-        <Stack.Screen name="(provider)" />
-        <Stack.Screen name="(admin)" />
-      </Stack>
-    </ThemeProvider>
+    <UnreadMessagesProvider>
+      <ThemeProvider>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="index" />
+          <Stack.Screen name="(onboarding)" />
+          <Stack.Screen name="(auth)" />
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="(provider)" />
+          <Stack.Screen name="(admin)" />
+        </Stack>
+      </ThemeProvider>
+    </UnreadMessagesProvider>
   );
 }
 

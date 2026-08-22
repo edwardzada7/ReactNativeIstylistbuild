@@ -13,6 +13,7 @@ from typing import List, Optional
 import uuid
 import json
 from datetime import datetime
+from utils.message_sanitizer import MessageType, sanitizeMessagePayload
 
 
 ROOT_DIR = PathlibPath(__file__).parent
@@ -991,8 +992,25 @@ def update_order_status(order_id: int = Path(..., ge=1), payload: UpdateOrderSta
 
 class SendMessageInput(BaseModel):
     receiver_auth_id: str
-    message: str
+    message: str = ''
     booking_id: Optional[int] = None
+    message_type: MessageType = MessageType.TEXT
+    location_data: Optional[dict] = None
+    invoice_data: Optional[dict] = None
+
+
+def _chat_row(sender_auth_id: str, payload: SendMessageInput, message: str, is_masked: bool = False, original_content: Optional[str] = None):
+    return {
+        "sender_auth_id": sender_auth_id,
+        "receiver_auth_id": payload.receiver_auth_id,
+        "message": message,
+        "booking_id": payload.booking_id,
+        "is_masked": is_masked,
+        "original_content": original_content,
+        "message_type": payload.message_type.value,
+        "location_data": payload.location_data,
+        "invoice_data": payload.invoice_data,
+    }
 
 
 @api_router.post("/chat/messages")
@@ -1000,20 +1018,84 @@ def send_chat_message(payload: SendMessageInput, authorization: Optional[str] = 
     """Privileged chat send. RLS blocks a direct client insert into `chats`
     (verified 42501). Reuses the existing `chats` table as-is."""
     auth_id = _verify_supabase_user(authorization)
+    if payload.message_type == MessageType.TEXT:
+        sanitized = sanitizeMessagePayload(payload.message)
+        message = sanitized["content"]
+        is_masked = sanitized["is_masked"]
+        original_content = sanitized["original_content"]
+    else:
+        message = payload.message
+        is_masked = False
+        original_content = None
+
+    if payload.message_type == MessageType.CUSTOM_INVOICE and payload.invoice_data:
+        amount = float(payload.invoice_data.get("amount", 0))
+        payload.invoice_data = {
+            **payload.invoice_data,
+            "platformFee": round(amount * 0.07, 2),
+            "netPayout": round(amount * 0.93, 2),
+        }
+
     resp = requests.post(
         f"{SUPABASE_URL}/rest/v1/chats",
         headers=_supabase_headers(),
-        json={
-            "sender_auth_id": auth_id,
-            "receiver_auth_id": payload.receiver_auth_id,
-            "message": payload.message,
-            "booking_id": payload.booking_id,
-        },
+        json=_chat_row(auth_id, payload, message, is_masked, original_content),
         timeout=10,
     )
     if resp.status_code not in (200, 201):
         raise HTTPException(status_code=502, detail="Could not send message")
-    return resp.json()[0]
+    result = resp.json()[0]
+
+    if is_masked:
+        alert = requests.post(
+            f"{SUPABASE_URL}/rest/v1/chats",
+            headers=_supabase_headers(),
+            json=_chat_row(
+                auth_id,
+                payload,
+                "Protection notice: contact and payment details were masked. Keep payments in-app for protection.",
+            ) | {"message_type": MessageType.SYSTEM_ALERT.value},
+            timeout=10,
+        )
+        if alert.status_code not in (200, 201):
+            logger.warning("failed to append chat protection alert: %s", alert.status_code)
+
+    return result
+
+
+@api_router.get("/conversations/unread-count")
+def get_conversations_unread_count(authorization: Optional[str] = Header(None)):
+    """Return the caller's unread chat count using the indexed receiver/read fields."""
+    auth_id = _verify_supabase_user(authorization)
+    resp = requests.get(
+        f"{SUPABASE_URL}/rest/v1/chats?receiver_auth_id=eq.{auth_id}&is_read=eq.false&select=id",
+        headers={**_supabase_headers(), "Prefer": "count=exact"},
+        timeout=10,
+    )
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail="Could not fetch unread message count")
+    content_range = resp.headers.get("content-range", "*/0")
+    try:
+        unread_count = int(content_range.rsplit("/", 1)[1])
+    except (ValueError, IndexError):
+        unread_count = len(resp.json())
+    return {"unreadCount": unread_count}
+
+
+@api_router.post("/conversations/{conversation_id}/mark-read")
+def mark_conversation_read(conversation_id: int, authorization: Optional[str] = Header(None)):
+    """Mark unread messages in a booking conversation read for the current user."""
+    auth_id = _verify_supabase_user(authorization)
+    now = datetime.utcnow().isoformat()
+    resp = requests.patch(
+        f"{SUPABASE_URL}/rest/v1/chats?booking_id=eq.{conversation_id}&receiver_auth_id=eq.{auth_id}&is_read=eq.false",
+        headers=_supabase_headers(),
+        json={"is_read": True, "read": True, "read_at": now},
+        timeout=10,
+    )
+    if resp.status_code not in (200, 204):
+        raise HTTPException(status_code=502, detail="Could not mark conversation read")
+    return {"conversationId": conversation_id, "readAt": now, "clearedCount": len(resp.json()) if resp.content else 0}
 
 
 # ============================================================================

@@ -381,7 +381,24 @@ export interface ChatMessage {
   sender_auth_id: string;
   receiver_auth_id: string;
   message: string;
+  message_type?: 'TEXT' | 'IMAGE' | 'LOCATION' | 'CUSTOM_INVOICE' | 'SYSTEM_ALERT';
+  is_masked?: boolean;
+  original_content?: string | null;
+  location_data?: {
+    latitude: number;
+    longitude: number;
+    addressName?: string | null;
+  } | null;
+  invoice_data?: {
+    amount: number;
+    serviceDetails?: string;
+    platformFee?: number;
+    netPayout?: number;
+    status?: string;
+    paymentReference?: string | null;
+  } | null;
   read: boolean;
+  is_read?: boolean;
   created_at: string;
   read_at?: string;
 }

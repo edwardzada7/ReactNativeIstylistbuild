@@ -7,7 +7,12 @@ export interface ChatMessage {
   sender_auth_id: string;
   receiver_auth_id: string;
   message: string;
+  message_type?: 'TEXT' | 'IMAGE' | 'LOCATION' | 'CUSTOM_INVOICE' | 'SYSTEM_ALERT';
+  is_masked?: boolean;
+  location_data?: { latitude: number; longitude: number; addressName?: string | null } | null;
+  invoice_data?: { amount: number; serviceDetails?: string; platformFee?: number; netPayout?: number; status?: string; paymentReference?: string | null } | null;
   read: boolean;
+  is_read?: boolean;
   created_at: string;
   read_at?: string;
 }
@@ -21,6 +26,15 @@ export interface BookingChatResponse {
   messages: ChatMessage[];
   participants: ChatParticipants;
 }
+
+const profileDisplayName = (profile: any): string | undefined => {
+  if (!profile) return undefined;
+  const fullName = [profile.firstName || profile.first_name, profile.lastName || profile.last_name]
+    .filter(Boolean)
+    .join(' ')
+    .trim();
+  return profile.businessName || profile.business_name || profile.salon_name || fullName || profile.name || profile.full_name;
+};
 
 /**
  * Chat service using booking-based endpoints to match web implementation.
@@ -70,19 +84,19 @@ export const chatService = {
             ).length;
 
             // Fetch counterpart's actual name and profile image from the database
-            let counterpartName = 'Unknown';
+            let counterpartName: string | undefined;
             let counterpartProfileImageUrl: string | null = null;
             try {
               // First try to get as provider (stylist)
               const stylistProfile = await apiService.get(`/stylists/by-auth/${counterpartAuthId}`).catch(() => null);
               if (stylistProfile) {
                 // Provider: prioritize business_name, then salon_name, then user name
-                counterpartName = stylistProfile?.business_name || stylistProfile?.salon_name || stylistProfile?.name || 'Unknown';
+                counterpartName = profileDisplayName(stylistProfile);
                 counterpartProfileImageUrl = stylistProfile?.profile_image_url || null;
               } else {
                 // Fallback to user table for customers
                 const userProfile = await apiService.get(`/users/by-auth/${counterpartAuthId}`);
-                counterpartName = userProfile?.name || userProfile?.full_name || 'Unknown';
+                counterpartName = profileDisplayName(userProfile);
                 counterpartProfileImageUrl = userProfile?.profile_image_url || null;
               }
             } catch (profileErr) {
@@ -118,13 +132,13 @@ export const chatService = {
   /**
    * Get chat thread for a specific booking.
    */
-  async getThread(bookingId: number): Promise<ChatMessage[]> {
+  async getThread(bookingId: number, limit = 25, offset = 0): Promise<ChatMessage[]> {
     const authId = await apiService.getAuthId();
     if (!authId) return [];
 
     try {
       const chatData: BookingChatResponse = await apiService.get(
-        `/bookings/${bookingId}/chat?auth_id=${authId}`
+        `/bookings/${bookingId}/chat?auth_id=${authId}&limit=${limit}&offset=${offset}`
       );
       
       // Mark as read
@@ -144,7 +158,7 @@ export const chatService = {
   /**
    * Send a chat message for a booking.
    */
-  async sendMessage(bookingId: number, message: string): Promise<ChatMessage> {
+  async sendMessage(bookingId: number, message: string, options: Pick<ChatMessage, 'message_type' | 'location_data' | 'invoice_data'> = {}): Promise<ChatMessage> {
     const authId = await apiService.getAuthId();
     if (!authId) {
       throw new Error('Not authenticated');
@@ -153,6 +167,9 @@ export const chatService = {
     return await apiService.post(`/bookings/${bookingId}/chat`, {
       auth_id: authId,
       message,
+      message_type: options.message_type || 'TEXT',
+      location_data: options.location_data,
+      invoice_data: options.invoice_data,
     });
   },
 
@@ -164,11 +181,16 @@ export const chatService = {
     if (!authId) return 0;
 
     try {
-      const result = await apiService.get(`/chat/unread-count?auth_id=${authId}`);
-      return result.unread_count || 0;
+      const result = await apiService.get('/conversations/unread-count');
+      return result.unreadCount ?? result.unread_count ?? 0;
     } catch (err) {
       console.error('[chat] failed to get unread count', err);
       return 0;
     }
+  },
+
+  async markRead(bookingId: number): Promise<number> {
+    const result = await apiService.post(`/conversations/${bookingId}/mark-read`);
+    return result.clearedCount ?? 0;
   },
 };

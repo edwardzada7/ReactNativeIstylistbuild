@@ -22,6 +22,7 @@ import { useAuth } from '../../src/contexts/AuthContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { providerService } from '../../src/services/provider.service';
 import { notificationService } from '../../src/services/notification.service';
+import { ChatIconWithBadge } from '../../src/components/chat/ChatIconWithBadge';
 import { formatPriceRange } from '../../src/utils/currency';
 import { Category, Provider } from '../../src/types';
 import { formatRating } from '../../src/utils/display';
@@ -201,7 +202,7 @@ export default function Home() {
               accessibilityRole="button"
               accessibilityLabel="Chat"
             >
-              <Ionicons name="chatbubble-outline" size={24} color={colors.text} />
+              <ChatIconWithBadge size={24} color={colors.text} />
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.iconButton, { backgroundColor: colors.surface }]}

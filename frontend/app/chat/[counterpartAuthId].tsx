@@ -18,6 +18,10 @@ import { useAuth } from '../../src/contexts/AuthContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { chatService, ChatMessage } from '../../src/services/chat.service';
 import apiService from '../../src/services/api';
+import { resolveCurrentLocation } from '../../src/services/location.service';
+import { LocationCard } from '../../src/components/chat/LocationCard';
+import { InvoiceCard } from '../../src/components/chat/InvoiceCard';
+import { ReadReceipt } from '../../src/components/chat/ReadReceipt';
 
 /**
  * Chat thread using booking-based endpoints to match web implementation.
@@ -36,28 +40,30 @@ export default function ChatThread() {
   const [loading, setLoading] = useState(true);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
+  const [locationLoading, setLocationLoading] = useState(false);
   const [resolvedCounterpartName, setResolvedCounterpartName] = useState<string | undefined>(counterpartName);
 
   const loadData = useCallback(async () => {
     if (!bookingId) return;
     try {
       setMessages(await chatService.getThread(Number(bookingId)));
+      await chatService.markRead(Number(bookingId));
       
       // Fetch counterpart's actual name if not provided or if it's "Unknown"
-      if (!resolvedCounterpartName || resolvedCounterpartName === 'Unknown' || resolvedCounterpartName === 'Chat') {
+      if (!resolvedCounterpartName || resolvedCounterpartName === 'Chat') {
         try {
           // First try to get as provider (stylist)
           const stylistProfile = await apiService.get(`/stylists/by-auth/${counterpartAuthId}`).catch(() => null);
-          let name = 'Unknown';
+          let name: string | undefined;
           if (stylistProfile) {
             // Provider: prioritize business_name, then salon_name, then user name
-            name = stylistProfile?.business_name || stylistProfile?.salon_name || stylistProfile?.name || 'Unknown';
+            name = stylistProfile?.businessName || stylistProfile?.business_name || stylistProfile?.salon_name || stylistProfile?.name;
           } else {
             // Fallback to user table for customers
             const userProfile = await apiService.get(`/users/by-auth/${counterpartAuthId}`);
-            name = userProfile?.name || userProfile?.full_name || 'Unknown';
+            name = [userProfile?.firstName || userProfile?.first_name, userProfile?.lastName || userProfile?.last_name].filter(Boolean).join(' ').trim() || userProfile?.name || userProfile?.full_name;
           }
-          setResolvedCounterpartName(name);
+          if (name) setResolvedCounterpartName(name);
         } catch (err) {
           console.warn('[chat] failed to load counterpart profile', err);
         }
@@ -87,6 +93,27 @@ export default function ChatThread() {
       console.error('[chat] failed to send', err);
     } finally {
       setSending(false);
+    }
+  };
+
+  const handleShareLocation = async () => {
+    setLocationLoading(true);
+    try {
+      const location = await resolveCurrentLocation();
+      if (!location.success || location.latitude == null || location.longitude == null) return;
+      const sent = await chatService.sendMessage(Number(bookingId), '', {
+        message_type: 'LOCATION',
+        location_data: {
+          latitude: location.latitude,
+          longitude: location.longitude,
+          addressName: location.location_address,
+        },
+      });
+      setMessages((prev) => [...prev, sent]);
+    } catch (err) {
+      console.error('[chat] failed to share location', err);
+    } finally {
+      setLocationLoading(false);
     }
   };
 
@@ -128,13 +155,21 @@ export default function ChatThread() {
             }
             renderItem={({ item }) => {
               const isMine = item.sender_auth_id === user?.auth_id;
+              const isSystemAlert = item.message_type === 'SYSTEM_ALERT';
               return (
                 <View style={[styles.bubbleWrapper, isMine ? styles.bubbleWrapperMine : styles.bubbleWrapperTheirs]}>
-                  <View style={[styles.bubble, isMine ? styles.bubbleMine : { backgroundColor: colors.surface }]}>
-                    <Text style={[styles.bubbleText, { color: isMine ? '#fff' : colors.text }]}>{item.message}</Text>
-                    <Text style={[styles.timestamp, { color: colors.textSecondary }]}>
-                      {formatTime(item.created_at)}
-                    </Text>
+                  <View style={[styles.bubble, isMine ? styles.bubbleMine : { backgroundColor: colors.surface }, isSystemAlert && styles.systemBubble]}>
+                    {item.message_type === 'LOCATION' && item.location_data ? (
+                      <LocationCard {...item.location_data} />
+                    ) : item.message_type === 'CUSTOM_INVOICE' && item.invoice_data ? (
+                      <InvoiceCard {...item.invoice_data} />
+                    ) : (
+                      <Text style={[styles.bubbleText, { color: isMine ? '#fff' : colors.text }]}>{item.message}</Text>
+                    )}
+                    <View style={styles.timestampRow}>
+                      <Text style={[styles.timestamp, { color: colors.textSecondary }]}>{formatTime(item.created_at)}</Text>
+                      {isMine && <ReadReceipt isRead={item.is_read ?? item.read} />}
+                    </View>
                   </View>
                 </View>
               );
@@ -142,6 +177,9 @@ export default function ChatThread() {
           />
         )}
         <View style={[styles.inputRow, { borderTopColor: colors.border }]}>
+          <TouchableOpacity onPress={handleShareLocation} disabled={locationLoading || !bookingId} accessibilityRole="button" accessibilityLabel="Share location">
+            {locationLoading ? <ActivityIndicator size="small" color={colors.primary} /> : <Ionicons name="location-outline" size={22} color={colors.primary} />}
+          </TouchableOpacity>
           <View style={{ flex: 1 }}>
             <Input value={text} onChangeText={setText} placeholder="Type a message..." />
           </View>
@@ -165,9 +203,11 @@ const styles = StyleSheet.create({
   bubbleWrapperMine: { alignItems: 'flex-end' },
   bubbleWrapperTheirs: { alignItems: 'flex-start' },
   bubble: { maxWidth: '78%', borderRadius: BorderRadius.md, padding: Spacing.sm },
+  systemBubble: { alignSelf: 'center', maxWidth: '92%' },
   bubbleMine: { backgroundColor: Colors.primary },
   bubbleText: { fontSize: FontSizes.sm },
   timestamp: { fontSize: 10, marginTop: 4, textAlign: 'right' },
+  timestampRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' },
   inputRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, borderTopWidth: 1 },
   sendBtn: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
 });

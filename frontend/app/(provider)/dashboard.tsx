@@ -19,6 +19,7 @@ import { useTheme } from '../../src/contexts/ThemeContext';
 import { bookingService } from '../../src/services/booking.service';
 import { providerService } from '../../src/services/provider.service';
 import { notificationService } from '../../src/services/notification.service';
+import { ChatIconWithBadge } from '../../src/components/chat/ChatIconWithBadge';
 import { shopService, Order } from '../../src/services/shop.service';
 import { formatCurrency } from '../../src/utils/currency';
 import { Booking, Provider } from '../../src/types';
@@ -179,7 +180,7 @@ export default function ProviderDashboard() {
               accessibilityRole="button"
               accessibilityLabel="Chat"
             >
-              <Ionicons name="chatbubble-outline" size={24} color={colors.text} />
+              <ChatIconWithBadge size={24} color={colors.text} />
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.iconButton, { backgroundColor: colors.surface }]}

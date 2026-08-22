@@ -88,7 +88,7 @@ export default function ChatList() {
               </View>
               <View style={styles.conversationContent}>
                 <Text style={[styles.conversationName, { color: colors.text }]}>
-                  {item.counterpart_name || 'Unknown'}
+                  {item.counterpart_name || 'Chat'}
                 </Text>
                 <Text style={[styles.lastMessage, { color: colors.textSecondary }]} numberOfLines={1}>
                   {item.last_message?.message || 'No messages yet'}
