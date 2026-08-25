@@ -5,16 +5,16 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
-import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
+import { FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { providerService } from '../../src/services/provider.service';
 import { feedService } from '../../src/services/feed.service';
 import { resolveCurrentLocation } from '../../src/services/location.service';
 import { supabase } from '../../src/lib/supabase';
-import { Provider, Post } from '../../src/types';
+import { Provider, Post, Review } from '../../src/types';
 import apiService from '../../src/services/api';
-import { formatRating, withCacheBuster } from '../../src/utils/display';
+import { withCacheBuster } from '../../src/utils/display';
 
 export default function ProviderProfile() {
   const router = useRouter();
@@ -22,6 +22,7 @@ export default function ProviderProfile() {
   const { colors, isDark, toggleTheme } = useTheme();
   const [profile, setProfile] = useState<Provider | null>(null);
   const [posts, setPosts] = useState<Post[]>([]);
+  const [reviews, setReviews] = useState<Review[]>([]);
   const [loadingPosts, setLoadingPosts] = useState(false);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [locationLoading, setLocationLoading] = useState(false);
@@ -77,6 +78,11 @@ export default function ProviderProfile() {
     }
   }, [user?.id, user?.auth_id]);
 
+  const loadReviews = useCallback(async () => {
+    if (!user?.id) return;
+    setReviews(await providerService.getProviderReviews(user.id));
+  }, [user?.id]);
+
   useEffect(() => {
     setAvatarUrl(withCacheBuster(user?.profile_image_url || user?.avatar));
     const nextLocation = user?.location_address || [user?.city, user?.state, user?.country].filter(Boolean).join(', ') || '';
@@ -84,9 +90,10 @@ export default function ProviderProfile() {
     setLocationStatus(nextLocation ? 'updated' : 'idle');
     loadProfile();
     loadPosts();
+    loadReviews();
     loadAccountType();
     loadKycStatus();
-  }, [loadProfile, loadPosts, user?.id, user?.profile_image_url, user?.avatar, user?.location_address, user?.city, user?.state, user?.country]);
+  }, [loadProfile, loadPosts, loadReviews, user?.id, user?.profile_image_url, user?.avatar, user?.location_address, user?.city, user?.state, user?.country]);
 
   useFocusEffect(
     useCallback(() => {
@@ -288,6 +295,10 @@ export default function ProviderProfile() {
     }
   };
 
+  const averageRating = reviews.length
+    ? (reviews.reduce((total, review) => total + Number(review.rating || 0), 0) / reviews.length).toFixed(1)
+    : 'New';
+
   const menuItems = [
     { icon: 'cut-outline', label: 'My Services', onPress: () => router.push('/(provider)/services') },
     { icon: 'time-outline', label: 'Availability', onPress: () => router.push('/(provider)/availability') },
@@ -366,7 +377,7 @@ export default function ProviderProfile() {
 
         <View style={[styles.statsContainer, { backgroundColor: colors.surface }]}>
           <View style={styles.statItem}>
-            <Text style={[styles.statValue, { color: colors.text }]}>{formatRating(profile?.rating)}</Text>
+            <Text style={[styles.statValue, { color: colors.text }]}>{averageRating}</Text>
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Rating</Text>
           </View>
           <View style={[styles.statDivider, { backgroundColor: colors.border, height: 40 }]} />

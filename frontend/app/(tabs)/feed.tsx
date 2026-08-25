@@ -110,6 +110,10 @@ export default function Feed() {
     Alert.alert('Comments coming soon', 'This feature will be available in a future update.');
   };
 
+  const handleReportPost = (postId: string) => {
+    setReportTargetId(postId);
+  };
+
   const handlePostMenu = (post: Post) => {
     const isOwnPost = post.provider_auth_id === user?.auth_id || post.user_id === user?.auth_id || post.provider?.auth_id === user?.auth_id;
     console.log('[feed] handlePostMenu - isOwnPost:', isOwnPost, 'post.provider_auth_id:', post.provider_auth_id, 'user.auth_id:', user?.auth_id);
@@ -171,20 +175,14 @@ export default function Feed() {
           accessibilityRole="button"
         >
           <ProfileAvatar 
-            uri={item.provider?.photo_url || item.provider?.profile_image_url || item.provider?.avatar} 
+            uri={item.provider?.avatarUrl || item.provider?.profileImage || item.provider?.photo_url || item.provider?.profile_image_url || item.provider?.avatar}
             name={item.provider?.display_name || item.provider?.business_name || item.provider?.name || item.provider?.full_name || item.user?.full_name || item.user?.name || 'Provider'} 
             size={44}
             type="provider"
           />
           <View>
             <Text style={[styles.userName, { color: colors.text }]}>
-              {item.provider?.display_name || 
-               item.provider?.business_name || 
-               item.provider?.name || 
-              item.provider?.full_name ||
-              item.user?.full_name ||
-              item.user?.name ||
-               'Provider'}
+              {item.provider?.businessName || item.user?.displayName || 'Stylist'}
             </Text>
             <Text style={[styles.timestamp, { color: colors.textSecondary }]}>{item.created_at ? new Date(item.created_at).toLocaleDateString() : ''}</Text>
           </View>
@@ -233,7 +231,7 @@ export default function Feed() {
 
         <TouchableOpacity
           style={styles.actionButton}
-          onPress={() => setReportTargetId(String(item.id))}
+          onPress={() => handleReportPost(String(item.id))}
           accessibilityRole="button"
           accessibilityLabel="Report post"
         >
@@ -286,7 +284,7 @@ export default function Feed() {
       <ReportModal
         visible={reportTargetId !== null}
         targetId={reportTargetId}
-        targetType="POST"
+        targetType="FEED_POST"
         onClose={() => setReportTargetId(null)}
         onSubmitted={() => Alert.alert('Report submitted', 'Thank you. We will review this post.')}
       />

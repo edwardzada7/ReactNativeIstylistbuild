@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Image,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -21,8 +22,10 @@ export default function ChatList() {
   const { colors } = useTheme();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const loadConversations = useCallback(async () => {
+  const loadConversations = useCallback(async (isPullToRefresh = false) => {
+    if (isPullToRefresh) setRefreshing(true);
     try {
       const list = await chatService.getConversations();
       setConversations(list);
@@ -30,8 +33,11 @@ export default function ChatList() {
       console.error('[chat-list] failed to load', err);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, []);
+
+  const handleRefresh = () => loadConversations(true);
 
   useEffect(() => {
     loadConversations();
@@ -67,6 +73,7 @@ export default function ChatList() {
       ) : (
         <FlatList
           data={conversations}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />}
           keyExtractor={(item) => String(item.booking_id)}
           renderItem={({ item }) => (
             <TouchableOpacity
@@ -75,20 +82,16 @@ export default function ChatList() {
               accessibilityRole="button"
             >
               <View style={[styles.avatar, { backgroundColor: colors.surfaceLight }]}>
-                {item.counterpart_profile_image_url ? (
+                {(
                   <Image
-                    source={{ uri: item.counterpart_profile_image_url }}
+                    source={{ uri: item.counterpart_profile_image_url || 'https://via.placeholder.com/150' }}
                     style={styles.avatarImage}
                   />
-                ) : (
-                  <Text style={[styles.avatarText, { color: colors.primary }]}>
-                    {getInitials(item.counterpart_name)}
-                  </Text>
                 )}
               </View>
               <View style={styles.conversationContent}>
                 <Text style={[styles.conversationName, { color: colors.text }]}>
-                  {item.counterpart_name || 'Chat'}
+                  {item.provider?.businessName || item.provider?.firstName || item.counterpart_name || 'Stylist'}
                 </Text>
                 <Text style={[styles.lastMessage, { color: colors.textSecondary }]} numberOfLines={1}>
                   {item.last_message?.message || 'No messages yet'}

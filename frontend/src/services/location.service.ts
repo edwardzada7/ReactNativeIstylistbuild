@@ -7,6 +7,7 @@ export interface LocationResolutionResult {
   latitude?: number;
   longitude?: number;
   location_address?: string | null;
+  addressName?: string | null;
   error?: LocationResolutionError;
   message?: string;
 }
@@ -28,20 +29,20 @@ export async function resolveCurrentLocation(): Promise<LocationResolutionResult
         message: 'Permission is required to use your current location.',
       };
     }
-
-    const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest });
+    const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
     const geocoded = await Location.reverseGeocodeAsync({
       latitude: position.coords.latitude,
       longitude: position.coords.longitude,
     });
 
-    const locationAddress = getReadableAddress(geocoded);
+    const locationAddress = getReadableAddress(geocoded) || 'Shared Location';
     return {
       success: true,
       latitude: position.coords.latitude,
       longitude: position.coords.longitude,
       location_address: locationAddress,
-      message: locationAddress || 'Location updated',
+      addressName: locationAddress,
+      message: locationAddress,
     };
   } catch (error: any) {
     const message = error?.message || '';

@@ -8,6 +8,7 @@ export interface User {
   auth_id: string;
   email: string;
   full_name: string;
+  displayName?: string;
   name?: string;
   phone?: string;
   avatar?: string;
@@ -99,6 +100,11 @@ export interface Provider {
   created_at: string;
   avatar?: string;
   profile_image_url?: string | null;
+  avatarUrl?: string | null;
+  profileImage?: string | null;
+  businessName?: string;
+  firstName?: string;
+  lastName?: string;
 }
 
 // Category Types
@@ -206,13 +212,19 @@ export interface BookingServiceLine {
 // the real create-booking payload is NOT { provider_id, service_id,
 // scheduled_at } - it is:
 export interface CreateBookingRequest {
-  provider_id: number;
+  provider_id?: number;
+  providerId?: number;
   customer_id?: string | number;
   customer_auth_id?: string;
-  booking_date: string; // "YYYY-MM-DD"
-  booking_time: string; // raw slot string returned by available-slots, e.g. "10:00"
-  service_ids: number[]; // array, even for a single service
-  service_duration_minutes: number;
+  booking_date?: string; // "YYYY-MM-DD"
+  booking_time?: string; // raw slot string returned by available-slots, e.g. "10:00"
+  service_ids?: number[]; // array, even for a single service
+  service_id?: number | string;
+  serviceId?: number | string;
+  scheduledAt?: string;
+  totalAmount?: number;
+  paymentMethod?: string;
+  service_duration_minutes?: number;
   notes?: string;
   status?: string; // web sends "pending_payment" explicitly
   staff_id?: string; // only included when a specific staff member was picked
@@ -290,6 +302,11 @@ export interface Post {
   provider?: {
     id: string;
     auth_id?: string;
+    avatarUrl?: string | null;
+    profileImage?: string | null;
+    businessName?: string;
+    firstName?: string;
+    lastName?: string;
     name?: string;
     display_name?: string;
     business_name?: string;
@@ -371,6 +388,13 @@ export interface Conversation {
   counterpart_auth_id: string;
   counterpart_name?: string;
   counterpart_profile_image_url?: string | null;
+  provider?: {
+    avatarUrl?: string | null;
+    profileImage?: string | null;
+    businessName?: string;
+    firstName?: string;
+    lastName?: string;
+  };
   last_message: ChatMessage;
   unread_count: number;
 }

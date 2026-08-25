@@ -176,7 +176,7 @@ export default function ProviderDashboard() {
           <View style={styles.headerActions}>
             <TouchableOpacity
               style={[styles.iconButton, { backgroundColor: colors.surface }]}
-              onPress={() => router.push('/chat/list')}
+              onPress={() => router.push('/messages')}
               accessibilityRole="button"
               accessibilityLabel="Chat"
             >
@@ -304,9 +304,12 @@ export default function ProviderDashboard() {
           {servicePreview.length === 0 ? (
             <Text style={[styles.emptyInline, { color: colors.textSecondary }]}>No services added yet.</Text>
           ) : (
-            servicePreview.map((service) => (
-              <View key={service.id} style={styles.trayItem}>
-                <View style={{ flex: 1 }}>
+            servicePreview.map((service, index) => (
+              <View
+                key={service.id}
+                style={[styles.trayItem, index < servicePreview.length - 1 && { borderBottomColor: colors.border }]}
+              >
+                <View style={styles.trayItemDetails}>
                   <Text style={[styles.bookingService, { color: colors.text }]}>{service.name}</Text>
                   {!!service.description && (
                     <Text style={[styles.bookingMeta, { color: colors.textSecondary }]} numberOfLines={2}>{service.description}</Text>
@@ -505,7 +508,10 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     paddingVertical: Spacing.sm,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.06)',
+  },
+  trayItemDetails: {
+    flex: 1,
+    minWidth: 0,
   },
   ordersCard: {
     borderRadius: BorderRadius.md,
@@ -574,5 +580,5 @@ const styles = StyleSheet.create({
   },
   bookingService: { fontSize: FontSizes.sm, fontWeight: '600' },
   bookingMeta: { fontSize: FontSizes.xs, marginTop: 2 },
-  bookingAmount: { fontSize: FontSizes.sm, fontWeight: '700' },
+  bookingAmount: { fontSize: FontSizes.sm, fontWeight: '700', flexShrink: 0 },
 });

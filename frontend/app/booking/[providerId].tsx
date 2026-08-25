@@ -157,6 +157,8 @@ export default function CreateBooking() {
         booking_time: selectedSlot,
         service_ids: [Number(selectedService.id)],
         service_duration_minutes: selectedService.duration || 30,
+        totalAmount: Number(selectedService.price),
+        paymentMethod: 'wallet',
         notes: notes.trim() || undefined,
         status: 'pending_payment',
         ...(selectedStaffId ? { staff_id: selectedStaffId } : {}),
@@ -184,7 +186,7 @@ export default function CreateBooking() {
       }
       setConfirmed(true);
     } catch (err: any) {
-      Alert.alert('Booking Failed', err?.friendlyMessage || 'Could not create this booking.');
+      Alert.alert('Booking Failed', err?.friendlyMessage || err?.message || 'Could not create this booking.');
     } finally {
       setSubmitting(false);
       awaitingTopUpRef.current = false;

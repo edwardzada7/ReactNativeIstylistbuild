@@ -3,9 +3,10 @@ import { ActivityIndicator, Modal, StyleSheet, Text, TextInput, TouchableOpacity
 import { Ionicons } from '@expo/vector-icons';
 import { BorderRadius, FontSizes, Spacing } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
+import { feedService } from '../../services/feed.service';
 import { supportService } from '../../services/support.service';
 
-export type ReportTargetType = 'POST' | 'PRODUCT';
+export type ReportTargetType = 'POST' | 'PRODUCT' | 'FEED_POST';
 
 interface ReportModalProps {
   visible: boolean;
@@ -15,17 +16,19 @@ interface ReportModalProps {
   onSubmitted?: () => void;
 }
 
-const REASONS = ['Spam', 'Harassment', 'Inappropriate content', 'Scam or fraud', 'Other'];
+const REASONS = ['Spam', 'Harassment', 'Inappropriate', 'Scam', 'Other'];
 
 export function ReportModal({ visible, targetId, targetType, onClose, onSubmitted }: ReportModalProps) {
   const { colors } = useTheme();
   const [reason, setReason] = useState('');
   const [description, setDescription] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [validationMessage, setValidationMessage] = useState('');
 
   const reset = () => {
     setReason('');
     setDescription('');
+    setValidationMessage('');
   };
 
   const handleClose = () => {
@@ -34,16 +37,25 @@ export function ReportModal({ visible, targetId, targetType, onClose, onSubmitte
     onClose();
   };
 
-  const handleSubmit = async () => {
-    if (!targetId || !reason || submitting) return;
+  const handleSubmitReport = async () => {
+    if (submitting) return;
+    if (!targetId || !reason) {
+      setValidationMessage('Select a reason before submitting your report.');
+      return;
+    }
+    setValidationMessage('');
     setSubmitting(true);
     try {
-      await supportService.createReport({
-        target_id: String(targetId),
-        target_type: targetType,
-        reason,
-        description: description.trim(),
-      });
+      if (targetType === 'FEED_POST') {
+        await feedService.reportPost(String(targetId), reason);
+      } else {
+        await supportService.createReport({
+          target_id: String(targetId),
+          target_type: targetType,
+          reason,
+          description: description.trim(),
+        });
+      }
       reset();
       onSubmitted?.();
       onClose();
@@ -59,7 +71,7 @@ export function ReportModal({ visible, targetId, targetType, onClose, onSubmitte
       <View style={styles.backdrop}>
         <View style={[styles.card, { backgroundColor: colors.surface }]}>
           <View style={styles.header}>
-            <Text style={[styles.title, { color: colors.text }]}>Report {targetType === 'POST' ? 'post' : 'product'}</Text>
+            <Text style={[styles.title, { color: colors.text }]}>Report {targetType === 'PRODUCT' ? 'product' : 'post'}</Text>
             <TouchableOpacity onPress={handleClose} accessibilityRole="button" accessibilityLabel="Close report modal">
               <Ionicons name="close" size={24} color={colors.textSecondary} />
             </TouchableOpacity>
@@ -87,11 +99,12 @@ export function ReportModal({ visible, targetId, targetType, onClose, onSubmitte
             multiline
             style={[styles.input, { color: colors.text, borderColor: colors.border }]}
           />
+          {validationMessage ? <Text style={[styles.validationMessage, { color: colors.error }]}>{validationMessage}</Text> : null}
           <View style={styles.actions}>
             <TouchableOpacity style={[styles.cancelButton, { borderColor: colors.border }]} onPress={handleClose} disabled={submitting}>
               <Text style={[styles.cancelText, { color: colors.text }]}>Cancel</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.submitButton, { backgroundColor: colors.primary }, !reason && styles.disabled]} onPress={handleSubmit} disabled={!reason || submitting}>
+            <TouchableOpacity style={[styles.submitButton, { backgroundColor: colors.primary }, submitting && styles.disabled]} onPress={handleSubmitReport} disabled={submitting}>
               {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.submitText}>Submit report</Text>}
             </TouchableOpacity>
           </View>
@@ -111,6 +124,7 @@ const styles = StyleSheet.create({
   reason: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, borderWidth: 1, borderRadius: BorderRadius.md, padding: Spacing.sm },
   reasonText: { fontSize: FontSizes.sm },
   input: { minHeight: 72, marginTop: Spacing.md, borderWidth: 1, borderRadius: BorderRadius.md, padding: Spacing.sm, textAlignVertical: 'top' },
+  validationMessage: { fontSize: FontSizes.xs, marginTop: Spacing.xs },
   actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: Spacing.sm, marginTop: Spacing.lg },
   cancelButton: { borderWidth: 1, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
   cancelText: { fontSize: FontSizes.sm, fontWeight: '600' },

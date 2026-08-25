@@ -26,7 +26,7 @@ export default function ProductDetail() {
   const [submitting, setSubmitting] = useState(false);
   const [composerVisible, setComposerVisible] = useState(false);
   const [editingReview, setEditingReview] = useState<ProductReview | null>(null);
-  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewRating, setReviewRating] = useState(0);
   const [reviewText, setReviewText] = useState('');
   const addItem = useCartStore((s) => s.addItem);
 
@@ -91,7 +91,7 @@ export default function ProductDetail() {
       setReviewText(review.review_text);
     } else {
       setEditingReview(null);
-      setReviewRating(5);
+      setReviewRating(0);
       setReviewText('');
     }
     setComposerVisible(true);
@@ -102,7 +102,11 @@ export default function ProductDetail() {
 
     const cleanedText = reviewText.trim();
     const normalizedRating = Number(reviewRating);
-    const validRating = Number.isFinite(normalizedRating) ? Math.min(5, Math.max(1, Math.round(normalizedRating))) : 5;
+    if (!Number.isInteger(normalizedRating) || normalizedRating < 1 || normalizedRating > 5) {
+      Alert.alert('Rating required', 'Please select a rating from 1 to 5 stars.');
+      return;
+    }
+    const validRating = normalizedRating;
 
     if (!cleanedText) {
       Alert.alert('Review required', 'Please write a short review before submitting.');
@@ -114,6 +118,7 @@ export default function ProductDetail() {
       const userId = user?.auth_id || user?.id || undefined;
       const payloadBase = {
         product_id: Number(product.id),
+        productId: Number(product.id),
         user_id: userId,
         order_id: null,
         item_id: null,

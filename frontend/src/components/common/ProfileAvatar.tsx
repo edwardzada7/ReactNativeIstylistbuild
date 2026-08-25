@@ -1,7 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { View, Image, StyleSheet, ViewStyle } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useTheme } from '../../contexts/ThemeContext';
 import { withCacheBuster } from '../../utils/display';
 
 interface ProfileAvatarProps {
@@ -12,35 +10,27 @@ interface ProfileAvatarProps {
   type?: 'customer' | 'provider';
 }
 
+const PLACEHOLDER_AVATAR = 'https://via.placeholder.com/150';
+
 export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
   uri,
   name,
   size = 48,
   style,
-  type = 'customer',
 }) => {
-  const { colors } = useTheme();
-  const iconName = type === 'provider' ? 'storefront' : 'person-circle-outline';
-  const iconSize = size * 0.6;
-  const [imageUri, setImageUri] = useState<string | null>(() => withCacheBuster(uri));
+  const [imageUri, setImageUri] = useState<string>(() => withCacheBuster(uri || PLACEHOLDER_AVATAR) || PLACEHOLDER_AVATAR);
 
   useEffect(() => {
-    setImageUri(withCacheBuster(uri));
+    setImageUri(withCacheBuster(uri || PLACEHOLDER_AVATAR) || PLACEHOLDER_AVATAR);
   }, [uri]);
 
   return (
     <View style={[styles.container, { width: size, height: size, borderRadius: size / 2 }, style]}>
-      {imageUri ? (
-        <Image
-          source={{ uri: imageUri }}
-          style={[styles.image, { width: size, height: size, borderRadius: size / 2 }]}
-          onError={() => {
-            // Image loading failed - will show fallback
-          }}
-        />
-      ) : (
-        <Ionicons name={iconName as any} size={iconSize} color={colors.primary} />
-      )}
+      <Image
+        source={{ uri: imageUri || PLACEHOLDER_AVATAR }}
+        style={[styles.image, { width: size, height: size, borderRadius: size / 2 }]}
+        onError={() => setImageUri(PLACEHOLDER_AVATAR)}
+      />
     </View>
   );
 };

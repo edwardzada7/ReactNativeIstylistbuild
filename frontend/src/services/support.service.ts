@@ -26,6 +26,13 @@ export const supportService = {
     reason: string;
     description?: string;
   }): Promise<Report> {
+    if (data.target_type === 'PRODUCT') {
+      return await apiService.post<Report>('/products/report', {
+        productId: Number(data.target_id),
+        reason: data.reason,
+        description: (data.description || '').trim(),
+      });
+    }
     return await apiService.post<Report>('/reports', data);
   },
 };

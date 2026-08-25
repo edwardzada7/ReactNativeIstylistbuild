@@ -86,9 +86,10 @@ export const chatService = {
             // Fetch counterpart's actual name and profile image from the database
             let counterpartName: string | undefined;
             let counterpartProfileImageUrl: string | null = null;
+            let stylistProfile: any = null;
             try {
               // First try to get as provider (stylist)
-              const stylistProfile = await apiService.get(`/stylists/by-auth/${counterpartAuthId}`).catch(() => null);
+              stylistProfile = await apiService.get(`/stylists/by-auth/${counterpartAuthId}`).catch(() => null);
               if (stylistProfile) {
                 // Provider: prioritize business_name, then salon_name, then user name
                 counterpartName = profileDisplayName(stylistProfile);
@@ -109,6 +110,15 @@ export const chatService = {
               counterpart_auth_id: counterpartAuthId,
               counterpart_name: counterpartName,
               counterpart_profile_image_url: counterpartProfileImageUrl,
+              provider: stylistProfile
+                ? {
+                    avatarUrl: stylistProfile.avatarUrl || stylistProfile.avatar_url || stylistProfile.profile_image_url,
+                    profileImage: stylistProfile.profileImage || stylistProfile.profile_image,
+                    businessName: stylistProfile.businessName || stylistProfile.business_name,
+                    firstName: stylistProfile.firstName || stylistProfile.first_name,
+                    lastName: stylistProfile.lastName || stylistProfile.last_name,
+                  }
+                : undefined,
               last_message: chatData.messages[0],
               unread_count: unreadCount,
             });

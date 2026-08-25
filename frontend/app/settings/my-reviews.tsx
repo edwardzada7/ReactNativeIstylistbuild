@@ -46,6 +46,10 @@ export default function MyReviews() {
     }, [loadData])
   );
 
+  const averageRating = reviews.length
+    ? (reviews.reduce((total, review) => total + Number(review.rating || 0), 0) / reviews.length).toFixed(1)
+    : 'New';
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <View style={styles.header}>
@@ -80,10 +84,23 @@ export default function MyReviews() {
               <Text style={[styles.emptyText, { color: colors.textSecondary }]}>You haven&apos;t written any reviews yet.</Text>
             </View>
           ) : (
-            reviews.map((review) => (
+            <>
+              <View style={[styles.summary, { backgroundColor: colors.surface }]}> 
+                <View style={styles.summaryRatingRow}>
+                  <Stars rating={Number(averageRating)} />
+                  <Text style={[styles.summaryRating, { color: colors.text }]}>{averageRating}</Text>
+                </View>
+                <Text style={[styles.summaryCount, { color: colors.textSecondary }]}>
+                  {reviews.length} review{reviews.length === 1 ? '' : 's'}
+                </Text>
+              </View>
+              {reviews.map((review) => (
               <View key={review.id} style={[styles.card, { backgroundColor: colors.surface }]}>
                 <View style={styles.cardHeader}>
-                  <Stars rating={review.rating} />
+                  <View style={styles.ratingRow}>
+                    <Stars rating={review.rating} />
+                    <Text style={[styles.ratingFigure, { color: colors.text }]}>{Number(review.rating).toFixed(1)}</Text>
+                  </View>
                   {!!review.created_at && (
                     <Text style={[styles.date, { color: colors.textSecondary }]}>
                       {new Date(review.created_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })}
@@ -92,7 +109,8 @@ export default function MyReviews() {
                 </View>
                 {!!review.comment && <Text style={[styles.comment, { color: colors.textSecondary }]}>{review.comment}</Text>}
               </View>
-            ))
+              ))}
+            </>
           )}
         </ScrollView>
       )}
@@ -115,6 +133,12 @@ const styles = StyleSheet.create({
   emptyText: { fontSize: FontSizes.sm, textAlign: 'center', paddingHorizontal: Spacing.xl },
   card: { borderRadius: BorderRadius.md, padding: Spacing.md, marginBottom: Spacing.sm },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.sm },
+  summary: { borderRadius: BorderRadius.md, padding: Spacing.md, marginBottom: Spacing.lg, alignItems: 'center', gap: Spacing.xs },
+  summaryRatingRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  summaryRating: { fontSize: FontSizes.xl, fontWeight: '700' },
+  summaryCount: { fontSize: FontSizes.sm },
+  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
+  ratingFigure: { fontSize: FontSizes.sm, fontWeight: '700' },
   date: { fontSize: FontSizes.xs },
   comment: { fontSize: FontSizes.sm, lineHeight: 20 },
 });

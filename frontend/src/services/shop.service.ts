@@ -221,6 +221,10 @@ export const shopService = {
     currency?: string;
     payment_method?: string;
     delivery_address?: string;
+    cartItems?: { product_id: number; quantity: number }[];
+    totalAmount?: number;
+    deliveryAddressId?: string;
+    paymentMethod?: string;
   }): Promise<{ status: boolean; authorization_url?: string; reference?: string; message?: string }> {
     const sanitizedItems = (input.items || []).filter((item) => item && Number.isFinite(item.product_id) && Number.isFinite(item.quantity) && item.quantity > 0);
     const amount = Number(input.amount || 0);
@@ -230,12 +234,16 @@ export const shopService = {
       currency: (input.currency || 'NGN').trim().toUpperCase() || 'NGN',
       payment_method: (input.payment_method || 'paystack').trim() || 'paystack',
       ...(sanitizedItems.length > 0 ? { items: sanitizedItems } : {}),
+      cartItems: input.cartItems || sanitizedItems,
+      totalAmount: Number(input.totalAmount ?? amount),
+      paymentMethod: input.paymentMethod || input.payment_method || 'paystack',
     };
 
     if (input.name) body.name = input.name;
     if (input.phone) body.phone = input.phone;
     if (input.redirect_url) body.redirect_url = input.redirect_url;
     if (input.delivery_address) body.delivery_address = input.delivery_address.trim();
+    if (input.deliveryAddressId) body.deliveryAddressId = input.deliveryAddressId;
 
     return apiService.post('/payments/paystack/shop/initialize', body);
   },
@@ -344,7 +352,7 @@ export const shopService = {
 
   async createProductReview(
     productId: number,
-    input: { rating: number; review_text: string; comment?: string; product_id?: number; user_id?: string; order_id?: number | null; item_id?: number | null }
+    input: { rating: number; review_text: string; comment?: string; product_id?: number; productId?: number; user_id?: string; order_id?: number | null; item_id?: number | null }
   ): Promise<ProductReview> {
     const authId = await apiService.getAuthId();
     if (!authId) throw new Error('Not authenticated');
@@ -352,15 +360,19 @@ export const shopService = {
     const reviewText = String(input.review_text ?? input.comment ?? '').trim();
     const rating = Number(input.rating);
     const normalizedPayload = {
-      product_id: Number(input.product_id ?? productId),
+      product_id: Number(input.product_id ?? input.productId ?? productId),
+      productId: Number(input.product_id ?? input.productId ?? productId),
       user_id: String(input.user_id ?? authId),
       order_id: input.order_id != null ? Number(input.order_id) : null,
       item_id: input.item_id != null ? Number(input.item_id) : null,
-      rating: Number.isFinite(rating) ? Math.min(5, Math.max(1, Math.round(rating))) : 5,
+      rating,
       review_text: reviewText,
       comment: reviewText,
     };
 
+    if (!Number.isInteger(normalizedPayload.rating) || normalizedPayload.rating < 1 || normalizedPayload.rating > 5) {
+      throw new Error('Please select a rating from 1 to 5 stars.');
+    }
     if (!normalizedPayload.review_text) {
       throw new Error('Please write a review before submitting.');
     }
@@ -371,7 +383,7 @@ export const shopService = {
   async updateProductReview(
     productId: number,
     reviewId: number,
-    input: { rating: number; review_text: string; comment?: string; product_id?: number; user_id?: string; order_id?: number | null; item_id?: number | null }
+    input: { rating: number; review_text: string; comment?: string; product_id?: number; productId?: number; user_id?: string; order_id?: number | null; item_id?: number | null }
   ): Promise<ProductReview> {
     const authId = await apiService.getAuthId();
     if (!authId) throw new Error('Not authenticated');
@@ -379,15 +391,19 @@ export const shopService = {
     const reviewText = String(input.review_text ?? input.comment ?? '').trim();
     const rating = Number(input.rating);
     const normalizedPayload = {
-      product_id: Number(input.product_id ?? productId),
+      product_id: Number(input.product_id ?? input.productId ?? productId),
+      productId: Number(input.product_id ?? input.productId ?? productId),
       user_id: String(input.user_id ?? authId),
       order_id: input.order_id != null ? Number(input.order_id) : null,
       item_id: input.item_id != null ? Number(input.item_id) : null,
-      rating: Number.isFinite(rating) ? Math.min(5, Math.max(1, Math.round(rating))) : 5,
+      rating,
       review_text: reviewText,
       comment: reviewText,
     };
 
+    if (!Number.isInteger(normalizedPayload.rating) || normalizedPayload.rating < 1 || normalizedPayload.rating > 5) {
+      throw new Error('Please select a rating from 1 to 5 stars.');
+    }
     if (!normalizedPayload.review_text) {
       throw new Error('Please write a review before submitting.');
     }

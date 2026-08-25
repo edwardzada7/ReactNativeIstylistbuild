@@ -133,6 +133,7 @@ class UpdateOrderStatusInput(BaseModel):
 
 class ProductReviewCreateInput(BaseModel):
     product_id: Optional[int] = None
+    productId: Optional[int] = None
     order_id: Optional[int] = None
     item_id: Optional[int] = None
     user_id: Optional[str] = None
@@ -143,6 +144,7 @@ class ProductReviewCreateInput(BaseModel):
 
 class ProductReviewUpdateInput(BaseModel):
     product_id: Optional[int] = None
+    productId: Optional[int] = None
     order_id: Optional[int] = None
     item_id: Optional[int] = None
     user_id: Optional[str] = None
@@ -151,14 +153,74 @@ class ProductReviewUpdateInput(BaseModel):
     comment: Optional[str] = None
 
 
+class BookingCreateInput(BaseModel):
+    providerId: Optional[int] = None
+    serviceId: Optional[int] = None
+    scheduledAt: Optional[str] = None
+    totalAmount: Optional[float] = None
+    paymentMethod: Optional[str] = None
+    provider_id: Optional[int] = None
+    service_id: Optional[int] = None
+    booking_date: Optional[str] = None
+    booking_time: Optional[str] = None
+    service_ids: Optional[List[int]] = None
+    service_duration_minutes: Optional[int] = None
+    customer_id: Optional[str] = None
+    customer_auth_id: Optional[str] = None
+    notes: Optional[str] = None
+    status: Optional[str] = None
+    staff_id: Optional[str] = None
+
+    class Config:
+        extra = 'allow'
+
+
 class PaystackShopInitializeInput(BaseModel):
     amount: float
     email: str
     items: List[OrderItemInput] = Field(..., min_items=1)
+    cartItems: Optional[List[OrderItemInput]] = None
+    totalAmount: Optional[float] = None
+    deliveryAddressId: Optional[str] = None
+    paymentMethod: Optional[str] = None
     name: Optional[str] = None
     phone: Optional[str] = None
     redirect_url: Optional[str] = None
     currency: Optional[str] = 'NGN'
+    delivery_address: Optional[str] = None
+    payment_method: Optional[str] = None
+
+
+@api_router.post("/bookings")
+def create_booking(request: Request, payload: BookingCreateInput, authorization: Optional[str] = Header(None)):
+    """Validate wallet funds before forwarding booking creation upstream."""
+    provider_id = payload.providerId or payload.provider_id
+    service_id = payload.serviceId or payload.service_id or (payload.service_ids or [None])[0]
+    amount = payload.totalAmount
+    scheduled_at = payload.scheduledAt or (f'{payload.booking_date}T{payload.booking_time}' if payload.booking_date and payload.booking_time else None)
+    if not provider_id or not service_id or not scheduled_at or amount is None or amount <= 0 or not payload.paymentMethod and not payload.payment_method:
+        raise HTTPException(status_code=400, detail="Provider, service, scheduled time, total amount, and payment method are required")
+
+    auth_id = _verify_supabase_user(authorization)
+    wallets_resp = requests.get(
+        f"{PRIMARY_BACKEND_URL.rstrip('/')}/api/wallets",
+        headers=_proxy_request_headers(request),
+        timeout=20,
+    )
+    if wallets_resp.status_code != 200:
+        raise HTTPException(status_code=502, detail="Could not verify wallet balance")
+    wallets = wallets_resp.json() or []
+    wallet = next((item for item in wallets if item.get('user_auth_id') == auth_id), None)
+    if float(wallet.get('balance', 0) if wallet else 0) < float(amount):
+        raise HTTPException(status_code=400, detail="Insufficient wallet balance")
+
+    upstream = requests.post(
+        f"{PRIMARY_BACKEND_URL.rstrip('/')}/api/bookings",
+        headers=_proxy_request_headers(request),
+        json=payload.dict(exclude_none=True),
+        timeout=20,
+    )
+    return _proxy_response(upstream)
 
 
 def _paystack_headers():
@@ -522,7 +584,7 @@ async def get_product_reviews(product_id: int, authorization: Optional[str] = He
 async def create_product_review(product_id: int, payload: ProductReviewCreateInput, authorization: Optional[str] = Header(None)):
     user = _get_supabase_user_details(authorization)
     auth_id = user["id"]
-    safe_product_id = int(payload.product_id or product_id)
+    safe_product_id = int(payload.product_id or payload.productId or product_id)
     review_text = (payload.review_text or payload.comment or '').strip()
     if not review_text:
         raise HTTPException(status_code=422, detail="Review comment is required")
@@ -581,7 +643,7 @@ async def create_product_review(product_id: int, payload: ProductReviewCreateInp
 async def update_product_review(product_id: int, review_id: int, payload: ProductReviewUpdateInput, authorization: Optional[str] = Header(None)):
     user = _get_supabase_user_details(authorization)
     auth_id = user["id"]
-    safe_product_id = int(payload.product_id or product_id)
+    safe_product_id = int(payload.product_id or payload.productId or product_id)
     review_text = (payload.review_text or payload.comment or '').strip()
     if not review_text:
         raise HTTPException(status_code=422, detail="Review comment is required")

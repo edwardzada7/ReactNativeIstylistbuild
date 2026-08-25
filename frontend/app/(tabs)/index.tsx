@@ -138,7 +138,7 @@ export default function Home() {
       accessibilityLabel={item.business_name}
     >
       <ProfileAvatar 
-        uri={item.profile_image_url || item.avatar} 
+        uri={item.avatarUrl || item.profileImage || item.profile_image_url || item.avatar}
         name={item.business_name} 
         size={80}
         type="provider"
@@ -198,7 +198,7 @@ export default function Home() {
           <View style={styles.headerActions}>
             <TouchableOpacity
               style={[styles.iconButton, { backgroundColor: colors.surface }]}
-              onPress={() => router.push('/chat/list')}
+              onPress={() => router.push('/messages')}
               accessibilityRole="button"
               accessibilityLabel="Chat"
             >

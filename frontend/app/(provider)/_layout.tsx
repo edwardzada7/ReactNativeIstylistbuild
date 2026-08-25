@@ -18,7 +18,7 @@ export default function ProviderTabsLayout() {
           paddingTop: 8,
           height: 60 + insets.bottom,
         },
-        tabBarActiveTintColor: colors.primary,
+        tabBarActiveTintColor: '#E91E63',
         tabBarInactiveTintColor: colors.textMuted,
         tabBarLabelStyle: {
           fontSize: 12,
@@ -38,7 +38,7 @@ export default function ProviderTabsLayout() {
       <Tabs.Screen
         name="bookings"
         options={{
-          title: 'Bookings',
+          title: 'Booking',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="calendar" size={size} color={color} />
           ),
@@ -82,6 +82,10 @@ export default function ProviderTabsLayout() {
           off the tab bar and reached via the Provider Home quick actions. */}
       <Tabs.Screen name="portfolio" options={{ href: null }} />
       <Tabs.Screen name="reviews" options={{ href: null }} />
+      <Tabs.Screen name="kyc" options={{ href: null }} />
+      <Tabs.Screen name="orders" options={{ href: null }} />
+      <Tabs.Screen name="create-post" options={{ href: null }} />
+      <Tabs.Screen name="edit-post" options={{ href: null }} />
     </Tabs>
   );
 }

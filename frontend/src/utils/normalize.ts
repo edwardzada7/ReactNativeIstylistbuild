@@ -39,20 +39,33 @@ export function normalizeProvider(raw: any): Provider {
   const servicesRaw =
     pick(raw, ['services', 'provider_services', 'catalog_services'], []) || [];
   const images = pick(raw, ['portfolio_images', 'images', 'gallery', 'photos'], []) || [];
-  const profileImageUrl = pick(raw, ['profile_image_url', 'avatar', 'photo_url', 'photo', 'image', 'profile_photo']);
+  const profileImageUrl = pick(raw, [
+    'avatarUrl',
+    'profileImage',
+    'profile_image_url',
+    'avatar_url',
+    'avatar',
+    'photo_url',
+    'photo',
+    'image',
+    'profile_photo',
+  ]);
   const city = pick(raw, ['city']);
   const country = pick(raw, ['country']);
   const locationAddress = pick(raw, ['location_address', 'address', 'location']);
   const location = locationAddress || [city, country].filter(Boolean).join(', ');
+  const firstName = pick(raw, ['firstName', 'first_name']);
+  const lastName = pick(raw, ['lastName', 'last_name']);
+  const businessName = pick(
+    raw,
+    ['businessName', 'business_name', 'name', 'full_name', 'stylist_name'],
+    'Stylist'
+  );
 
   return {
     id: String(pick(raw, ['id', 'provider_id'], '')),
     user_id: String(pick(raw, ['auth_id', 'user_id'], '')),
-    business_name: pick(
-      raw,
-      ['business_name', 'name', 'full_name', 'stylist_name'],
-      'Stylist'
-    ),
+    business_name: businessName,
     bio: pick(raw, ['bio', 'about', 'description'], ''),
     category_id: String(pick(raw, ['category_id', 'category'], '')),
     category: pick(raw, ['category', 'category_name', 'specialty']),
@@ -72,6 +85,11 @@ export function normalizeProvider(raw: any): Provider {
     created_at: pick(raw, ['created_at'], ''),
     avatar: profileImageUrl,
     profile_image_url: profileImageUrl,
+    avatarUrl: pick(raw, ['avatarUrl', 'avatar_url'], profileImageUrl),
+    profileImage: pick(raw, ['profileImage', 'profile_image'], profileImageUrl),
+    businessName,
+    firstName,
+    lastName,
   } as Provider;
 }
 

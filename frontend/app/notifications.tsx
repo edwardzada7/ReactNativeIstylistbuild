@@ -111,6 +111,10 @@ export default function Notifications() {
         router.push('/(tabs)/feed');
         return;
       }
+      if (item.type === 'message') {
+        router.push('/messages');
+        return;
+      }
       if (item.type === 'booking') {
         router.push('/(tabs)/bookings');
         return;

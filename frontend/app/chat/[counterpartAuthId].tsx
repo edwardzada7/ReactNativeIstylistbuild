@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -38,13 +39,15 @@ export default function ChatThread() {
   const { user } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [locationLoading, setLocationLoading] = useState(false);
   const [resolvedCounterpartName, setResolvedCounterpartName] = useState<string | undefined>(counterpartName);
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (isPullToRefresh = false) => {
     if (!bookingId) return;
+    if (isPullToRefresh) setRefreshing(true);
     try {
       setMessages(await chatService.getThread(Number(bookingId)));
       await chatService.markRead(Number(bookingId));
@@ -57,7 +60,7 @@ export default function ChatThread() {
           let name: string | undefined;
           if (stylistProfile) {
             // Provider: prioritize business_name, then salon_name, then user name
-            name = stylistProfile?.businessName || stylistProfile?.business_name || stylistProfile?.salon_name || stylistProfile?.name;
+            name = stylistProfile?.businessName || stylistProfile?.business_name || stylistProfile?.firstName || stylistProfile?.first_name || stylistProfile?.salon_name || stylistProfile?.name;
           } else {
             // Fallback to user table for customers
             const userProfile = await apiService.get(`/users/by-auth/${counterpartAuthId}`);
@@ -72,8 +75,11 @@ export default function ChatThread() {
       console.error('[chat] failed to load thread', err);
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   }, [bookingId, counterpartAuthId, resolvedCounterpartName]);
+
+  const handleRefresh = () => loadData(true);
 
   useFocusEffect(
     useCallback(() => {
@@ -101,12 +107,15 @@ export default function ChatThread() {
     try {
       const location = await resolveCurrentLocation();
       if (!location.success || location.latitude == null || location.longitude == null) return;
-      const sent = await chatService.sendMessage(Number(bookingId), '', {
+      const addressName = location.addressName ?? location.location_address ?? 'Shared Location';
+      const payloadMessage = 'Shared a location';
+
+      const sent = await chatService.sendMessage(Number(bookingId), payloadMessage, {
         message_type: 'LOCATION',
         location_data: {
           latitude: location.latitude,
           longitude: location.longitude,
-          addressName: location.location_address,
+          addressName,
         },
       });
       setMessages((prev) => [...prev, sent]);
@@ -133,7 +142,7 @@ export default function ChatThread() {
         <TouchableOpacity onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back">
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <Text style={[styles.title, { color: colors.text }]}>{resolvedCounterpartName || 'Chat'}</Text>
+        <Text style={[styles.title, { color: colors.text }]}>{resolvedCounterpartName || 'Stylist'}</Text>
         <View style={{ width: 24 }} />
       </View>
 
@@ -145,6 +154,7 @@ export default function ChatThread() {
         ) : (
           <FlatList
             data={messages}
+            refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />}
             keyExtractor={(item) => String(item.id)}
             contentContainerStyle={styles.list}
             ListEmptyComponent={

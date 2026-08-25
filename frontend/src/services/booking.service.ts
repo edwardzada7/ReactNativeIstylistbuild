@@ -34,10 +34,23 @@ export const bookingService = {
   // and an optional staff_id - NOT { provider_id, service_id,
   // scheduled_at } as previously assumed.
   async createBooking(data: CreateBookingRequest): Promise<Booking> {
+    const scheduledDate = data.scheduledAt ? new Date(data.scheduledAt) : null;
+    const providerId = data.provider_id ?? data.providerId;
+    const serviceId = data.service_id ?? data.serviceId;
+    const serviceIds = data.service_ids?.length ? data.service_ids : serviceId != null ? [Number(serviceId)] : [];
+    const bookingDate = data.booking_date || (scheduledDate && !Number.isNaN(scheduledDate.getTime()) ? scheduledDate.toISOString().slice(0, 10) : '');
+    const bookingTime = data.booking_time || (scheduledDate && !Number.isNaN(scheduledDate.getTime()) ? scheduledDate.toISOString().slice(11, 16) : '');
+
+    if (!providerId || !serviceIds.length || !bookingDate || !bookingTime) {
+      throw new Error('Provider, service, scheduled time, total amount, and payment method are required.');
+    }
+
     const raw = await apiService.post<any>('/bookings', {
       ...data,
-      provider_id: Number(data.provider_id),
-      service_ids: (data.service_ids || []).map((id) => Number(id)),
+      provider_id: Number(providerId),
+      service_ids: serviceIds.map((id) => Number(id)),
+      booking_date: bookingDate,
+      booking_time: bookingTime,
     });
     return normalizeBooking(raw);
   },

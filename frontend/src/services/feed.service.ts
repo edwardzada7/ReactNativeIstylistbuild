@@ -75,6 +75,10 @@ export const feedService = {
     return await apiService.post<Comment>(`/feed/${postId}/comments`, { content });
   },
 
+  async reportPost(postId: string, reason: string): Promise<void> {
+    await apiService.post('/feed/report', { postId, reason });
+  },
+
   // Delete post
   async deletePost(postId: string): Promise<void> {
     const authId = await apiService.getAuthId();

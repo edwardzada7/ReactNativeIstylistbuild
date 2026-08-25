@@ -16,7 +16,6 @@ import { useAuth } from '../../src/contexts/AuthContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { providerService } from '../../src/services/provider.service';
 import { Review } from '../../src/types';
-import { formatRating } from '../../src/utils/display';
 import { ProfileAvatar } from '../../src/components/common';
 
 const Stars = ({ rating, size = 14 }: { rating: number; size?: number }) => (
@@ -81,6 +80,10 @@ export default function ProviderReviews() {
     loadData();
   };
 
+  const averageRating = reviews.length
+    ? (reviews.reduce((total, review) => total + Number(review.rating || 0), 0) / reviews.length).toFixed(1)
+    : 'New';
+
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <View style={styles.header}>
@@ -107,9 +110,12 @@ export default function ProviderReviews() {
 
           <View style={[styles.summaryCard, { backgroundColor: colors.surface }]}>
             <Text style={[styles.summaryRating, { color: colors.text }]}>
-              {formatRating(summary?.rating)}
+              {averageRating}
             </Text>
-            <Stars rating={summary?.rating || 0} size={18} />
+            <View style={styles.summaryRatingRow}>
+              <Stars rating={Number(averageRating === 'New' ? 0 : averageRating)} size={18} />
+              <Text style={[styles.summaryRatingFigure, { color: colors.text }]}>{averageRating}</Text>
+            </View>
             <Text style={[styles.summaryCount, { color: colors.textSecondary }]}>
               {summary?.review_count ?? reviews.length} review{(summary?.review_count ?? reviews.length) === 1 ? '' : 's'}
             </Text>
@@ -182,6 +188,8 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   summaryRating: { fontSize: 36, fontWeight: 'bold' },
+  summaryRatingRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  summaryRatingFigure: { fontSize: FontSizes.md, fontWeight: '700' },
   summaryCount: { fontSize: FontSizes.sm },
   reviewCard: {
     borderRadius: BorderRadius.md,

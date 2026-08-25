@@ -1,4 +1,4 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -28,9 +28,21 @@ export default function Cart() {
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
+  const [shippingAddress, setShippingAddress] = useState('');
   const [pendingItems, setPendingItems] = useState<Array<{ product_id: number; quantity: number }>>([]);
   const [pendingAmount, setPendingAmount] = useState<number | null>(null);
   const handledRef = useRef(false);
+
+  useEffect(() => {
+    const profile = user as (typeof user & { address_id?: string | number }) | null;
+    if (profile?.address_id && !selectedAddressId) setSelectedAddressId(String(profile.address_id));
+    if (!shippingAddress) {
+      const profileAddress = [profile?.address, profile?.location_address, profile?.location]
+        .find((value) => typeof value === 'string' && value.trim().length > 0);
+      if (profileAddress) setShippingAddress(profileAddress);
+    }
+  }, [selectedAddressId, shippingAddress, user]);
 
   const handleCheckout = async () => {
     if (lines.length === 0) {
@@ -48,7 +60,8 @@ export default function Cart() {
       .filter((item) => Number.isFinite(item.product_id) && item.product_id > 0 && Number.isFinite(item.quantity) && item.quantity > 0);
     const amount = Number(total()) || 0;
     const paymentMethod = 'paystack';
-    const deliveryAddress = [user.address, user.location_address, user.location, 'Delivery address not provided']
+    const addressId = selectedAddressId || String((user as any).address_id || '').trim();
+    const deliveryAddress = [shippingAddress, user.address, user.location_address, user.location]
       .find((value) => typeof value === 'string' && value.trim().length > 0) || 'Delivery address not provided';
 
     if (!items.length) {
@@ -57,6 +70,10 @@ export default function Cart() {
     }
     if (!amount || amount <= 0) {
       Alert.alert('Cart Empty', 'Your cart total must be greater than zero before checkout.');
+      return;
+    }
+    if (!addressId && deliveryAddress === 'Delivery address not provided') {
+      Alert.alert('Delivery address required', 'Please select or provide a delivery address before checking out.');
       return;
     }
 
@@ -73,6 +90,10 @@ export default function Cart() {
         currency: 'NGN',
         payment_method: paymentMethod,
         delivery_address: deliveryAddress,
+        cartItems: items,
+        totalAmount: amount,
+        deliveryAddressId: addressId || undefined,
+        paymentMethod,
       });
 
       if (response?.status && response.authorization_url) {

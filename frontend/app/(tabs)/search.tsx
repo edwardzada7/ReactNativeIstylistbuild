@@ -124,7 +124,7 @@ export default function Search() {
     >
       <View style={styles.resultPhotoContainer}>
         <ProfileAvatar 
-          uri={item.profile_image_url || item.avatar} 
+          uri={item.avatarUrl || item.profileImage || item.profile_image_url || item.avatar}
           name={item.business_name} 
           size={48}
           type="provider"
