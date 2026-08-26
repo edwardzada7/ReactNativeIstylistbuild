@@ -113,16 +113,18 @@ export function SharedShopScreen({ showManageButton = false }: SharedShopScreenP
               <Text style={[styles.manageButtonText, { color: colors.text }]}>Manage</Text>
             </TouchableOpacity>
           )}
-          <TouchableOpacity onPress={() => router.push('/shop/cart')} accessibilityRole="button" accessibilityLabel="Cart">
-            <View>
-              <Ionicons name="cart-outline" size={26} color={colors.text} />
-              {cartCount > 0 && (
-                <View style={[styles.cartBadge, { backgroundColor: colors.primary }]}>
-                  <Text style={styles.cartBadgeText}>{cartCount}</Text>
-                </View>
-              )}
-            </View>
-          </TouchableOpacity>
+          {!isProvider && (
+            <TouchableOpacity onPress={() => router.push('/shop/cart')} accessibilityRole="button" accessibilityLabel="Cart">
+              <View>
+                <Ionicons name="cart-outline" size={26} color={colors.text} />
+                {cartCount > 0 && (
+                  <View style={[styles.cartBadge, { backgroundColor: colors.primary }]}>
+                    <Text style={styles.cartBadgeText}>{cartCount}</Text>
+                  </View>
+                )}
+              </View>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
 

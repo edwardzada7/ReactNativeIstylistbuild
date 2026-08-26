@@ -16,7 +16,7 @@ import { ProductReview } from '../../src/types';
 export default function ProductDetail() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isProvider } = useAuth();
   const { colors } = useTheme();
   const [product, setProduct] = useState<Product | null>(null);
   const [reviews, setReviews] = useState<ProductReview[]>([]);
@@ -66,6 +66,10 @@ export default function ProductDetail() {
   }, [id]);
 
   const handleAddToCart = () => {
+    if (isProvider) {
+      router.push('/(provider)/shop');
+      return;
+    }
     if (!product) return;
     addItem({
       productId: product.id,
@@ -102,6 +106,10 @@ export default function ProductDetail() {
 
     const cleanedText = reviewText.trim();
     const normalizedRating = Number(reviewRating);
+    if (normalizedRating === 0) {
+      Alert.alert('Please select a star rating');
+      return;
+    }
     if (!Number.isInteger(normalizedRating) || normalizedRating < 1 || normalizedRating > 5) {
       Alert.alert('Rating required', 'Please select a rating from 1 to 5 stars.');
       return;
@@ -202,9 +210,11 @@ export default function ProductDetail() {
         <TouchableOpacity onPress={() => router.back()} accessibilityRole="button" accessibilityLabel="Go back">
           <Ionicons name="arrow-back" size={24} color={colors.text} />
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => router.push('/shop/cart')} accessibilityRole="button" accessibilityLabel="Cart">
-          <Ionicons name="cart-outline" size={24} color={colors.text} />
-        </TouchableOpacity>
+        {!isProvider && (
+          <TouchableOpacity onPress={() => router.push('/shop/cart')} accessibilityRole="button" accessibilityLabel="Cart">
+            <Ionicons name="cart-outline" size={24} color={colors.text} />
+          </TouchableOpacity>
+        )}
       </View>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {product.image_urls?.[0] ? (
@@ -300,9 +310,9 @@ export default function ProductDetail() {
       </ScrollView>
       <View style={[styles.footer, { borderTopColor: colors.border }]}>
         <Button
-          title={product.stock > 0 ? 'Add to Cart' : 'Out of Stock'}
+          title={isProvider ? 'Manage Products' : product.stock > 0 ? 'Add to Cart' : 'Out of Stock'}
           onPress={handleAddToCart}
-          disabled={product.stock <= 0}
+          disabled={!isProvider && product.stock <= 0}
           fullWidth
           size="large"
         />

@@ -112,6 +112,12 @@ class OrderItemInput(BaseModel):
     quantity: int = Field(gt=0)
 
 
+class PaystackCartItemInput(BaseModel):
+    productId: int
+    quantity: int = Field(gt=0)
+    price: float
+
+
 class CreateOrderInput(BaseModel):
     items: List[OrderItemInput] = Field(..., min_items=1)
     payment_reference: Optional[str] = None
@@ -179,8 +185,9 @@ class PaystackShopInitializeInput(BaseModel):
     amount: float
     email: str
     items: List[OrderItemInput] = Field(..., min_items=1)
-    cartItems: Optional[List[OrderItemInput]] = None
+    cartItems: Optional[List[PaystackCartItemInput]] = None
     totalAmount: Optional[float] = None
+    deliveryAddress: Optional[dict] = None
     deliveryAddressId: Optional[str] = None
     paymentMethod: Optional[str] = None
     name: Optional[str] = None

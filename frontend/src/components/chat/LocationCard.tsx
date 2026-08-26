@@ -5,21 +5,25 @@ import { FontSizes, Spacing } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
 
 interface LocationCardProps {
-  latitude: number;
-  longitude: number;
+  latitude?: number;
+  longitude?: number;
   addressName?: string | null;
+  mapUrl?: string;
 }
 
-export function LocationCard({ latitude, longitude, addressName }: LocationCardProps) {
+export function LocationCard({ latitude, longitude, addressName, mapUrl }: LocationCardProps) {
   const { colors } = useTheme();
-  const openMap = () => Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`);
+  const openMap = () => {
+    const url = mapUrl || `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`;
+    Linking.openURL(url);
+  };
 
   return (
     <View style={[styles.card, { backgroundColor: colors.surfaceLight }]}>
       <Ionicons name="location" size={24} color={colors.primary} />
       <View style={styles.content}>
         <Text style={[styles.title, { color: colors.text }]}>Shared location</Text>
-        <Text style={[styles.address, { color: colors.textSecondary }]}>{addressName || `${latitude}, ${longitude}`}</Text>
+        <Text style={[styles.address, { color: colors.textSecondary }]}>{addressName || 'Shared Location'}</Text>
         <TouchableOpacity onPress={openMap} accessibilityRole="button" accessibilityLabel="Open in Google Maps">
           <Text style={[styles.link, { color: colors.primary }]}>Open in Google Maps</Text>
         </TouchableOpacity>

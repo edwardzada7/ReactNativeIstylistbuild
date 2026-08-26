@@ -244,7 +244,7 @@ export default function ProviderServices() {
         </ScrollView>
       )}
 
-      <Modal visible={modalVisible} animationType="slide" transparent>
+      <Modal visible={modalVisible} animationType="slide" presentationStyle="pageSheet">
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.modalOverlay}
@@ -402,12 +402,10 @@ const styles = StyleSheet.create({
   serviceMeta: { fontSize: FontSizes.xs, marginTop: 2 },
   serviceActions: { flexDirection: 'row', gap: Spacing.sm, marginRight: Spacing.sm },
   servicePrice: { fontSize: FontSizes.md, fontWeight: '700' },
-  modalOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.5)' },
+  modalOverlay: { flex: 1 },
   modalContent: {
-    borderTopLeftRadius: BorderRadius.lg,
-    borderTopRightRadius: BorderRadius.lg,
+    flex: 1,
     padding: Spacing.lg,
-    maxHeight: '85%',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -417,7 +415,7 @@ const styles = StyleSheet.create({
   },
   modalTitle: { fontSize: FontSizes.lg, fontWeight: '700' },
   modalBackButton: { width: 28 },
-  pickStep: { flex: 1, minHeight: 300 },
+  pickStep: { flex: 1 },
   pickHint: { fontSize: FontSizes.xs, marginBottom: Spacing.md },
   catalogSearchBar: {
     flexDirection: 'row',
@@ -435,7 +433,7 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
     paddingVertical: Spacing.xxl,
   },
-  catalogList: { maxHeight: 380 },
+  catalogList: { flex: 1 },
   catalogRow: {
     flexDirection: 'row',
     alignItems: 'center',

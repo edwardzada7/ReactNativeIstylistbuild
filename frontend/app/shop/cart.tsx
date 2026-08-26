@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, ActivityIndicator, Modal, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview';
@@ -17,6 +17,7 @@ const API_BASE_URL =
   'https://updatedistylistbeauty-marketplace-production.up.railway.app/api';
 const REDIRECT_URL = `${API_BASE_URL.replace(/\/api\/?$/, '')}/shop/cart`;
 type CheckoutStep = 'cart' | 'checkout' | 'success' | 'failed' | 'cancelled';
+type DeliveryAddress = { street: string; city: string; state: string; phone: string };
 
 export default function Cart() {
   const router = useRouter();
@@ -30,6 +31,9 @@ export default function Cart() {
   const [verifying, setVerifying] = useState(false);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [shippingAddress, setShippingAddress] = useState('');
+  const [isAddressModalVisible, setAddressModalVisible] = useState(false);
+  const [deliveryAddress, setDeliveryAddress] = useState<DeliveryAddress>({ street: '', city: '', state: '', phone: '' });
+  const [addressForm, setAddressForm] = useState<DeliveryAddress>(deliveryAddress);
   const [pendingItems, setPendingItems] = useState<Array<{ product_id: number; quantity: number }>>([]);
   const [pendingAmount, setPendingAmount] = useState<number | null>(null);
   const handledRef = useRef(false);
@@ -44,7 +48,7 @@ export default function Cart() {
     }
   }, [selectedAddressId, shippingAddress, user]);
 
-  const handleCheckout = async () => {
+  const handlePaystackPayment = async (address: DeliveryAddress = deliveryAddress) => {
     if (lines.length === 0) {
       Alert.alert('Cart Empty', 'Add items before checking out.');
       return;
@@ -61,7 +65,7 @@ export default function Cart() {
     const amount = Number(total()) || 0;
     const paymentMethod = 'paystack';
     const addressId = selectedAddressId || String((user as any).address_id || '').trim();
-    const deliveryAddress = [shippingAddress, user.address, user.location_address, user.location]
+    const legacyDeliveryAddress = [shippingAddress, user.address, user.location_address, user.location]
       .find((value) => typeof value === 'string' && value.trim().length > 0) || 'Delivery address not provided';
 
     if (!items.length) {
@@ -72,7 +76,7 @@ export default function Cart() {
       Alert.alert('Cart Empty', 'Your cart total must be greater than zero before checkout.');
       return;
     }
-    if (!addressId && deliveryAddress === 'Delivery address not provided') {
+    if (!addressId && !address.street.trim() && legacyDeliveryAddress === 'Delivery address not provided') {
       Alert.alert('Delivery address required', 'Please select or provide a delivery address before checking out.');
       return;
     }
@@ -80,6 +84,7 @@ export default function Cart() {
     setCheckingOut(true);
     setError(null);
     try {
+      const cartItems = lines.map((line) => ({ productId: line.productId, quantity: line.quantity, price: line.price }));
       const response = await shopService.initializePaystackCheckout({
         amount,
         email: user.email,
@@ -89,11 +94,19 @@ export default function Cart() {
         redirect_url: REDIRECT_URL,
         currency: 'NGN',
         payment_method: paymentMethod,
-        delivery_address: deliveryAddress,
-        cartItems: items,
+        delivery_address: `${address.street}, ${address.city}, ${address.state}`,
+        cartItems,
         totalAmount: amount,
+        deliveryAddress: address,
         deliveryAddressId: addressId || undefined,
         paymentMethod,
+        metadata: {
+          custom_fields: [
+            { display_name: 'Delivery Address', variable_name: 'delivery_address', value: `${address.street}, ${address.city}, ${address.state}` },
+            { display_name: 'Phone Number', variable_name: 'phone_number', value: address.phone },
+          ],
+          cartItems,
+        },
       });
 
       if (response?.status && response.authorization_url) {
@@ -112,6 +125,31 @@ export default function Cart() {
     } finally {
       setCheckingOut(false);
     }
+  };
+
+  const handleCheckout = () => {
+    if (!deliveryAddress.street.trim()) {
+      setAddressForm(deliveryAddress);
+      setAddressModalVisible(true);
+      return;
+    }
+    void handlePaystackPayment();
+  };
+
+  const handleProceedToPayment = () => {
+    const address = {
+      street: addressForm.street.trim(),
+      city: addressForm.city.trim(),
+      state: addressForm.state.trim(),
+      phone: addressForm.phone.trim(),
+    };
+    if (!address.street || !address.city || !address.state || !address.phone) {
+      Alert.alert('Address required', 'Please complete every delivery address field.');
+      return;
+    }
+    setDeliveryAddress(address);
+    setAddressModalVisible(false);
+    void handlePaystackPayment(address);
   };
 
   const handleShouldStartLoad = useCallback(
@@ -151,8 +189,7 @@ export default function Cart() {
           currency: 'NGN',
           provider_auth_id: lines.find((line) => line.stylistAuthId)?.stylistAuthId || undefined,
           payment_method: 'paystack',
-          delivery_address: [user?.address, user?.location_address, user?.location, 'Delivery address not provided']
-            .find((value) => typeof value === 'string' && value.trim().length > 0) || 'Delivery address not provided',
+          delivery_address: `${deliveryAddress.street}, ${deliveryAddress.city}, ${deliveryAddress.state}`,
         })
         .then((res) => {
           if (res?.status === 'success') {
@@ -171,7 +208,7 @@ export default function Cart() {
 
       return false;
     },
-    [clear, pendingAmount, pendingItems, total, user?.email, user?.full_name, user?.phone]
+    [clear, deliveryAddress, pendingAmount, pendingItems, total, user?.email, user?.full_name, user?.name, user?.phone, lines]
   );
 
   if (step === 'checkout' && checkoutUrl) {
@@ -306,6 +343,39 @@ export default function Cart() {
           </View>
         </>
       )}
+      <Modal
+        visible={isAddressModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setAddressModalVisible(false)}
+      >
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.modalCard, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>Delivery Address</Text>
+            {([
+              ['street', 'Street Address'],
+              ['city', 'City'],
+              ['state', 'State'],
+              ['phone', 'Phone Number'],
+            ] as const).map(([field, placeholder]) => (
+              <TextInput
+                key={field}
+                style={[styles.addressInput, { color: colors.text, borderColor: colors.border }]}
+                placeholder={placeholder}
+                placeholderTextColor={colors.textMuted}
+                value={addressForm[field]}
+                onChangeText={(value) => setAddressForm((current) => ({ ...current, [field]: value }))}
+                keyboardType={field === 'phone' ? 'phone-pad' : 'default'}
+                autoCapitalize={field === 'phone' ? 'none' : 'words'}
+              />
+            ))}
+            <Button title="Proceed to Payment" onPress={handleProceedToPayment} fullWidth size="large" />
+            <TouchableOpacity style={styles.cancelAddressButton} onPress={() => setAddressModalVisible(false)}>
+              <Text style={[styles.cancelAddressText, { color: colors.textSecondary }]}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -342,4 +412,10 @@ const styles = StyleSheet.create({
   },
   resultTitle: { fontSize: FontSizes.xl, fontWeight: 'bold', marginBottom: Spacing.sm },
   resultSubtitle: { fontSize: FontSizes.sm, textAlign: 'center', marginBottom: Spacing.xl },
+  modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.45)' },
+  modalCard: { padding: Spacing.lg, borderTopLeftRadius: BorderRadius.xl, borderTopRightRadius: BorderRadius.xl, gap: Spacing.sm },
+  modalTitle: { fontSize: FontSizes.lg, fontWeight: '700', marginBottom: Spacing.sm },
+  addressInput: { minHeight: 48, borderWidth: 1, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, fontSize: FontSizes.md },
+  cancelAddressButton: { alignItems: 'center', paddingVertical: Spacing.sm },
+  cancelAddressText: { fontSize: FontSizes.md, fontWeight: '600' },
 });

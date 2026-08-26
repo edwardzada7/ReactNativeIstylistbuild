@@ -84,7 +84,14 @@ export default function ChatList() {
               <View style={[styles.avatar, { backgroundColor: colors.surfaceLight }]}>
                 {(
                   <Image
-                    source={{ uri: item.counterpart_profile_image_url || 'https://via.placeholder.com/150' }}
+                    source={{
+                      uri:
+                        item.provider?.avatarUrl ||
+                        item.provider?.profileImage ||
+                        item.user?.avatarUrl ||
+                        item.counterpart_profile_image_url ||
+                        'https://via.placeholder.com/150',
+                    }}
                     style={styles.avatarImage}
                   />
                 )}

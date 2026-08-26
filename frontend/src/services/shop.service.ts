@@ -221,10 +221,12 @@ export const shopService = {
     currency?: string;
     payment_method?: string;
     delivery_address?: string;
-    cartItems?: { product_id: number; quantity: number }[];
+    cartItems?: { productId: number; quantity: number; price: number }[];
     totalAmount?: number;
+    deliveryAddress?: { street: string; city: string; state: string; phone: string };
     deliveryAddressId?: string;
     paymentMethod?: string;
+    metadata?: Record<string, any>;
   }): Promise<{ status: boolean; authorization_url?: string; reference?: string; message?: string }> {
     const sanitizedItems = (input.items || []).filter((item) => item && Number.isFinite(item.product_id) && Number.isFinite(item.quantity) && item.quantity > 0);
     const amount = Number(input.amount || 0);
@@ -234,9 +236,11 @@ export const shopService = {
       currency: (input.currency || 'NGN').trim().toUpperCase() || 'NGN',
       payment_method: (input.payment_method || 'paystack').trim() || 'paystack',
       ...(sanitizedItems.length > 0 ? { items: sanitizedItems } : {}),
-      cartItems: input.cartItems || sanitizedItems,
+      cartItems: input.cartItems || sanitizedItems.map((item) => ({ ...item, productId: item.product_id, price: 0 })),
       totalAmount: Number(input.totalAmount ?? amount),
       paymentMethod: input.paymentMethod || input.payment_method || 'paystack',
+      ...(input.deliveryAddress ? { deliveryAddress: input.deliveryAddress } : {}),
+      ...(input.metadata ? { metadata: input.metadata } : {}),
     };
 
     if (input.name) body.name = input.name;

@@ -221,6 +221,7 @@ export interface CreateBookingRequest {
   service_ids?: number[]; // array, even for a single service
   service_id?: number | string;
   serviceId?: number | string;
+  staffId?: string | number | null;
   scheduledAt?: string;
   totalAmount?: number;
   paymentMethod?: string;
@@ -394,6 +395,9 @@ export interface Conversation {
     businessName?: string;
     firstName?: string;
     lastName?: string;
+  };
+  user?: {
+    avatarUrl?: string | null;
   };
   last_message: ChatMessage;
   unread_count: number;

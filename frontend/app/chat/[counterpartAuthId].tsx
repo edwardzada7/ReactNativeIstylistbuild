@@ -11,6 +11,7 @@ import {
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
@@ -19,7 +20,6 @@ import { useAuth } from '../../src/contexts/AuthContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { chatService, ChatMessage } from '../../src/services/chat.service';
 import apiService from '../../src/services/api';
-import { resolveCurrentLocation } from '../../src/services/location.service';
 import { LocationCard } from '../../src/components/chat/LocationCard';
 import { InvoiceCard } from '../../src/components/chat/InvoiceCard';
 import { ReadReceipt } from '../../src/components/chat/ReadReceipt';
@@ -105,19 +105,22 @@ export default function ChatThread() {
   const handleShareLocation = async () => {
     setLocationLoading(true);
     try {
-      const location = await resolveCurrentLocation();
-      if (!location.success || location.latitude == null || location.longitude == null) return;
-      const addressName = location.addressName ?? location.location_address ?? 'Shared Location';
-      const payloadMessage = 'Shared a location';
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (permission.status !== 'granted' || !bookingId) return;
 
-      const sent = await chatService.sendMessage(Number(bookingId), payloadMessage, {
-        message_type: 'LOCATION',
-        location_data: {
-          latitude: location.latitude,
-          longitude: location.longitude,
-          addressName,
-        },
-      });
+      const position = await Location.getCurrentPositionAsync({});
+      const { latitude, longitude } = position.coords;
+      const addressName = 'Shared Location';
+      const messagePayload = {
+        conversationId: Number(bookingId),
+        type: 'LOCATION' as const,
+        content: `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`,
+        latitude,
+        longitude,
+        addressName,
+      };
+
+      const sent = await chatService.sendMessage(messagePayload);
       setMessages((prev) => [...prev, sent]);
     } catch (err) {
       console.error('[chat] failed to share location', err);
@@ -130,9 +133,9 @@ export default function ChatThread() {
     if (!dateString) return '';
     const date = new Date(dateString);
     return date.toLocaleTimeString('en-US', { 
-      hour: '2-digit', 
+      hour: '2-digit',
       minute: '2-digit',
-      hour12: true 
+      hour12: true
     });
   };
 
@@ -166,11 +169,18 @@ export default function ChatThread() {
             renderItem={({ item }) => {
               const isMine = item.sender_auth_id === user?.auth_id;
               const isSystemAlert = item.message_type === 'SYSTEM_ALERT';
+              const messageContent = item.content || item.message || '';
+              const isLocation = item.message_type === 'LOCATION' || item.type === 'LOCATION' || messageContent.includes('google.com/maps');
               return (
                 <View style={[styles.bubbleWrapper, isMine ? styles.bubbleWrapperMine : styles.bubbleWrapperTheirs]}>
                   <View style={[styles.bubble, isMine ? styles.bubbleMine : { backgroundColor: colors.surface }, isSystemAlert && styles.systemBubble]}>
-                    {item.message_type === 'LOCATION' && item.location_data ? (
-                      <LocationCard {...item.location_data} />
+                    {isLocation ? (
+                      <LocationCard
+                        latitude={item.location_data?.latitude}
+                        longitude={item.location_data?.longitude}
+                        addressName={item.location_data?.addressName}
+                        mapUrl={messageContent}
+                      />
                     ) : item.message_type === 'CUSTOM_INVOICE' && item.invoice_data ? (
                       <InvoiceCard {...item.invoice_data} />
                     ) : (

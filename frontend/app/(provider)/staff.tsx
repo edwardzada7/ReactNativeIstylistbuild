@@ -21,7 +21,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
-import { supabase } from '../../src/lib/supabase';
+import { apiService } from '../../src/services/api';
 import { providerService } from '../../src/services/provider.service';
 import staffService from '../../src/services/staff.service';
 import { Service, StaffAvailabilityDay, StaffMember } from '../../src/types';
@@ -61,6 +61,7 @@ export default function ProviderManageStaff() {
   const [savingProfile, setSavingProfile] = useState(false);
   const [photoUploadLoading, setPhotoUploadLoading] = useState(false);
   const [photoPreviewUri, setPhotoPreviewUri] = useState<string | null>(null);
+  const [selectedImage, setSelectedImage] = useState<{ uri: string } | null>(null);
 
   const [servicesVisible, setServicesVisible] = useState(false);
   const [servicesEditing, setServicesEditing] = useState<StaffMember | null>(null);
@@ -112,6 +113,7 @@ export default function ProviderManageStaff() {
     setEditingStaff(null);
     setProfileForm({ name: '', role: '', photo_url: '', bio: '', is_active: true });
     setPhotoPreviewUri(null);
+    setSelectedImage(null);
     setProfileVisible(true);
   };
 
@@ -125,6 +127,7 @@ export default function ProviderManageStaff() {
       is_active: !!member.is_active,
     });
     setPhotoPreviewUri(member.photo_url || null);
+    setSelectedImage(null);
     setProfileVisible(true);
   };
 
@@ -169,50 +172,28 @@ export default function ProviderManageStaff() {
         return;
       }
 
-      const response = await fetch(assetUri);
-      const arrayBuffer = await response.arrayBuffer();
-      const fileSizeBytes = arrayBuffer.byteLength;
-
-      if (!fileSizeBytes || fileSizeBytes <= 0) {
-        Alert.alert('Invalid image', 'The selected image could not be processed.');
-        return;
-      }
-
-      if (fileSizeBytes > 2 * 1024 * 1024) {
-        Alert.alert('Image too large', 'Please choose an image smaller than 2 MB.');
-        return;
-      }
-
-      const mimeType = asset.mimeType || 'image/jpeg';
-      const extension = mimeType.includes('png') ? 'png' : mimeType.includes('webp') ? 'webp' : 'jpg';
-      const fileName = `${editingStaff?.id || 'new'}-${Date.now()}.${extension}`;
-      const storagePath = `staff/${user.auth_id}/${fileName}`;
-
-      setPhotoUploadLoading(true);
-      const { error: uploadError } = await supabase.storage.from('profile-images').upload(storagePath, arrayBuffer, {
-        contentType: mimeType,
-        upsert: false,
-      });
-
-      if (uploadError) {
-        throw uploadError;
-      }
-
-      const { data: publicUrlData } = supabase.storage.from('profile-images').getPublicUrl(storagePath);
-      const publicUrl = publicUrlData?.publicUrl;
-
-      if (!publicUrl) {
-        throw new Error('No public URL returned for the uploaded image.');
-      }
-
-      setPhotoPreviewUri(publicUrl);
-      setProfileForm((prev) => ({ ...prev, photo_url: publicUrl }));
+      setSelectedImage({ uri: assetUri });
+      setPhotoPreviewUri(assetUri);
     } catch (err: any) {
       console.error('[staff-photo] upload failed', err);
       Alert.alert('Upload failed', 'Could not upload the staff photo right now. Please try again.');
     } finally {
       setPhotoUploadLoading(false);
     }
+  };
+
+  const uploadStaffPhoto = async (staffId: string, selectedImage: { uri: string }) => {
+    const formData = new FormData();
+    formData.append('file', {
+      uri: selectedImage.uri,
+      name: `staff_${Date.now()}.jpg`,
+      type: 'image/jpeg',
+    } as any);
+
+    const response = await apiService.post<any>(`/staff/${staffId}/photo`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response?.photo_url || response?.data?.photo_url;
   };
 
   const saveProfile = async () => {
@@ -226,19 +207,28 @@ export default function ProviderManageStaff() {
     try {
       const payload = {
         ...profileForm,
-        photo_url: profileForm.photo_url || undefined,
+        photo_url: selectedImage ? undefined : profileForm.photo_url || undefined,
       };
 
+      let savedStaff: StaffMember;
       if (editingStaff) {
-        await staffService.update(editingStaff.id, authId, payload);
+        savedStaff = await staffService.update(editingStaff.id, authId, payload);
       } else {
-        await staffService.create(authId, payload);
+        savedStaff = await staffService.create(authId, payload);
+      }
+      if (selectedImage) {
+        setPhotoUploadLoading(true);
+        const photoUrl = await uploadStaffPhoto(savedStaff.id, selectedImage);
+        if (photoUrl) {
+          await staffService.update(savedStaff.id, authId, { photo_url: photoUrl });
+        }
       }
       setProfileVisible(false);
       await refreshAll();
     } catch (err: any) {
       Alert.alert('Error', err?.friendlyMessage || 'Could not save staff member.');
     } finally {
+      setPhotoUploadLoading(false);
       setSavingProfile(false);
     }
   };

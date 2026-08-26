@@ -18,7 +18,7 @@ export default function ProviderTabsLayout() {
           paddingTop: 8,
           height: 60 + insets.bottom,
         },
-        tabBarActiveTintColor: '#E91E63',
+        tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
         tabBarLabelStyle: {
           fontSize: 12,

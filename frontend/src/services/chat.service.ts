@@ -7,6 +7,8 @@ export interface ChatMessage {
   sender_auth_id: string;
   receiver_auth_id: string;
   message: string;
+  content?: string;
+  type?: 'TEXT' | 'IMAGE' | 'LOCATION' | 'CUSTOM_INVOICE' | 'SYSTEM_ALERT';
   message_type?: 'TEXT' | 'IMAGE' | 'LOCATION' | 'CUSTOM_INVOICE' | 'SYSTEM_ALERT';
   is_masked?: boolean;
   location_data?: { latitude: number; longitude: number; addressName?: string | null } | null;
@@ -15,6 +17,15 @@ export interface ChatMessage {
   is_read?: boolean;
   created_at: string;
   read_at?: string;
+}
+
+export interface LocationMessagePayload {
+  conversationId: number;
+  type: 'LOCATION';
+  content: string;
+  latitude: number;
+  longitude: number;
+  addressName?: string;
 }
 
 export interface ChatParticipants {
@@ -93,12 +104,24 @@ export const chatService = {
               if (stylistProfile) {
                 // Provider: prioritize business_name, then salon_name, then user name
                 counterpartName = profileDisplayName(stylistProfile);
-                counterpartProfileImageUrl = stylistProfile?.profile_image_url || null;
+                counterpartProfileImageUrl =
+                  stylistProfile?.avatarUrl ||
+                  stylistProfile?.avatar_url ||
+                  stylistProfile?.profileImage ||
+                  stylistProfile?.profile_image ||
+                  stylistProfile?.profile_image_url ||
+                  null;
               } else {
                 // Fallback to user table for customers
                 const userProfile = await apiService.get(`/users/by-auth/${counterpartAuthId}`);
                 counterpartName = profileDisplayName(userProfile);
-                counterpartProfileImageUrl = userProfile?.profile_image_url || null;
+                counterpartProfileImageUrl =
+                  userProfile?.avatarUrl ||
+                  userProfile?.avatar_url ||
+                  userProfile?.profileImage ||
+                  userProfile?.profile_image ||
+                  userProfile?.profile_image_url ||
+                  null;
               }
             } catch (profileErr) {
               console.warn(`[chat] failed to load profile for ${counterpartAuthId}`, profileErr);
@@ -119,6 +142,9 @@ export const chatService = {
                     lastName: stylistProfile.lastName || stylistProfile.last_name,
                   }
                 : undefined,
+              user: stylistProfile
+                ? undefined
+                : { avatarUrl: counterpartProfileImageUrl },
               last_message: chatData.messages[0],
               unread_count: unreadCount,
             });
@@ -168,7 +194,24 @@ export const chatService = {
   /**
    * Send a chat message for a booking.
    */
-  async sendMessage(bookingId: number, message: string, options: Pick<ChatMessage, 'message_type' | 'location_data' | 'invoice_data'> = {}): Promise<ChatMessage> {
+  async sendMessage(
+    bookingIdOrPayload: number | LocationMessagePayload,
+    message?: string,
+    options: Pick<ChatMessage, 'message_type' | 'location_data' | 'invoice_data'> = {}
+  ): Promise<ChatMessage> {
+    const isLocationPayload = typeof bookingIdOrPayload !== 'number';
+    const bookingId = isLocationPayload ? bookingIdOrPayload.conversationId : bookingIdOrPayload;
+    const payloadMessage = isLocationPayload ? bookingIdOrPayload.content : message || '';
+    const payloadOptions = isLocationPayload
+      ? {
+          message_type: bookingIdOrPayload.type,
+          location_data: {
+            latitude: bookingIdOrPayload.latitude,
+            longitude: bookingIdOrPayload.longitude,
+            addressName: bookingIdOrPayload.addressName,
+          },
+        }
+      : options;
     const authId = await apiService.getAuthId();
     if (!authId) {
       throw new Error('Not authenticated');
@@ -176,10 +219,10 @@ export const chatService = {
 
     return await apiService.post(`/bookings/${bookingId}/chat`, {
       auth_id: authId,
-      message,
-      message_type: options.message_type || 'TEXT',
-      location_data: options.location_data,
-      invoice_data: options.invoice_data,
+      message: payloadMessage,
+      message_type: payloadOptions.message_type || 'TEXT',
+      location_data: payloadOptions.location_data,
+      invoice_data: payloadOptions.invoice_data,
     });
   },
 

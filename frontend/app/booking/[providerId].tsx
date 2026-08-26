@@ -149,7 +149,16 @@ export default function CreateBooking() {
     setAutoCompleting(false);
     try {
       const bookingDate = selectedDate.toISOString().slice(0, 10);
+      const scheduledAt = new Date(`${bookingDate}T${selectedSlot}:00`).toISOString();
+      const selectedStaff = staffOptions.find((staff) => String(staff.id) === String(selectedStaffId));
       const booking = await bookingService.createBooking({
+        providerId: Number(provider.id),
+        serviceId: Number(selectedService.id),
+        staffId: selectedStaff?.id || null,
+        scheduledAt,
+        totalAmount: Number(selectedService.price),
+        notes: notes.trim() || '',
+        paymentMethod: 'WALLET',
         provider_id: Number(provider.id),
         customer_id: user?.id,
         customer_auth_id: user?.auth_id,
@@ -157,9 +166,6 @@ export default function CreateBooking() {
         booking_time: selectedSlot,
         service_ids: [Number(selectedService.id)],
         service_duration_minutes: selectedService.duration || 30,
-        totalAmount: Number(selectedService.price),
-        paymentMethod: 'wallet',
-        notes: notes.trim() || undefined,
         status: 'pending_payment',
         ...(selectedStaffId ? { staff_id: selectedStaffId } : {}),
       });

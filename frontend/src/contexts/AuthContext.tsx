@@ -5,6 +5,7 @@ import type { Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { authService } from '../services/auth.service';
 import { User } from '../types';
+import { useCartStore } from '../store/cartStore';
 
 interface AuthContextType {
   user: User | null;
@@ -46,6 +47,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Prevents overlapping ensureProfile calls (e.g. INITIAL_SESSION + a
   // near-simultaneous TOKEN_REFRESHED event) from racing each other.
   const hydratingRef = useRef<Promise<void> | null>(null);
+  const previousCartSessionRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const cartSession = user ? `${user.id}_${user.role}` : null;
+    const previousCartSession = previousCartSessionRef.current;
+    if (previousCartSession && previousCartSession !== cartSession) {
+      useCartStore.getState().clearCart();
+    }
+    previousCartSessionRef.current = cartSession;
+    void useCartStore.getState().setSession(user?.id ?? null, user?.role ?? null);
+  }, [user?.id, user?.role]);
 
   const hydrateFromSession = async (nextSession: Session | null): Promise<User | null> => {
     setSession(nextSession);
@@ -142,6 +154,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
+      useCartStore.getState().clearCart();
       try {
         await AsyncStorage.clear();
       } catch (err) {
