@@ -130,17 +130,19 @@ export default function ProductDetail() {
         Alert.alert('Sign in required', 'Please sign in again before submitting a review.');
         return;
       }
-      const reviewPayload = {
+      const reviewData = {
+        productId: String(product.id),
         product_id: Number(product.id),
-        rating: validRating || 5,
-        review_text: cleanedText,
+        rating: Number(validRating > 0 ? validRating : 5),
+        comment: String(cleanedText).trim(),
+        review_text: String(cleanedText).trim(),
         user_id: userId,
       };
 
       if (editingReview) {
-        await shopService.updateProductReview(product.id, editingReview.id, reviewPayload);
+        await shopService.updateProductReview(product.id, editingReview.id, reviewData);
       } else {
-        await shopService.createProductReview(product.id, reviewPayload);
+        await shopService.createProductReview(product.id, reviewData);
       }
       setComposerVisible(false);
       setEditingReview(null);

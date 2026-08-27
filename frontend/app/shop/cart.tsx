@@ -88,6 +88,9 @@ export default function Cart() {
       const cartItems = lines.map((line) => ({ productId: line.productId, quantity: line.quantity, price: line.price }));
       const reference = `SHOP_${Date.now()}_${user.id}`;
       const checkoutMetadata = {
+        userId: user.id,
+        deliveryAddress: `${address.street}, ${address.city}`,
+        phone: address.phone,
         custom_fields: [
           { display_name: 'Delivery Address', variable_name: 'delivery_address', value: `${address.street}, ${address.city}` },
           { display_name: 'Phone Number', variable_name: 'phone_number', value: address.phone },

@@ -145,12 +145,19 @@ export default function CreateBooking() {
       Alert.alert('Incomplete', 'Please select a service and time slot.');
       return;
     }
-    const providerIdValue = Number(provider.id);
-    const serviceIdValue = Number(selectedService.id);
+    const providerIdText = String((provider as any).id || (provider as any)._id || '').trim();
+    const serviceIdText = String((selectedService as any).id || (selectedService as any)._id || '').trim();
+    const providerIdValue = Number(providerIdText);
+    const serviceIdValue = Number(serviceIdText);
     const selectedDateValue = selectedDate.toISOString().slice(0, 10);
     const selectedTimeSlot = String(selectedSlot).trim();
-    if (!Number.isFinite(providerIdValue) || !Number.isFinite(serviceIdValue) || !selectedDateValue || !selectedTimeSlot) {
+    const servicePrice = Number(selectedService.price);
+    if (!Number.isFinite(providerIdValue) || !Number.isFinite(serviceIdValue) || !selectedDateValue || !selectedTimeSlot || !Number.isFinite(servicePrice) || servicePrice <= 0) {
       Alert.alert('Incomplete', 'Please select a valid provider, service, date, and time slot.');
+      return;
+    }
+    if (!user?.auth_id) {
+      Alert.alert('Sign in required', 'Please sign in again before confirming this booking.');
       return;
     }
     setSubmitting(true);
@@ -159,9 +166,12 @@ export default function CreateBooking() {
       const bookingDate = selectedDateValue;
       const scheduledAt = new Date(`${bookingDate}T${selectedTimeSlot}:00`).toISOString();
       const selectedStaff = staffOptions.find((staff) => String(staff.id) === String(selectedStaffId));
-      const booking = await bookingService.createBooking({
-        providerId: providerIdValue,
-        serviceId: serviceIdValue,
+      const bookingPayload = {
+        providerId: providerIdText,
+        serviceId: serviceIdText,
+        bookingDate,
+        timeSlot: selectedTimeSlot,
+        amount: servicePrice,
         staffId: selectedStaff?.id || null,
         scheduledAt,
         totalAmount: Number(selectedService.price),
@@ -176,7 +186,9 @@ export default function CreateBooking() {
         service_duration_minutes: selectedService.duration || 30,
         status: 'pending_payment',
         ...(selectedStaffId ? { staff_id: selectedStaffId } : {}),
-      });
+      };
+      console.log('[booking] create payload', bookingPayload);
+      const booking = await bookingService.createBooking(bookingPayload);
 
       // Bug 3 guard: only attempt wallet payment if the booking response
       // actually parsed a valid booking id - otherwise fail loudly instead
@@ -200,6 +212,12 @@ export default function CreateBooking() {
       }
       setConfirmed(true);
     } catch (err: any) {
+      console.error('[booking] create failed', {
+        status: err?.response?.status,
+        data: err?.response?.data,
+        message: err?.message,
+        friendlyMessage: err?.friendlyMessage,
+      });
       Alert.alert('Booking Failed', err?.friendlyMessage || err?.message || 'Could not create this booking.');
     } finally {
       setSubmitting(false);

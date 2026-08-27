@@ -227,7 +227,7 @@ export interface BookingServiceLine {
 // scheduled_at } - it is:
 export interface CreateBookingRequest {
   provider_id?: number;
-  providerId?: number;
+  providerId?: number | string;
   customer_id?: string | number;
   customer_auth_id?: string;
   booking_date?: string; // "YYYY-MM-DD"

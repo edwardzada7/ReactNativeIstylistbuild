@@ -41,7 +41,8 @@ export const bookingService = {
     const bookingDate = data.booking_date || (scheduledDate && !Number.isNaN(scheduledDate.getTime()) ? scheduledDate.toISOString().slice(0, 10) : '');
     const bookingTime = data.booking_time || (scheduledDate && !Number.isNaN(scheduledDate.getTime()) ? scheduledDate.toISOString().slice(11, 16) : '');
 
-    if (!providerId || !serviceIds.length || !bookingDate || !bookingTime) {
+    const amount = Number(data.totalAmount ?? (data as any).amount);
+    if (!providerId || !serviceIds.length || !bookingDate || !bookingTime || !Number.isFinite(amount) || amount <= 0 || !data.paymentMethod) {
       throw new Error('Provider, service, scheduled time, total amount, and payment method are required.');
     }
 

@@ -240,6 +240,7 @@ export const shopService = {
       cartItems: input.cartItems || sanitizedItems.map((item) => ({ ...item, productId: item.product_id, price: 0 })),
       totalAmount: Number(input.totalAmount ?? amount),
       paymentMethod: input.paymentMethod || input.payment_method || 'paystack',
+      channels: ['card', 'bank', 'ussd', 'qr', 'bank_transfer'],
       ...(input.ref ? { reference: input.ref } : {}),
       ...(input.deliveryAddress ? { deliveryAddress: input.deliveryAddress } : {}),
       ...(input.metadata ? { metadata: input.metadata } : {}),
@@ -358,7 +359,7 @@ export const shopService = {
 
   async createProductReview(
     productId: number,
-    input: { rating: number; review_text: string; comment?: string; product_id?: number; productId?: number; user_id?: string; order_id?: number | null; item_id?: number | null }
+    input: { rating: number; review_text: string; comment?: string; product_id?: number; productId?: number | string; user_id?: string; order_id?: number | null; item_id?: number | null }
   ): Promise<ProductReview> {
     const authId = await apiService.getAuthId();
     if (!authId) throw new Error('Not authenticated');
@@ -389,7 +390,7 @@ export const shopService = {
   async updateProductReview(
     productId: number,
     reviewId: number,
-    input: { rating: number; review_text: string; comment?: string; product_id?: number; productId?: number; user_id?: string; order_id?: number | null; item_id?: number | null }
+    input: { rating: number; review_text: string; comment?: string; product_id?: number; productId?: number | string; user_id?: string; order_id?: number | null; item_id?: number | null }
   ): Promise<ProductReview> {
     const authId = await apiService.getAuthId();
     if (!authId) throw new Error('Not authenticated');

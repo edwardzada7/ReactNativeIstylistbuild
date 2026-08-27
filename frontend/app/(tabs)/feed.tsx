@@ -19,7 +19,7 @@ import { feedService } from '../../src/services/feed.service';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { Post } from '../../src/types';
-import { ProfileAvatar, ReportModal } from '../../src/components/common';
+import { FeedCommentsModal, ProfileAvatar, ReportModal } from '../../src/components/common';
 
 export default function Feed() {
   const router = useRouter();
@@ -29,6 +29,7 @@ export default function Feed() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [reportTargetId, setReportTargetId] = useState<string | null>(null);
+  const [commentsPostId, setCommentsPostId] = useState<string | null>(null);
 
   const loadFeed = useCallback(async () => {
     try {
@@ -106,9 +107,7 @@ export default function Feed() {
     }
   };
 
-  const handleComment = () => {
-    Alert.alert('Comments coming soon', 'This feature will be available in a future update.');
-  };
+  const handleComment = (postId: string) => setCommentsPostId(postId);
 
   const handleReportPost = (postId: string) => {
     setReportTargetId(postId);
@@ -220,7 +219,7 @@ export default function Feed() {
           <Text style={[styles.actionText, { color: colors.textSecondary }]}>{item.likes_count || 0}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionButton} onPress={handleComment}>
+        <TouchableOpacity style={styles.actionButton} onPress={() => handleComment(String(item.id))}>
           <Ionicons name="chatbubble-outline" size={20} color={colors.textSecondary} />
           <Text style={[styles.actionText, { color: colors.textSecondary }]}>{item.comments_count || 0}</Text>
         </TouchableOpacity>
@@ -287,6 +286,16 @@ export default function Feed() {
         targetType="FEED_POST"
         onClose={() => setReportTargetId(null)}
         onSubmitted={() => Alert.alert('Report submitted', 'Thank you. We will review this post.')}
+      />
+      <FeedCommentsModal
+        visible={commentsPostId !== null}
+        postId={commentsPostId}
+        onClose={() => setCommentsPostId(null)}
+        onCommentAdded={() => {
+          setFeedData((current) => current.map((post) => String(post.id) === commentsPostId
+            ? { ...post, comments_count: (post.comments_count || 0) + 1 }
+            : post));
+        }}
       />
     </SafeAreaView>
   );
