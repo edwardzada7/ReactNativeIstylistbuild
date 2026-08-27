@@ -62,22 +62,13 @@ export default function TabsLayout() {
           ),
         }}
       />
-      {/* Search stays reachable from the Home search bar, not as its own
-          tab (per Phase 5A nav refactor). */}
       <Tabs.Screen
-        name="search"
+        name="wallet"
         options={{
-          href: null,
+          title: 'Wallet',
+          tabBarIcon: ({ color, size }) => <Ionicons name="wallet" size={size} color={color} />,
         }}
       />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: 'Profile',
-          tabBarIcon: ({ color, size }) => <Ionicons name="person" size={size} color={color} />,
-        }}
-      />
-      <Tabs.Screen name="wallet" options={{ href: null }} />
     </Tabs>
   );
 }

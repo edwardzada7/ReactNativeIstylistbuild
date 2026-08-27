@@ -71,21 +71,6 @@ export default function ProviderTabsLayout() {
           ),
         }}
       />
-      {/* Reachable from Dashboard quick actions / top-right icon instead of
-          the tab bar (per Phase 5A nav refactor). */}
-      <Tabs.Screen name="availability" options={{ href: null }} />
-      <Tabs.Screen name="services" options={{ href: null }} />
-      <Tabs.Screen name="staff" options={{ href: null }} />
-      <Tabs.Screen name="profile" options={{ href: null }} />
-      <Tabs.Screen name="withdraw" options={{ href: null }} />
-      {/* Phase 3 (2026-08): Portfolio consolidated into Feed. Reviews moved
-          off the tab bar and reached via the Provider Home quick actions. */}
-      <Tabs.Screen name="portfolio" options={{ href: null }} />
-      <Tabs.Screen name="reviews" options={{ href: null }} />
-      <Tabs.Screen name="kyc" options={{ href: null }} />
-      <Tabs.Screen name="orders" options={{ href: null }} />
-      <Tabs.Screen name="create-post" options={{ href: null }} />
-      <Tabs.Screen name="edit-post" options={{ href: null }} />
     </Tabs>
   );
 }

@@ -146,6 +146,7 @@ export default function ProviderProfile() {
   }
 
   const categoryLabel = typeof provider.category === 'string' ? provider.category : '';
+  const avatarUri = provider.avatarUrl || provider.user?.avatarUrl || provider.profileImage || provider.user?.profileImage || provider.profile_image_url || provider.avatar;
   const serviceNames = new Map(provider.services.map((service) => [Number(service.id), service.name]));
   const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -160,14 +161,14 @@ export default function ProviderProfile() {
       >
         {/* Header / Cover */}
         <View style={styles.coverContainer}>
-          {provider.avatarUrl || provider.profileImage || provider.profile_image_url || provider.avatar ? (
+          {avatarUri ? (
             coverImageError ? (
               <View style={styles.coverFallback}>
                 <Ionicons name="person" size={64} color={Colors.primary} />
               </View>
             ) : (
               <Image
-                source={{ uri: provider.avatarUrl || provider.profileImage || provider.profile_image_url || provider.avatar }}
+                source={avatarUri.startsWith('http') ? { uri: avatarUri } : require('../../assets/images/app-icon.png')}
                 style={styles.coverImage}
                 contentFit="cover"
                 onError={() => setCoverImageError(true)}
@@ -193,7 +194,7 @@ export default function ProviderProfile() {
             <View style={{ flex: 1 }}>
               <View style={styles.nameRow}>
                 <Text style={[styles.name, { color: colors.text }]}>{provider.business_name}</Text>
-                {(provider.isKycVerified === true || provider.is_verified === true) && (
+                {(provider.isVerified === true || provider.isKycVerified === true || provider.user?.isKycVerified === true || provider.is_verified === true) && (
                   <Ionicons name="checkmark-circle" size={18} color={Colors.info} />
                 )}
               </View>
@@ -213,7 +214,7 @@ export default function ProviderProfile() {
             <View style={styles.metaItem}>
               <Ionicons name="star" size={16} color={Colors.warning} />
               <Text style={[styles.metaText, { color: colors.text }]}>
-                ★ {Number(provider.rating || 0).toFixed(1)} ({provider.ratingCount ?? provider.review_count ?? 0})
+                ★ {Number(provider.rating || provider.avgRating || 0).toFixed(1)} ({provider.ratingCount ?? provider.reviewsCount ?? provider.review_count ?? 0})
               </Text>
             </View>
             {(provider.location_address || provider.location) && provider.location !== 'Location not set' ? (

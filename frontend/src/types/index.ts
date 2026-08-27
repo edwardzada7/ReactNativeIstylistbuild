@@ -12,6 +12,8 @@ export interface User {
   name?: string;
   phone?: string;
   avatar?: string;
+  avatarUrl?: string | null;
+  profileImage?: string | null;
   profile_image_url?: string | null;
   role: 'customer' | 'provider' | 'admin';
   role_raw?: string;
@@ -102,8 +104,16 @@ export interface Provider {
   profile_image_url?: string | null;
   avatarUrl?: string | null;
   profileImage?: string | null;
+  user?: {
+    avatarUrl?: string | null;
+    profileImage?: string | null;
+    isKycVerified?: boolean;
+  };
   businessName?: string;
   ratingCount?: number;
+  avgRating?: number;
+  reviewsCount?: number;
+  isVerified?: boolean;
   isKycVerified?: boolean;
   firstName?: string;
   lastName?: string;

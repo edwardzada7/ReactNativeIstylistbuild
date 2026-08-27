@@ -41,8 +41,9 @@ export default function ProviderProfile() {
       const nextLocation = data.location_address || data.location || '';
       setLocationLabel(nextLocation);
       setLocationStatus(nextLocation ? 'updated' : 'idle');
-      if (data.profile_image_url || data.avatar) {
-        setAvatarUrl(withCacheBuster(data.profile_image_url || data.avatar));
+      const profileAvatarUri = data.avatarUrl || data.user?.avatarUrl || data.profileImage || data.user?.profileImage || data.profile_image_url || data.avatar;
+      if (profileAvatarUri) {
+        setAvatarUrl(withCacheBuster(profileAvatarUri));
       }
     } catch (err) {
       console.error('[provider-profile-tab] failed to load', err);
@@ -86,7 +87,7 @@ export default function ProviderProfile() {
   }, [user?.id]);
 
   useEffect(() => {
-    setAvatarUrl(withCacheBuster(user?.profile_image_url || user?.avatar));
+    setAvatarUrl(withCacheBuster(user?.avatarUrl || user?.profileImage || user?.profile_image_url || user?.avatar));
     const nextLocation = user?.location_address || [user?.city, user?.state, user?.country].filter(Boolean).join(', ') || '';
     setLocationLabel(nextLocation);
     setLocationStatus(nextLocation ? 'updated' : 'idle');
@@ -303,7 +304,9 @@ export default function ProviderProfile() {
     }
   };
 
-  const averageRating = Number(profile?.rating || 0).toFixed(1);
+  const averageRating = Number(profile?.rating || profile?.avgRating || 0).toFixed(1);
+  const reviewCount = profile?.ratingCount ?? profile?.reviewsCount ?? profile?.review_count ?? 0;
+  const isKycVerified = profile?.isVerified === true || profile?.isKycVerified === true || profile?.user?.isKycVerified === true || profile?.is_verified === true || kycStatus === 'verified';
 
   const menuItems = [
     { icon: 'cut-outline', label: 'My Services', onPress: () => router.push('/(provider)/services') },
@@ -347,7 +350,10 @@ export default function ProviderProfile() {
               <ProfileAvatar uri={avatarUrl} size={88} type="provider" />
             </View>
           </TouchableOpacity>
-          <Text style={[styles.userName, { color: colors.text }]}>{user?.full_name || profile?.business_name || 'Provider'}</Text>
+          <View style={styles.profileNameRow}>
+            <Text style={[styles.userName, { color: colors.text }]}>{user?.full_name || profile?.business_name || 'Provider'}</Text>
+            {isKycVerified && <Ionicons name="checkmark-circle" size={18} color={colors.info} />}
+          </View>
           <Text style={[styles.userEmail, { color: colors.textSecondary }]}>{user?.email}</Text>
           <View style={[styles.badge, { backgroundColor: `${colors.primary}20` }]}>
             <Ionicons name="briefcase" size={14} color={colors.primary} />
@@ -389,7 +395,7 @@ export default function ProviderProfile() {
             accessibilityRole="button"
             accessibilityLabel="View reviews"
           >
-            <Text style={[styles.statValue, { color: colors.text }]}>{profile?.review_count ?? 0}</Text>
+            <Text style={[styles.statValue, { color: colors.text }]}>{reviewCount}</Text>
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Reviews</Text>
           </TouchableOpacity>
           <View style={[styles.statDivider, { backgroundColor: colors.border, height: 40 }]} />
@@ -574,6 +580,7 @@ const styles = StyleSheet.create({
   },
   backHeaderTitle: { fontSize: FontSizes.lg, fontWeight: 'bold' },
   profileHeader: { alignItems: 'center', paddingVertical: Spacing.xl, paddingHorizontal: Spacing.lg },
+  profileNameRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   avatarContainer: {
     width: 88,
     height: 88,
