@@ -7,13 +7,13 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
-  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { BrandLogo } from '../../src/components/branding';
+import { ProfileAvatar } from '../../src/components/common';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { bookingService } from '../../src/services/booking.service';
@@ -23,7 +23,7 @@ import { ChatIconWithBadge } from '../../src/components/chat/ChatIconWithBadge';
 import { shopService, Order } from '../../src/services/shop.service';
 import { formatCurrency } from '../../src/utils/currency';
 import { Booking, Provider } from '../../src/types';
-import { formatRating, withCacheBuster } from '../../src/utils/display';
+import { formatRating } from '../../src/utils/display';
 
 const isSameDay = (isoDate: string) => {
   if (!isoDate) return false;
@@ -201,14 +201,7 @@ export default function ProviderDashboard() {
               accessibilityRole="button"
               accessibilityLabel="Profile"
             >
-              {user?.profile_image_url || user?.avatar ? (
-                <Image
-                  source={{ uri: withCacheBuster(user.profile_image_url || user.avatar) || undefined }}
-                  style={styles.profileAvatar}
-                />
-              ) : (
-                <Ionicons name="person-circle-outline" size={26} color={colors.text} />
-              )}
+              <ProfileAvatar uri={user?.profile_image_url || user?.avatar} size={26} type="provider" />
             </TouchableOpacity>
           </View>
         </View>

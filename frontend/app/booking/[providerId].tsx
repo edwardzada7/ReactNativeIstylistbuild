@@ -8,7 +8,6 @@ import {
   ActivityIndicator,
   Alert,
   TextInput,
-  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -146,26 +145,34 @@ export default function CreateBooking() {
       Alert.alert('Incomplete', 'Please select a service and time slot.');
       return;
     }
+    const providerIdValue = Number(provider.id);
+    const serviceIdValue = Number(selectedService.id);
+    const selectedDateValue = selectedDate.toISOString().slice(0, 10);
+    const selectedTimeSlot = String(selectedSlot).trim();
+    if (!Number.isFinite(providerIdValue) || !Number.isFinite(serviceIdValue) || !selectedDateValue || !selectedTimeSlot) {
+      Alert.alert('Incomplete', 'Please select a valid provider, service, date, and time slot.');
+      return;
+    }
     setSubmitting(true);
     setAutoCompleting(false);
     try {
-      const bookingDate = selectedDate.toISOString().slice(0, 10);
-      const scheduledAt = new Date(`${bookingDate}T${selectedSlot}:00`).toISOString();
+      const bookingDate = selectedDateValue;
+      const scheduledAt = new Date(`${bookingDate}T${selectedTimeSlot}:00`).toISOString();
       const selectedStaff = staffOptions.find((staff) => String(staff.id) === String(selectedStaffId));
       const booking = await bookingService.createBooking({
-        providerId: Number(provider.id),
-        serviceId: Number(selectedService.id),
+        providerId: providerIdValue,
+        serviceId: serviceIdValue,
         staffId: selectedStaff?.id || null,
         scheduledAt,
         totalAmount: Number(selectedService.price),
         notes: notes.trim() || '',
         paymentMethod: 'WALLET',
-        provider_id: Number(provider.id),
+        provider_id: providerIdValue,
         customer_id: user?.id,
         customer_auth_id: user?.auth_id,
         booking_date: bookingDate,
-        booking_time: selectedSlot,
-        service_ids: [Number(selectedService.id)],
+        booking_time: selectedTimeSlot,
+        service_ids: [serviceIdValue],
         service_duration_minutes: selectedService.duration || 30,
         status: 'pending_payment',
         ...(selectedStaffId ? { staff_id: selectedStaffId } : {}),

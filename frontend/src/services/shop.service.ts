@@ -226,6 +226,7 @@ export const shopService = {
     deliveryAddress?: { street: string; city: string; state: string; phone: string };
     deliveryAddressId?: string;
     paymentMethod?: string;
+    ref?: string;
     metadata?: Record<string, any>;
   }): Promise<{ status: boolean; authorization_url?: string; reference?: string; message?: string }> {
     const sanitizedItems = (input.items || []).filter((item) => item && Number.isFinite(item.product_id) && Number.isFinite(item.quantity) && item.quantity > 0);
@@ -239,6 +240,7 @@ export const shopService = {
       cartItems: input.cartItems || sanitizedItems.map((item) => ({ ...item, productId: item.product_id, price: 0 })),
       totalAmount: Number(input.totalAmount ?? amount),
       paymentMethod: input.paymentMethod || input.payment_method || 'paystack',
+      ...(input.ref ? { reference: input.ref } : {}),
       ...(input.deliveryAddress ? { deliveryAddress: input.deliveryAddress } : {}),
       ...(input.metadata ? { metadata: input.metadata } : {}),
     };

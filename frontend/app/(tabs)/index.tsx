@@ -276,7 +276,10 @@ export default function Home() {
         {lastBooked && (
           <TouchableOpacity
             style={[styles.lastBookedCard, { backgroundColor: colors.surface }]}
-            onPress={() => router.push(`/provider/${lastBooked.provider_id}`)}
+            onPress={() => {
+              const providerId = (lastBooked as Booking & { providerId?: string }).providerId || lastBooked.provider_id;
+              if (providerId) router.push(`/provider/${providerId}`);
+            }}
             accessibilityRole="button"
             accessibilityLabel="Last booked provider and service"
           >

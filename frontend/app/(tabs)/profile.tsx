@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
-  Image,
   Switch,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -25,6 +24,7 @@ import { Booking } from '../../src/types';
 import { withCacheBuster } from '../../src/utils/display';
 import { queryClient } from '../_layout';
 import apiService from '../../src/services/api';
+import { ProfileAvatar } from '../../src/components/common';
 
 const comingSoon = (feature: string) =>
   Alert.alert('Coming soon', `${feature} is being wired up in a later phase.`);
@@ -292,11 +292,7 @@ export default function Profile() {
         <View style={styles.profileHeader}>
           <TouchableOpacity onPress={handleAvatarPress} accessibilityRole="button" accessibilityLabel="Update profile image">
             <View style={[styles.avatarContainer, { backgroundColor: colors.surface }]}>
-              {avatarUrl ? (
-                <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
-              ) : (
-                <Ionicons name="person-circle-outline" size={56} color={colors.primary} />
-              )}
+              <ProfileAvatar uri={avatarUrl} size={96} type="customer" />
             </View>
           </TouchableOpacity>
           <Text style={[styles.userName, { color: colors.text }]}>{user?.full_name || 'Guest User'}</Text>

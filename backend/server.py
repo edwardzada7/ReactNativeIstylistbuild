@@ -196,6 +196,8 @@ class PaystackShopInitializeInput(BaseModel):
     currency: Optional[str] = 'NGN'
     delivery_address: Optional[str] = None
     payment_method: Optional[str] = None
+    reference: Optional[str] = None
+    ref: Optional[str] = None
     metadata: Optional[dict] = None
 
 
@@ -737,7 +739,7 @@ async def initialize_paystack_shop_checkout(request: Request, payload: PaystackS
     if amount_kobo <= 0:
         raise HTTPException(status_code=400, detail="Amount must be greater than zero")
 
-    reference = f"shop_{uuid.uuid4().hex[:12]}"
+    reference = payload.reference or payload.ref or f"shop_{uuid.uuid4().hex[:12]}"
     _create_pending_shop_order(
         auth_id=auth_id,
         reference=reference,
@@ -763,6 +765,9 @@ async def initialize_paystack_shop_checkout(request: Request, payload: PaystackS
             "phone_number": (payload.metadata or {}).get('phone_number') or payload.phone or '',
             "purpose": 'shop_checkout',
             "items": [item.dict() for item in (payload.items or [])],
+            "custom_fields": (payload.metadata or {}).get('custom_fields', []),
+            "cart_items": (payload.metadata or {}).get('cart_items', []),
+            "user_id": (payload.metadata or {}).get('user_id') or auth_id,
         },
     }
     logger.info("[paystack-init] outbound payload=%s", paystack_payload)

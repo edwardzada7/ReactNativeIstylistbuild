@@ -18,6 +18,7 @@ import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/th
 import { SHOP_CATEGORIES, ShopMainCategorySlug } from '../../src/constants/shopCategories';
 import { getShopCategoryBySlug } from '../../src/constants/shopCategories';
 import { shopService, Product } from '../../src/services/shop.service';
+import { providerService } from '../../src/services/provider.service';
 import { useCartStore } from '../../src/store/cartStore';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { formatCurrency } from '../../src/utils/currency';
@@ -33,6 +34,7 @@ export function SharedShopScreen({ showManageButton = false }: SharedShopScreenP
   const { isProvider } = useAuth();
   const { colors } = useTheme();
   const [products, setProducts] = useState<Product[]>([]);
+  const [providerNames, setProviderNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
@@ -40,11 +42,23 @@ export function SharedShopScreen({ showManageButton = false }: SharedShopScreenP
   const [selectedSubcategory, setSelectedSubcategory] = useState<string | null>(null);
   const [reportTargetId, setReportTargetId] = useState<number | null>(null);
   const cartCount = useCartStore((s) => s.lines.reduce((n, l) => n + l.quantity, 0));
+  const addItem = useCartStore((s) => s.addItem);
 
   const loadData = useCallback(async () => {
     try {
-      const list = await shopService.getProducts();
+      const [list, providerList] = await Promise.all([
+        shopService.getProducts(),
+        providerService.getProvidersWithServices().catch(() => []),
+      ]);
       setProducts(list);
+      setProviderNames(
+        Object.fromEntries(
+          providerList.flatMap((provider) => {
+            const name = provider.business_name || provider.businessName;
+            return name ? [[provider.user_id, name], [provider.id, name]] : [];
+          })
+        )
+      );
     } catch (err) {
       console.error('[shop] failed to load products', err);
     } finally {
@@ -245,11 +259,29 @@ export function SharedShopScreen({ showManageButton = false }: SharedShopScreenP
                 )}
                 <Text style={[styles.cardName, { color: colors.text }]} numberOfLines={1}>{item.name}</Text>
                 <Text style={[styles.cardPrice, { color: colors.primary }]}>{formatCurrency(item.price)}</Text>
+                <Text style={[styles.cardProvider, { color: colors.textSecondary }]} numberOfLines={1}>
+                  {providerNames[item.stylist_auth_id] || 'iStylist Provider'}
+                </Text>
                 {item.main_category || item.category ? (
                   <Text style={[styles.cardMeta, { color: colors.textSecondary }]} numberOfLines={1}>
                     {item.subcategory || item.main_category || item.category}
                   </Text>
                 ) : null}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.addButton, { backgroundColor: colors.primary }]}
+                  onPress={() => addItem({
+                    productId: item.id,
+                    name: item.name,
+                    price: item.price,
+                    image: item.image_urls?.[0] || null,
+                    stylistAuthId: item.stylist_auth_id,
+                  })}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Add ${item.name} to cart`}
+                >
+                  <Ionicons name="cart-outline" size={16} color="#fff" />
+                  <Text style={styles.addButtonText}>Add to Cart</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={styles.reportButton}
@@ -303,8 +335,8 @@ const styles = StyleSheet.create({
   categorySection: { marginHorizontal: Spacing.lg, marginBottom: Spacing.sm },
   sectionTitle: { fontSize: FontSizes.sm, fontWeight: '700', marginBottom: Spacing.xs },
   cardRow: { flexDirection: 'row', gap: Spacing.sm, paddingVertical: 4 },
-  categoryCard: { width: 128, minHeight: 98, borderRadius: BorderRadius.lg, padding: Spacing.sm, justifyContent: 'center', borderWidth: 1 },
-  categoryCardIcon: { fontSize: 22, marginBottom: 6 },
+  categoryCard: { minHeight: 38, borderRadius: BorderRadius.full, paddingHorizontal: Spacing.md, paddingVertical: 8, flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1 },
+  categoryCardIcon: { fontSize: 16 },
   categoryCardText: { fontSize: FontSizes.xs, fontWeight: '700' },
   chipRow: { flexDirection: 'row', gap: Spacing.sm, paddingVertical: 4 },
   subchip: { paddingHorizontal: Spacing.sm, paddingVertical: 7, borderRadius: BorderRadius.full, borderWidth: 1 },
@@ -324,5 +356,8 @@ const styles = StyleSheet.create({
   cardImagePlaceholder: { alignItems: 'center', justifyContent: 'center' },
   cardName: { fontSize: FontSizes.sm, fontWeight: '700', marginTop: Spacing.sm },
   cardPrice: { fontSize: FontSizes.sm, fontWeight: '700', marginTop: 4 },
+  cardProvider: { fontSize: FontSizes.xs, marginTop: 4 },
   cardMeta: { fontSize: FontSizes.xs, marginTop: 4 },
+  addButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, marginTop: Spacing.sm, paddingVertical: 9, borderRadius: BorderRadius.md },
+  addButtonText: { color: '#fff', fontSize: FontSizes.xs, fontWeight: '700' },
 });

@@ -16,6 +16,7 @@ import { Provider, Post, Review } from '../../src/types';
 import apiService from '../../src/services/api';
 import { withCacheBuster } from '../../src/utils/display';
 import { queryClient } from '../_layout';
+import { ProfileAvatar } from '../../src/components/common';
 
 export default function ProviderProfile() {
   const router = useRouter();
@@ -343,11 +344,7 @@ export default function ProviderProfile() {
         <View style={styles.profileHeader}>
           <TouchableOpacity onPress={handleAvatarPress} accessibilityRole="button" accessibilityLabel="Update profile image">
             <View style={[styles.avatarContainer, { backgroundColor: colors.surface }]}>
-              {avatarUrl ? (
-                <RNImage source={{ uri: avatarUrl }} style={styles.avatarImage} />
-              ) : (
-                <Ionicons name="storefront" size={40} color={colors.primary} />
-              )}
+              <ProfileAvatar uri={avatarUrl} size={88} type="provider" />
             </View>
           </TouchableOpacity>
           <Text style={[styles.userName, { color: colors.text }]}>{user?.full_name || profile?.business_name || 'Provider'}</Text>

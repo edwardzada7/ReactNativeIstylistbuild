@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { View, Image, StyleSheet, ViewStyle } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { withCacheBuster } from '../../utils/display';
 
 interface ProfileAvatarProps {
@@ -10,7 +11,7 @@ interface ProfileAvatarProps {
   type?: 'customer' | 'provider';
 }
 
-const PLACEHOLDER_AVATAR = 'https://via.placeholder.com/150';
+const FALLBACK_AVATAR = require('../../../assets/images/app-icon.png');
 
 export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
   uri,
@@ -18,19 +19,30 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
   size = 48,
   style,
 }) => {
-  const [imageUri, setImageUri] = useState<string>(() => withCacheBuster(uri || PLACEHOLDER_AVATAR) || PLACEHOLDER_AVATAR);
+  const [imageUri, setImageUri] = useState<string | null>(() => withCacheBuster(uri));
+  const [imageError, setImageError] = useState(!uri);
 
   useEffect(() => {
-    setImageUri(withCacheBuster(uri || PLACEHOLDER_AVATAR) || PLACEHOLDER_AVATAR);
+    setImageUri(withCacheBuster(uri));
+    setImageError(!uri);
   }, [uri]);
 
   return (
     <View style={[styles.container, { width: size, height: size, borderRadius: size / 2 }, style]}>
-      <Image
-        source={{ uri: imageUri || PLACEHOLDER_AVATAR }}
-        style={[styles.image, { width: size, height: size, borderRadius: size / 2 }]}
-        onError={() => setImageUri(PLACEHOLDER_AVATAR)}
-      />
+      {imageError || !imageUri ? (
+        <>
+          <Image source={FALLBACK_AVATAR} style={[styles.image, { width: size, height: size, borderRadius: size / 2 }]} />
+          <View style={[styles.fallbackIcon, { width: size, height: size, borderRadius: size / 2 }]}>
+            <Ionicons name="person" size={size * 0.48} color="#ffffff" />
+          </View>
+        </>
+      ) : (
+        <Image
+          source={{ uri: imageUri }}
+          style={[styles.image, { width: size, height: size, borderRadius: size / 2 }]}
+          onError={() => setImageError(true)}
+        />
+      )}
     </View>
   );
 };
@@ -44,5 +56,11 @@ const styles = StyleSheet.create({
   },
   image: {
     resizeMode: 'cover',
+  },
+  fallbackIcon: {
+    position: 'absolute',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#7c5cfc',
   },
 });

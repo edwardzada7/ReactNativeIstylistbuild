@@ -2,12 +2,10 @@ import { Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../src/contexts/ThemeContext';
-import { useUnreadMessages } from '../../src/contexts/UnreadMessagesContext';
 
 export default function ProviderTabsLayout() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
-  const { unreadCount } = useUnreadMessages();
 
   return (
     <Tabs
@@ -41,18 +39,9 @@ export default function ProviderTabsLayout() {
         name="bookings"
         options={{
           title: 'Booking',
-          tabBarBadge: unreadCount > 0 ? (unreadCount > 99 ? '99+' : unreadCount) : undefined,
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="calendar" size={size} color={color} />
           ),
-        }}
-      />
-      <Tabs.Screen
-        name="messages"
-        options={{
-          title: 'Messages',
-          tabBarBadge: unreadCount > 0 ? (unreadCount > 99 ? '99+' : unreadCount) : undefined,
-          tabBarIcon: ({ color, size }) => <Ionicons name="chatbubbles" size={size} color={color} />,
         }}
       />
       <Tabs.Screen

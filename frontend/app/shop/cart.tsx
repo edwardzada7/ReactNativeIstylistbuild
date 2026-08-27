@@ -86,6 +86,15 @@ export default function Cart() {
     setError(null);
     try {
       const cartItems = lines.map((line) => ({ productId: line.productId, quantity: line.quantity, price: line.price }));
+      const reference = `SHOP_${Date.now()}_${user.id}`;
+      const checkoutMetadata = {
+        custom_fields: [
+          { display_name: 'Delivery Address', variable_name: 'delivery_address', value: `${address.street}, ${address.city}` },
+          { display_name: 'Phone Number', variable_name: 'phone_number', value: address.phone },
+        ],
+        cart_items: cartItems.map((item) => ({ id: item.productId, name: lines.find((line) => line.productId === item.productId)?.name || '', quantity: item.quantity, price: item.price })),
+        user_id: user.id,
+      };
       const response = await shopService.initializePaystackCheckout({
         amount,
         email: user.email,
@@ -101,15 +110,8 @@ export default function Cart() {
         deliveryAddress: address,
         deliveryAddressId: addressId || undefined,
         paymentMethod,
-        metadata: {
-            delivery_address: `${address.street}, ${address.city}, ${address.state}`,
-            phone_number: address.phone,
-          custom_fields: [
-            { display_name: 'Delivery Address', variable_name: 'delivery_address', value: `${address.street}, ${address.city}, ${address.state}` },
-            { display_name: 'Phone Number', variable_name: 'phone_number', value: address.phone },
-          ],
-          cartItems,
-        },
+        ref: reference,
+        metadata: checkoutMetadata,
       });
 
       if (response?.status && response.authorization_url) {

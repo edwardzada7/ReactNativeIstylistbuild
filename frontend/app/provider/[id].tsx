@@ -40,6 +40,7 @@ export default function ProviderProfile() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
+  const [coverImageError, setCoverImageError] = useState(false);
   const isOwnProvider = Boolean(user && provider && (user.id === provider.id || user.auth_id === provider.user_id));
 
   const loadData = useCallback(async () => {
@@ -57,6 +58,7 @@ export default function ProviderProfile() {
         feedService.getFeed({ page: 1, per_page: 100 }).catch(() => ({ data: [] })),
       ]);
       setProvider(profile);
+      setCoverImageError(false);
       setReviews(reviewList);
       setSlots(slotList);
       setPortfolio(portfolioList);
@@ -159,7 +161,18 @@ export default function ProviderProfile() {
         {/* Header / Cover */}
         <View style={styles.coverContainer}>
           {provider.avatarUrl || provider.profileImage || provider.profile_image_url || provider.avatar ? (
-            <Image source={{ uri: provider.avatarUrl || provider.profileImage || provider.profile_image_url || provider.avatar }} style={styles.coverImage} contentFit="cover" />
+            coverImageError ? (
+              <View style={styles.coverFallback}>
+                <Ionicons name="person" size={64} color={Colors.primary} />
+              </View>
+            ) : (
+              <Image
+                source={{ uri: provider.avatarUrl || provider.profileImage || provider.profile_image_url || provider.avatar }}
+                style={styles.coverImage}
+                contentFit="cover"
+                onError={() => setCoverImageError(true)}
+              />
+            )
           ) : (
             <View style={styles.coverFallback}>
               <Ionicons name="person" size={64} color={Colors.primary} />
