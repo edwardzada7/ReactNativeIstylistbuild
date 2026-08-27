@@ -208,7 +208,13 @@ export default function BookingDetails() {
         </View>
 
         {/* Person Info Card */}
-        <View style={[styles.card, { backgroundColor: colors.surface }]}>
+        <TouchableOpacity
+          style={[styles.card, { backgroundColor: colors.surface }]}
+          onPress={() => router.push(`/provider/${booking.provider_id}`)}
+          disabled={isProvider}
+          accessibilityRole="button"
+          accessibilityLabel="View provider profile"
+        >
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
             <View>
               <Text style={[styles.cardTitle, { color: colors.text }]}>{isProvider ? 'Customer' : 'Provider'}</Text>
@@ -234,7 +240,7 @@ export default function BookingDetails() {
               </TouchableOpacity>
             )}
           </View>
-        </View>
+        </TouchableOpacity>
 
         {/* Date & Time Card */}
         <View style={[styles.card, { backgroundColor: colors.surface }]}>
@@ -319,7 +325,7 @@ export default function BookingDetails() {
             <Button
               title="Book Again"
               variant="outline"
-              onPress={() => router.push(`/booking/${booking.provider_id}`)}
+              onPress={() => router.push(`/provider/${booking.provider_id}`)}
               fullWidth
               style={styles.actionSpacing}
             />

@@ -39,6 +39,7 @@ export function mapProfile(raw: any): User {
     gender: raw?.gender,
     avatar: raw?.avatar || raw?.profile_image_url || raw?.photo_url || undefined,
     profile_image_url: raw?.profile_image_url || raw?.avatar || raw?.photo_url || undefined,
+    displayName: raw?.displayName || raw?.name || raw?.full_name,
     account_type: raw?.account_type,
     created_at: raw?.created_at,
     updated_at: raw?.updated_at,

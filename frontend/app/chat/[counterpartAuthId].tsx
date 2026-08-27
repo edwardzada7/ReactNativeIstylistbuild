@@ -9,6 +9,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   RefreshControl,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
@@ -24,6 +25,20 @@ import { LocationCard } from '../../src/components/chat/LocationCard';
 import { InvoiceCard } from '../../src/components/chat/InvoiceCard';
 import { ReadReceipt } from '../../src/components/chat/ReadReceipt';
 
+const PHONE_REGEX = /(?:\+?234|0)[789][01]\d{8}/g;
+const EMAIL_REGEX = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+const SOCIAL_REGEX = /(instagram|ig|whatsapp|snapchat|tiktok|twitter|telegram|call me|add me|contact me)/gi;
+const CONTACT_SHARING_WARNING = 'Security Notice: Sharing phone numbers, emails, or off-platform social handles is against policy. Please keep transactions within iStylist.';
+
+function containsBlockedContactInfo(value: string) {
+  return [PHONE_REGEX, EMAIL_REGEX, SOCIAL_REGEX].some((pattern) => {
+    pattern.lastIndex = 0;
+    const matched = pattern.test(value);
+    pattern.lastIndex = 0;
+    return matched;
+  });
+}
+
 /**
  * Chat thread using booking-based endpoints to match web implementation.
  * Chat is tied to bookings - accessed via booking_id with counterpart information.
@@ -31,11 +46,13 @@ import { ReadReceipt } from '../../src/components/chat/ReadReceipt';
 export default function ChatThread() {
   const router = useRouter();
   const { colors } = useTheme();
-  const { counterpartAuthId, counterpartName, bookingId } = useLocalSearchParams<{
+  const { counterpartAuthId, counterpartName, bookingId: legacyBookingId, conversationId } = useLocalSearchParams<{
     counterpartAuthId: string;
     counterpartName?: string;
     bookingId?: string;
+    conversationId?: string;
   }>();
+  const bookingId = conversationId || legacyBookingId;
   const { user } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,6 +60,7 @@ export default function ChatThread() {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [locationLoading, setLocationLoading] = useState(false);
+  const [locationTipVisible, setLocationTipVisible] = useState(true);
   const [resolvedCounterpartName, setResolvedCounterpartName] = useState<string | undefined>(counterpartName);
 
   const loadData = useCallback(async (isPullToRefresh = false) => {
@@ -90,6 +108,10 @@ export default function ChatThread() {
   const handleSend = async () => {
     if (!text.trim() || !bookingId) return;
     const body = text.trim();
+    if (containsBlockedContactInfo(body)) {
+      Alert.alert(CONTACT_SHARING_WARNING);
+      return;
+    }
     setText('');
     setSending(true);
     try {
@@ -197,9 +219,20 @@ export default function ChatThread() {
           />
         )}
         <View style={[styles.inputRow, { borderTopColor: colors.border }]}>
-          <TouchableOpacity onPress={handleShareLocation} disabled={locationLoading || !bookingId} accessibilityRole="button" accessibilityLabel="Share location">
-            {locationLoading ? <ActivityIndicator size="small" color={colors.primary} /> : <Ionicons name="location-outline" size={22} color={colors.primary} />}
-          </TouchableOpacity>
+          <View style={styles.locationButtonWrap}>
+            {locationTipVisible && (
+              <View style={[styles.locationTooltip, { backgroundColor: colors.primary }]}>
+                <Text style={styles.locationTooltipText}>Tap to share location.</Text>
+                <TouchableOpacity onPress={() => setLocationTipVisible(false)} accessibilityRole="button" accessibilityLabel="Close location tip">
+                  <Ionicons name="close" size={16} color="#fff" />
+                </TouchableOpacity>
+                <View style={[styles.locationTooltipArrow, { borderTopColor: colors.primary }]} />
+              </View>
+            )}
+            <TouchableOpacity onPress={handleShareLocation} disabled={locationLoading || !bookingId} accessibilityRole="button" accessibilityLabel="Share location">
+              {locationLoading ? <ActivityIndicator size="small" color={colors.primary} /> : <Ionicons name="location-outline" size={22} color={colors.primary} />}
+            </TouchableOpacity>
+          </View>
           <View style={{ flex: 1 }}>
             <Input value={text} onChangeText={setText} placeholder="Type a message..." />
           </View>
@@ -228,6 +261,31 @@ const styles = StyleSheet.create({
   bubbleText: { fontSize: FontSizes.sm },
   timestamp: { fontSize: 10, marginTop: 4, textAlign: 'right' },
   timestampRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end' },
+  locationButtonWrap: { position: 'relative', zIndex: 2 },
+  locationTooltip: {
+    position: 'absolute',
+    bottom: 38,
+    left: -8,
+    width: 190,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+    borderRadius: BorderRadius.md,
+    zIndex: 3,
+  },
+  locationTooltipText: { color: '#fff', fontSize: FontSizes.xs, fontWeight: '600', flex: 1 },
+  locationTooltipArrow: {
+    position: 'absolute',
+    bottom: -6,
+    left: 12,
+    borderLeftWidth: 6,
+    borderRightWidth: 6,
+    borderTopWidth: 6,
+    borderLeftColor: 'transparent',
+    borderRightColor: 'transparent',
+  },
   inputRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, borderTopWidth: 1 },
   sendBtn: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
 });

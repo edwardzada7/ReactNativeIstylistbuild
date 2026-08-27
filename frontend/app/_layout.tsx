@@ -19,7 +19,7 @@ LogBox.ignoreAllLogs(true);
 // the family is registered — which throws on Android Expo Go.
 SplashScreen.preventAutoHideAsync();
 
-const queryClient = new QueryClient({
+export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       retry: 2,

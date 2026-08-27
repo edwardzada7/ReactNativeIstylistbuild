@@ -103,6 +103,8 @@ export interface Provider {
   avatarUrl?: string | null;
   profileImage?: string | null;
   businessName?: string;
+  ratingCount?: number;
+  isKycVerified?: boolean;
   firstName?: string;
   lastName?: string;
 }
@@ -181,6 +183,8 @@ export interface Booking {
   service_name: string;
   provider_name: string;
   customer_name?: string;
+  customer_profile_image_url?: string | null;
+  customer_address?: string | null;
   provider_avatar?: string;
   service?: Service;
   provider?: Provider;

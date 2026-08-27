@@ -80,9 +80,9 @@ export default function ProviderReviews() {
     loadData();
   };
 
-  const averageRating = reviews.length
-    ? (reviews.reduce((total, review) => total + Number(review.rating || 0), 0) / reviews.length).toFixed(1)
-    : 'New';
+  const averageRating = (reviews.length
+    ? reviews.reduce((total, review) => total + Number(review.rating || 0), 0) / reviews.length
+    : 0).toFixed(1);
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
@@ -113,7 +113,7 @@ export default function ProviderReviews() {
               {averageRating}
             </Text>
             <View style={styles.summaryRatingRow}>
-              <Stars rating={Number(averageRating === 'New' ? 0 : averageRating)} size={18} />
+              <Stars rating={Number(averageRating)} size={18} />
               <Text style={[styles.summaryRatingFigure, { color: colors.text }]}>{averageRating}</Text>
             </View>
             <Text style={[styles.summaryCount, { color: colors.textSecondary }]}>

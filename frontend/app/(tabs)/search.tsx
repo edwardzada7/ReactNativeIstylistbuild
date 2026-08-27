@@ -16,7 +16,6 @@ import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/th
 import { providerService } from '../../src/services/provider.service';
 import { formatPriceRange } from '../../src/utils/currency';
 import { Provider, Category } from '../../src/types';
-import { formatRating } from '../../src/utils/display';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { ProfileAvatar } from '../../src/components/common';
 
@@ -131,16 +130,17 @@ export default function Search() {
         />
       </View>
       <View style={styles.resultInfo}>
-        <Text style={[styles.resultName, { color: colors.text }]} numberOfLines={1}>
-          {item.business_name}
-        </Text>
+        <View style={styles.resultNameRow}>
+          <Text style={[styles.resultName, { color: colors.text }]} numberOfLines={1}>{item.business_name}</Text>
+          {item.isKycVerified === true && <Ionicons name="checkmark-circle" size={16} color={Colors.info} />}
+        </View>
         <Text style={[styles.resultCategory, { color: colors.textSecondary }]} numberOfLines={1}>
           {typeof item.category === 'string' ? item.category : item.location}
         </Text>
         <View style={styles.resultMeta}>
           <View style={styles.metaItem}>
             <Ionicons name="star" size={14} color={colors.warning} />
-            <Text style={[styles.metaText, { color: colors.textSecondary }]}>{formatRating(item.rating)}</Text>
+            <Text style={[styles.metaText, { color: colors.textSecondary }]}>★ {Number(item.rating || 0).toFixed(1)} ({item.ratingCount ?? item.review_count ?? 0})</Text>
           </View>
           <View style={styles.metaItem}>
             <Ionicons name="location" size={14} color={colors.textSecondary} />
@@ -316,6 +316,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: 4,
   },
+  resultNameRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, flexShrink: 1 },
   resultCategory: {
     fontSize: FontSizes.sm,
     marginBottom: Spacing.sm,

@@ -24,6 +24,7 @@ export default function Cart() {
   const { user } = useAuth();
   const { colors } = useTheme();
   const { lines, setQuantity, removeItem, clear, total } = useCartStore();
+  const hasOwnProduct = Boolean(user && lines.some((line) => line.stylistAuthId === user.auth_id));
   const [checkingOut, setCheckingOut] = useState(false);
   const [step, setStep] = useState<CheckoutStep>('cart');
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
@@ -101,6 +102,8 @@ export default function Cart() {
         deliveryAddressId: addressId || undefined,
         paymentMethod,
         metadata: {
+            delivery_address: `${address.street}, ${address.city}, ${address.state}`,
+            phone_number: address.phone,
           custom_fields: [
             { display_name: 'Delivery Address', variable_name: 'delivery_address', value: `${address.street}, ${address.city}, ${address.state}` },
             { display_name: 'Phone Number', variable_name: 'phone_number', value: address.phone },
@@ -185,11 +188,11 @@ export default function Cart() {
           amount: pendingAmount ?? (Number(total()) || 0),
           email: user?.email || undefined,
           name: user?.full_name || user?.name || undefined,
-          phone: user?.phone || undefined,
+          phone: deliveryAddress.phone || user?.phone || undefined,
+          delivery_address: `${deliveryAddress.street}, ${deliveryAddress.city}, ${deliveryAddress.state}`,
           currency: 'NGN',
           provider_auth_id: lines.find((line) => line.stylistAuthId)?.stylistAuthId || undefined,
           payment_method: 'paystack',
-          delivery_address: `${deliveryAddress.street}, ${deliveryAddress.city}, ${deliveryAddress.state}`,
         })
         .then((res) => {
           if (res?.status === 'success') {
@@ -338,8 +341,11 @@ export default function Cart() {
               <Text style={[styles.totalLabel, { color: colors.textSecondary }]}>Total</Text>
               <Text style={[styles.totalValue, { color: colors.text }]}>{formatCurrency(total())}</Text>
             </View>
+            {hasOwnProduct ? (
+              <Text style={[styles.errorText, { color: colors.error }]}>Providers cannot book their own services or purchase their own products.</Text>
+            ) : null}
             {error ? <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text> : null}
-            <Button title={checkingOut ? 'Preparing Checkout...' : 'Checkout'} onPress={handleCheckout} loading={checkingOut} fullWidth size="large" />
+            <Button title={hasOwnProduct ? 'Unavailable' : checkingOut ? 'Preparing Checkout...' : 'Checkout'} onPress={handleCheckout} disabled={hasOwnProduct} loading={checkingOut} fullWidth size="large" />
           </View>
         </>
       )}

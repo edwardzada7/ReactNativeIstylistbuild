@@ -90,12 +90,23 @@ export default function Notifications() {
   const navigateToNotification = useCallback(
     (item: Notification) => {
       const data = item?.data || {};
+      const conversationId = data.conversation_id || data.conversationId;
+      const counterpartAuthId = data.counterpart_auth_id || data.counterpartAuthId || data.sender_auth_id || 'conversation';
+      if (item.type === 'message' && conversationId) {
+        router.push(`/chat/${String(counterpartAuthId)}?conversationId=${String(conversationId)}`);
+        return;
+      }
       const explicitRoute = data.route || data.pathname || data.path || data.screen || data.target;
       if (typeof explicitRoute === 'string' && explicitRoute.startsWith('/')) {
         router.push(explicitRoute as any);
         return;
       }
       if (data.booking_id) {
+        if (item.type === 'message' || data.conversation_id || data.conversationId) {
+          const bookingConversationId = conversationId || data.booking_id;
+          router.push(`/chat/${String(counterpartAuthId)}?conversationId=${String(bookingConversationId)}`);
+          return;
+        }
         router.push(`/bookings/${String(data.booking_id)}`);
         return;
       }
@@ -112,7 +123,11 @@ export default function Notifications() {
         return;
       }
       if (item.type === 'message') {
-        router.push('/messages');
+        if (conversationId) {
+          router.push(`/chat/${String(counterpartAuthId)}?conversationId=${String(conversationId)}`);
+        } else {
+          router.push('/messages');
+        }
         return;
       }
       if (item.type === 'booking') {

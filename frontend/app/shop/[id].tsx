@@ -29,6 +29,7 @@ export default function ProductDetail() {
   const [reviewRating, setReviewRating] = useState(0);
   const [reviewText, setReviewText] = useState('');
   const addItem = useCartStore((s) => s.addItem);
+  const isOwnProduct = Boolean(user && product && user.auth_id === product.stylist_auth_id);
 
   const myReview = useMemo(() => reviews.find((review) => review.user_id === user?.auth_id) ?? null, [reviews, user?.auth_id]);
 
@@ -66,6 +67,7 @@ export default function ProductDetail() {
   }, [id]);
 
   const handleAddToCart = () => {
+    if (isOwnProduct) return;
     if (isProvider) {
       router.push('/(provider)/shop');
       return;
@@ -124,16 +126,12 @@ export default function ProductDetail() {
     setSubmitting(true);
     try {
       const userId = user?.auth_id || user?.id || undefined;
-      const payloadBase = {
-        product_id: Number(product.id),
+      const reviewPayload = {
         productId: Number(product.id),
-        user_id: userId,
-        order_id: null,
-        item_id: null,
-        rating: validRating,
-        review_text: cleanedText,
+        rating: validRating || 5,
         comment: cleanedText,
       };
+      const payloadBase = { ...reviewPayload, review_text: reviewPayload.comment, user_id: userId, order_id: null, item_id: null };
 
       if (editingReview) {
         await shopService.updateProductReview(product.id, editingReview.id, payloadBase);
@@ -226,6 +224,12 @@ export default function ProductDetail() {
         )}
         <Text style={[styles.name, { color: colors.text }]}>{product.name}</Text>
         <Text style={[styles.price, { color: Colors.primary }]}>{formatCurrency(product.price)}</Text>
+        {isOwnProduct ? (
+          <View style={[styles.infoBanner, { backgroundColor: `${Colors.info}15` }]}>
+            <Ionicons name="information-circle-outline" size={18} color={Colors.info} />
+            <Text style={[styles.infoBannerText, { color: colors.text }]}>Providers cannot book their own services or purchase their own products.</Text>
+          </View>
+        ) : null}
         <Text style={[styles.stock, { color: colors.textSecondary }]}>{product.stock > 0 ? `${product.stock} in stock` : 'Out of stock'}</Text>
         {(product.main_category || product.category) ? (
           <View style={[styles.metaBox, { backgroundColor: colors.surface }]}>
@@ -310,9 +314,9 @@ export default function ProductDetail() {
       </ScrollView>
       <View style={[styles.footer, { borderTopColor: colors.border }]}>
         <Button
-          title={isProvider ? 'Manage Products' : product.stock > 0 ? 'Add to Cart' : 'Out of Stock'}
+          title={isProvider ? 'Manage Products' : isOwnProduct ? 'Unavailable' : product.stock > 0 ? 'Add to Cart' : 'Out of Stock'}
           onPress={handleAddToCart}
-          disabled={!isProvider && product.stock <= 0}
+          disabled={isOwnProduct || (!isProvider && product.stock <= 0)}
           fullWidth
           size="large"
         />
@@ -367,6 +371,8 @@ const styles = StyleSheet.create({
   imagePlaceholder: { justifyContent: 'center', alignItems: 'center' },
   name: { fontSize: FontSizes.xl, fontWeight: '800' },
   price: { fontSize: FontSizes.lg, fontWeight: '700', marginTop: Spacing.xs },
+  infoBanner: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, padding: Spacing.sm, borderRadius: BorderRadius.md, marginTop: Spacing.md },
+  infoBannerText: { flex: 1, fontSize: FontSizes.sm, lineHeight: 19 },
   stock: { fontSize: FontSizes.sm, marginTop: Spacing.xs, marginBottom: Spacing.md },
   metaBox: { padding: Spacing.sm, borderRadius: BorderRadius.md, marginBottom: Spacing.md },
   metaLabel: { fontSize: FontSizes.xs, fontWeight: '700' },

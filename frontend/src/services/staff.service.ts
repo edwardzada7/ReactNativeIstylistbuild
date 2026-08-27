@@ -7,6 +7,45 @@ const asList = (raw: any): any[] => {
 };
 
 export const staffService = {
+    async createMultipart(authId: string, payload: { name: string; role: string; bio: string; service_ids: number[]; photoUri?: string }): Promise<StaffMember> {
+      const formData = new FormData();
+      if (payload.photoUri) {
+        formData.append('file', {
+          uri: payload.photoUri.startsWith('file://') ? payload.photoUri : `file://${payload.photoUri}`,
+          name: `staff_${Date.now()}.jpg`,
+          type: 'image/jpeg',
+        } as any);
+      }
+      formData.append('name', payload.name);
+      formData.append('role', payload.role);
+      formData.append('bio', payload.bio);
+      formData.append('services', JSON.stringify(payload.service_ids));
+      const raw = await apiService.post<any>('/staff', formData, {
+        params: { auth_id: authId },
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return { ...raw, id: String(raw.id), is_active: !!raw.is_active, service_ids: Array.isArray(raw.service_ids) ? raw.service_ids.map(Number) : [], weekly: Array.isArray(raw.weekly) ? raw.weekly : [] };
+    },
+
+    async updateMultipart(staffId: string, authId: string, payload: { name: string; role: string; bio: string; service_ids: number[]; photoUri?: string }): Promise<StaffMember> {
+      const formData = new FormData();
+      if (payload.photoUri) {
+        formData.append('file', {
+          uri: payload.photoUri.startsWith('file://') ? payload.photoUri : `file://${payload.photoUri}`,
+          name: `staff_${Date.now()}.jpg`,
+          type: 'image/jpeg',
+        } as any);
+      }
+      formData.append('name', payload.name);
+      formData.append('role', payload.role);
+      formData.append('bio', payload.bio);
+      formData.append('services', JSON.stringify(payload.service_ids));
+      const raw = await apiService.put<any>(`/staff/${staffId}`, formData, {
+        params: { auth_id: authId },
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return { ...raw, id: String(raw.id), is_active: !!raw.is_active, service_ids: Array.isArray(raw.service_ids) ? raw.service_ids.map(Number) : [], weekly: Array.isArray(raw.weekly) ? raw.weekly : [] };
+    },
   async listMine(authId: string, includeInactive = true): Promise<StaffMember[]> {
     const raw = await apiService.get<any>('/staff/me', {
       params: { auth_id: authId, include_inactive: includeInactive },

@@ -23,6 +23,8 @@ import { resolveCurrentLocation } from '../../src/services/location.service';
 import { supabase } from '../../src/lib/supabase';
 import { Booking } from '../../src/types';
 import { withCacheBuster } from '../../src/utils/display';
+import { queryClient } from '../_layout';
+import apiService from '../../src/services/api';
 
 const comingSoon = (feature: string) =>
   Alert.alert('Coming soon', `${feature} is being wired up in a later phase.`);
@@ -183,10 +185,15 @@ export default function Profile() {
 
       const { error: updateError } = await supabase.from('users').update({ profile_image_url: publicUrl }).eq('auth_id', user.auth_id);
       if (updateError) throw updateError;
+      await apiService.put(`/users/${user.id}`, { profile_image_url: publicUrl });
 
       const refreshedUrl = withCacheBuster(publicUrl) as string;
       setAvatarUrl(refreshedUrl);
       updateUser({ profile_image_url: refreshedUrl, avatar: refreshedUrl });
+        await queryClient.invalidateQueries({ queryKey: ['currentUser'] });
+        await queryClient.invalidateQueries({ queryKey: ['providers'] });
+        await queryClient.invalidateQueries({ queryKey: ['featuredProviders'] });
+        await queryClient.invalidateQueries({ queryKey: ['conversations'] });
       await refreshUser();
       updateUser({ profile_image_url: refreshedUrl, avatar: refreshedUrl });
       Alert.alert('Success', 'Your profile image has been updated.');

@@ -25,7 +25,7 @@ const asList = (raw: any): any[] => {
   // was previously missing here, so provider reviews always normalized to
   // an empty list even when the API had real data (falls through to the
   // final `[]` fallback since none of the other keys exist on that shape).
-  return raw?.data || raw?.providers || raw?.services || raw?.reviews || raw?.results || [];
+  return raw?.data || raw?.providers || raw?.services || raw?.categories || raw?.reviews || raw?.results || [];
 };
 
 const DAY_NAME_TO_NUMBER: Record<DayAvailability['day'], number> = {
@@ -78,6 +78,7 @@ export const providerService = {
       id: String(item.id),
       is_active: !!item.is_active,
       service_ids: Array.isArray(item.service_ids) ? item.service_ids.map(Number) : [],
+      weekly: Array.isArray(item.weekly) ? item.weekly : [],
     }));
   },
 
@@ -92,8 +93,22 @@ export const providerService = {
   },
 
   async getCategories(): Promise<Category[]> {
-    const subServices = await this.getCatalogSubServices();
-    return deriveCategories(subServices);
+    try {
+      const raw = await apiService.get<any>('/categories');
+      const categories = asList(raw);
+      if (categories.length > 0) {
+        return categories.map((category: any) => ({
+          id: String(category.id ?? category.slug ?? category.name),
+          name: category.name ?? category.title ?? category.label ?? 'Category',
+          icon: category.icon ?? category.icon_name ?? 'sparkles',
+          description: category.description,
+          provider_count: category.provider_count ?? category.providers_count,
+        }));
+      }
+    } catch (err) {
+      console.warn('[provider-service] global categories unavailable, using catalog fallback', err);
+    }
+    return deriveCategories(await this.getCatalogSubServices());
   },
 
   // Resolves a provider's Supabase auth UUID from their numeric provider_id.

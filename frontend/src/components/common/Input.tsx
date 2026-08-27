@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, BorderRadius, FontSizes, Spacing } from '../../constants/theme';
+import { useTheme } from '../../contexts/ThemeContext';
 
 interface InputProps extends TextInputProps {
   label?: string;
@@ -29,15 +30,16 @@ export const Input: React.FC<InputProps> = ({
   ...props
 }) => {
   const [isSecure, setIsSecure] = useState(secureTextEntry);
+  const { colors } = useTheme();
 
   return (
     <View style={styles.container}>
-      {label && <Text style={styles.label}>{label}</Text>}
-      <View style={[styles.inputContainer, error && styles.inputError]}>
-        {icon && <Ionicons name={icon} size={20} color={Colors.textSecondary} style={styles.icon} />}
+      {label && <Text style={[styles.label, { color: colors.text }]}>{label}</Text>}
+      <View style={[styles.inputContainer, { backgroundColor: colors.surface, borderColor: colors.border }, error && styles.inputError]}>
+        {icon && <Ionicons name={icon} size={20} color={colors.textSecondary} style={styles.icon} />}
         <TextInput
-          style={[styles.input, style]}
-          placeholderTextColor={Colors.textMuted}
+          style={[styles.input, { color: colors.text }, style]}
+          placeholderTextColor={colors.textMuted}
           secureTextEntry={isSecure}
           {...props}
         />
@@ -46,13 +48,13 @@ export const Input: React.FC<InputProps> = ({
             <Ionicons
               name={isSecure ? 'eye-outline' : 'eye-off-outline'}
               size={20}
-              color={Colors.textSecondary}
+              color={colors.textSecondary}
             />
           </TouchableOpacity>
         )}
         {rightIcon && !secureTextEntry && (
           <TouchableOpacity onPress={onRightIconPress} style={styles.rightIcon}>
-            <Ionicons name={rightIcon} size={20} color={Colors.textSecondary} />
+            <Ionicons name={rightIcon} size={20} color={colors.textSecondary} />
           </TouchableOpacity>
         )}
       </View>

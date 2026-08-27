@@ -15,6 +15,7 @@ import { supabase } from '../../src/lib/supabase';
 import { Provider, Post, Review } from '../../src/types';
 import apiService from '../../src/services/api';
 import { withCacheBuster } from '../../src/utils/display';
+import { queryClient } from '../_layout';
 
 export default function ProviderProfile() {
   const router = useRouter();
@@ -164,10 +165,16 @@ export default function ProviderProfile() {
 
       const { error: updateError } = await supabase.from('stylists').update({ profile_image_url: publicUrl }).eq('auth_id', user.auth_id);
       if (updateError) throw updateError;
+      await apiService.put(`/users/${user.id}`, { profile_image_url: publicUrl });
 
       const refreshedUrl = withCacheBuster(publicUrl) as string;
       setAvatarUrl(refreshedUrl);
       updateUser({ profile_image_url: refreshedUrl, avatar: refreshedUrl });
+        await queryClient.invalidateQueries({ queryKey: ['currentUser'] });
+        await queryClient.invalidateQueries({ queryKey: ['providers'] });
+        await queryClient.invalidateQueries({ queryKey: ['featuredProviders'] });
+        await queryClient.invalidateQueries({ queryKey: ['conversations'] });
+        await queryClient.invalidateQueries({ queryKey: ['providerProfile', String(user.id)] });
       await refreshUser();
       updateUser({ profile_image_url: refreshedUrl, avatar: refreshedUrl });
       Alert.alert('Success', 'Your profile image has been updated.');
@@ -295,9 +302,7 @@ export default function ProviderProfile() {
     }
   };
 
-  const averageRating = reviews.length
-    ? (reviews.reduce((total, review) => total + Number(review.rating || 0), 0) / reviews.length).toFixed(1)
-    : 'New';
+  const averageRating = Number(profile?.rating || 0).toFixed(1);
 
   const menuItems = [
     { icon: 'cut-outline', label: 'My Services', onPress: () => router.push('/(provider)/services') },

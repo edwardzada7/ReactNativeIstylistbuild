@@ -20,24 +20,27 @@ import { Button } from '../../src/components/common';
 import { providerService } from '../../src/services/provider.service';
 import { feedService } from '../../src/services/feed.service';
 import { formatCurrency, formatPriceRange } from '../../src/utils/currency';
-import { formatRating } from '../../src/utils/display';
-import { Provider, Review, Post } from '../../src/types';
+import { Provider, Review, Post, StaffMember } from '../../src/types';
 import { useTheme } from '../../src/contexts/ThemeContext';
+import { useAuth } from '../../src/contexts/AuthContext';
 
 export default function ProviderProfile() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { colors } = useTheme();
+  const { user } = useAuth();
 
   const [provider, setProvider] = useState<Provider | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [portfolio, setPortfolio] = useState<string[]>([]);
   const [slots, setSlots] = useState<string[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
+  const [staff, setStaff] = useState<StaffMember[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
+  const isOwnProvider = Boolean(user && provider && (user.id === provider.id || user.auth_id === provider.user_id));
 
   const loadData = useCallback(async () => {
     if (!id) return;
@@ -46,16 +49,18 @@ export default function ProviderProfile() {
       const profile = await providerService.getProviderFullProfile(id);
       const today = new Date().toISOString().slice(0, 10);
       const defaultDuration = profile.services[0]?.duration || 30;
-      const [reviewList, slotList, portfolioList, feedResponse] = await Promise.all([
+      const [reviewList, slotList, portfolioList, staffList, feedResponse] = await Promise.all([
         providerService.getProviderReviews(id).catch(() => []),
         providerService.getAvailableSlots(id, today, defaultDuration).catch(() => []),
         providerService.getProviderPortfolio(id).catch(() => []),
+        providerService.getProviderStaff(id).catch(() => []),
         feedService.getFeed({ page: 1, per_page: 100 }).catch(() => ({ data: [] })),
       ]);
       setProvider(profile);
       setReviews(reviewList);
       setSlots(slotList);
       setPortfolio(portfolioList);
+      setStaff(staffList);
       // Filter posts by this provider
       console.log('[customer-provider-profile] profile.user_id:', profile.user_id, 'id param:', id);
       console.log('[customer-provider-profile] total posts from API:', feedResponse.data?.length);
@@ -96,6 +101,7 @@ export default function ProviderProfile() {
   };
 
   const handleBookNow = () => {
+    if (isOwnProvider) return;
     if (!provider) return;
     if (!selectedServiceId) {
       Alert.alert('Choose a service', 'Please select a service before booking.');
@@ -138,6 +144,8 @@ export default function ProviderProfile() {
   }
 
   const categoryLabel = typeof provider.category === 'string' ? provider.category : '';
+  const serviceNames = new Map(provider.services.map((service) => [Number(service.id), service.name]));
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
@@ -172,7 +180,7 @@ export default function ProviderProfile() {
             <View style={{ flex: 1 }}>
               <View style={styles.nameRow}>
                 <Text style={[styles.name, { color: colors.text }]}>{provider.business_name}</Text>
-                {provider.is_verified && (
+                {(provider.isKycVerified === true || provider.is_verified === true) && (
                   <Ionicons name="checkmark-circle" size={18} color={Colors.info} />
                 )}
               </View>
@@ -181,11 +189,18 @@ export default function ProviderProfile() {
             <Text style={[styles.priceRange, { color: colors.text }]}>{formatPriceRange(provider.price_range)}</Text>
           </View>
 
+          {isOwnProvider ? (
+            <View style={[styles.infoBanner, { backgroundColor: `${Colors.info}15` }]}>
+              <Ionicons name="information-circle-outline" size={18} color={Colors.info} />
+              <Text style={[styles.infoBannerText, { color: colors.text }]}>Providers cannot book their own services or purchase their own products.</Text>
+            </View>
+          ) : null}
+
           <View style={styles.metaRow}>
             <View style={styles.metaItem}>
               <Ionicons name="star" size={16} color={Colors.warning} />
               <Text style={[styles.metaText, { color: colors.text }]}>
-                {formatRating(provider.rating)} ({provider.review_count})
+                ★ {Number(provider.rating || 0).toFixed(1)} ({provider.ratingCount ?? provider.review_count ?? 0})
               </Text>
             </View>
             {(provider.location_address || provider.location) && provider.location !== 'Location not set' ? (
@@ -204,6 +219,26 @@ export default function ProviderProfile() {
               <Text style={[styles.bio, { color: colors.textSecondary }]}>{provider.bio}</Text>
             </View>
           )}
+
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Staff</Text>
+            {staff.length === 0 ? (
+              <Text style={[styles.emptyInline, { color: colors.textSecondary }]}>No staff members listed yet.</Text>
+            ) : staff.map((member) => (
+              <View key={member.id} style={[styles.staffCard, { backgroundColor: colors.surface }]}>
+                <View style={styles.staffHeader}>
+                  <RNImage source={{ uri: member.photo_url || 'https://via.placeholder.com/150' }} style={styles.staffImage} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.staffName, { color: colors.text }]}>{member.name}</Text>
+                    {!!member.role && <Text style={[styles.staffRole, { color: colors.textSecondary }]}>{member.role}</Text>}
+                  </View>
+                </View>
+                {!!member.bio && <Text style={[styles.staffBio, { color: colors.textSecondary }]}>{member.bio}</Text>}
+                <Text style={[styles.staffMeta, { color: colors.textSecondary }]}>Services: {(member.service_ids || []).map((serviceId) => serviceNames.get(serviceId) || String(serviceId)).join(', ') || 'All services'}</Text>
+                <Text style={[styles.staffMeta, { color: colors.textSecondary }]}>Schedule: {(member.weekly || []).filter((day) => day.is_available).map((day) => `${dayNames[day.day_of_week]} ${day.start_time || ''}-${day.end_time || ''}`).join(', ') || 'Unavailable'}</Text>
+              </View>
+            ))}
+          </View>
 
           {/* Services */}
           <View style={styles.section}>
@@ -330,7 +365,7 @@ export default function ProviderProfile() {
       </ScrollView>
 
       <View style={[styles.footer, { backgroundColor: colors.background, borderTopColor: colors.border }]}>
-        <Button title="Book Now" onPress={handleBookNow} fullWidth size="large" />
+        <Button title={isOwnProvider ? 'Unavailable' : 'Book Now'} onPress={handleBookNow} disabled={isOwnProvider} fullWidth size="large" />
       </View>
     </SafeAreaView>
   );
@@ -408,6 +443,15 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.lg,
     fontWeight: '700',
   },
+  infoBanner: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, padding: Spacing.sm, borderRadius: BorderRadius.md, marginTop: Spacing.md },
+  infoBannerText: { flex: 1, fontSize: FontSizes.sm, lineHeight: 19 },
+  staffCard: { borderRadius: BorderRadius.md, padding: Spacing.md, marginBottom: Spacing.sm },
+  staffHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+  staffImage: { width: 64, height: 64, borderRadius: 32 },
+  staffName: { fontSize: FontSizes.md, fontWeight: '700' },
+  staffRole: { fontSize: FontSizes.sm, marginTop: 4 },
+  staffBio: { fontSize: FontSizes.sm, lineHeight: 20, marginTop: Spacing.sm },
+  staffMeta: { fontSize: FontSizes.xs, lineHeight: 18, marginTop: Spacing.xs },
   metaRow: {
     flexDirection: 'row',
     gap: Spacing.lg,

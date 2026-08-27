@@ -71,6 +71,7 @@ export default function CreateBooking() {
 
   const days = useMemo(() => buildNextDays(NEXT_DAYS), []);
   const hasSufficientBalance = selectedService ? walletBalance >= selectedService.price : true;
+  const isOwnProvider = Boolean(user && provider && (user.id === provider.id || user.auth_id === provider.user_id));
 
   useEffect(() => {
     (async () => {
@@ -229,6 +230,7 @@ export default function CreateBooking() {
   );
 
   const handlePrimaryPress = () => {
+    if (isOwnProvider) return;
     if (!selectedService || !selectedSlot) {
       Alert.alert('Incomplete', 'Please select a service and time slot.');
       return;
@@ -346,6 +348,12 @@ export default function CreateBooking() {
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <Text style={[styles.providerName, { color: colors.textSecondary }]}>{provider.business_name}</Text>
+        {isOwnProvider ? (
+          <View style={[styles.infoBanner, { backgroundColor: `${Colors.info}15` }]}>
+            <Ionicons name="information-circle-outline" size={18} color={Colors.info} />
+            <Text style={[styles.infoBannerText, { color: colors.text }]}>Providers cannot book their own services or purchase their own products.</Text>
+          </View>
+        ) : null}
 
         {/* Service selection */}
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Select Service</Text>
@@ -554,7 +562,7 @@ export default function CreateBooking() {
           </View>
         )}
 
-        {hasSufficientBalance ? (
+        {isOwnProvider ? null : hasSufficientBalance ? (
           <Button
             title="Confirm Booking"
             onPress={handlePrimaryPress}
@@ -621,6 +629,8 @@ const styles = StyleSheet.create({
   title: { fontSize: FontSizes.lg, fontWeight: 'bold' },
   content: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xl },
   providerName: { fontSize: FontSizes.md, marginBottom: Spacing.lg },
+  infoBanner: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, padding: Spacing.sm, borderRadius: BorderRadius.md, marginBottom: Spacing.lg },
+  infoBannerText: { flex: 1, fontSize: FontSizes.sm, lineHeight: 19 },
   sectionTitle: { fontSize: FontSizes.md, fontWeight: '700', marginBottom: Spacing.sm },
   serviceChip: {
     borderRadius: BorderRadius.md,

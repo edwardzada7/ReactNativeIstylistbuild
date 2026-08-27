@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -11,7 +11,6 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Image } from 'expo-image';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
@@ -24,8 +23,8 @@ import { providerService } from '../../src/services/provider.service';
 import { notificationService } from '../../src/services/notification.service';
 import { ChatIconWithBadge } from '../../src/components/chat/ChatIconWithBadge';
 import { formatPriceRange } from '../../src/utils/currency';
-import { Category, Provider } from '../../src/types';
-import { formatRating } from '../../src/utils/display';
+import { Booking, Category, Provider } from '../../src/types';
+import { bookingService } from '../../src/services/booking.service';
 
 export default function Home() {
   const router = useRouter();
@@ -34,6 +33,7 @@ export default function Home() {
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [providers, setProviders] = useState<Provider[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,12 +51,14 @@ export default function Home() {
   const loadData = useCallback(async () => {
     try {
       setError(null);
-      const [providerList, categoryList] = await Promise.all([
+      const [providerList, categoryList, bookingList] = await Promise.all([
         providerService.getProvidersWithServices(),
         providerService.getCategories(),
+        bookingService.getBookings({ role: 'customer' }).catch(() => []),
       ]);
       setProviders(providerList);
       setCategories(categoryList);
+      setBookings(bookingList);
       await refreshUnreadCount();
     } catch (err: any) {
       console.error('[home] failed to load data', err);
@@ -86,6 +88,14 @@ export default function Home() {
   const popularProviders = [...providers]
     .sort((a, b) => b.rating - a.rating)
     .slice(0, 8);
+  const recentlyJoinedProviders = useMemo(
+    () => [...providers].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()).slice(0, 8),
+    [providers]
+  );
+  const lastBooked = useMemo(
+    () => [...bookings].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())[0],
+    [bookings]
+  );
 
   const goToProvider = (id: string) => router.push(`/provider/${id}`);
   const goToCategory = (categoryName: string) =>
@@ -144,17 +154,17 @@ export default function Home() {
         type="provider"
       />
       <View style={styles.providerInfo}>
-        <Text style={[styles.providerName, { color: colors.text }]} numberOfLines={1}>
-          {item.business_name}
-        </Text>
+        <View style={styles.providerNameRow}>
+          <Text style={[styles.providerName, { color: colors.text }]} numberOfLines={1}>{item.business_name}</Text>
+          {item.isKycVerified === true && <Ionicons name="checkmark-circle" size={16} color={Colors.info} />}
+        </View>
         <Text style={[styles.providerCategory, { color: colors.textSecondary }]} numberOfLines={1}>
           {typeof item.category === 'string' ? item.category : item.location}
         </Text>
         <View style={styles.providerMeta}>
           <View style={styles.rating}>
             <Ionicons name="star" size={14} color={colors.warning} />
-            <Text style={[styles.ratingText, { color: colors.text }]}>{formatRating(item.rating)}</Text>
-            <Text style={[styles.reviewsText, { color: colors.textSecondary }]}>({item.review_count})</Text>
+            <Text style={[styles.ratingText, { color: colors.text }]}>★ {Number(item.rating || 0).toFixed(1)} ({item.ratingCount ?? item.review_count ?? 0})</Text>
           </View>
           <Text style={[styles.price, { color: colors.textSecondary }]}>{formatPriceRange(item.price_range)}</Text>
         </View>
@@ -263,6 +273,25 @@ export default function Home() {
           <BrandLogo size={56} />
         </LinearGradient>
 
+        {lastBooked && (
+          <TouchableOpacity
+            style={[styles.lastBookedCard, { backgroundColor: colors.surface }]}
+            onPress={() => router.push(`/provider/${lastBooked.provider_id}`)}
+            accessibilityRole="button"
+            accessibilityLabel="Last booked provider and service"
+          >
+            <View style={[styles.lastBookedIcon, { backgroundColor: `${colors.primary}20` }]}>
+              <Ionicons name="repeat-outline" size={24} color={colors.primary} />
+            </View>
+            <View style={styles.lastBookedInfo}>
+              <Text style={[styles.cardEyebrow, { color: colors.textSecondary }]}>Last Booked Provider & Service</Text>
+              <Text style={[styles.lastBookedName, { color: colors.text }]} numberOfLines={1}>{lastBooked.provider_name}</Text>
+              <Text style={[styles.lastBookedService, { color: colors.textSecondary }]} numberOfLines={1}>{lastBooked.service_name}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
+          </TouchableOpacity>
+        )}
+
         {error && (
           <View style={[styles.errorBanner, { backgroundColor: colors.surface }]}>
             <Ionicons name="alert-circle-outline" size={18} color={colors.error} />
@@ -290,6 +319,33 @@ export default function Home() {
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.categoriesList}
+            />
+          </View>
+        )}
+
+        {recentlyJoinedProviders.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Recently Joined Providers</Text>
+            </View>
+            <FlatList
+              data={recentlyJoinedProviders}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={styles.categoriesList}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[styles.recentProviderCard, { backgroundColor: colors.surface }]}
+                  onPress={() => goToProvider(item.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={item.business_name}
+                >
+                  <ProfileAvatar uri={item.avatarUrl || item.profile_image_url || item.avatar} name={item.business_name} size={52} type="provider" />
+                  <Text style={[styles.recentProviderName, { color: colors.text }]} numberOfLines={1}>{item.business_name}</Text>
+                  <Text style={[styles.recentProviderLocation, { color: colors.textSecondary }]} numberOfLines={1}>{item.location}</Text>
+                </TouchableOpacity>
+              )}
             />
           </View>
         )}
@@ -498,6 +554,15 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.xs,
     textAlign: 'center',
   },
+  lastBookedCard: { flexDirection: 'row', alignItems: 'center', marginHorizontal: Spacing.lg, marginBottom: Spacing.lg, padding: Spacing.md, borderRadius: BorderRadius.lg },
+  lastBookedIcon: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  lastBookedInfo: { flex: 1, marginHorizontal: Spacing.md },
+  cardEyebrow: { fontSize: FontSizes.xs, fontWeight: '600' },
+  lastBookedName: { fontSize: FontSizes.md, fontWeight: '700', marginTop: 3 },
+  lastBookedService: { fontSize: FontSizes.sm, marginTop: 2 },
+  recentProviderCard: { width: 150, padding: Spacing.md, marginRight: Spacing.sm, borderRadius: BorderRadius.lg },
+  recentProviderName: { fontSize: FontSizes.sm, fontWeight: '700', marginTop: Spacing.sm },
+  recentProviderLocation: { fontSize: FontSizes.xs, marginTop: 3 },
   providerCard: {
     flexDirection: 'row',
     marginHorizontal: Spacing.lg,
@@ -516,6 +581,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: 4,
   },
+  providerNameRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, flexShrink: 1 },
   providerCategory: {
     fontSize: FontSizes.sm,
     marginBottom: Spacing.sm,

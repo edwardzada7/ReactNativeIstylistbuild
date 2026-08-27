@@ -196,6 +196,7 @@ class PaystackShopInitializeInput(BaseModel):
     currency: Optional[str] = 'NGN'
     delivery_address: Optional[str] = None
     payment_method: Optional[str] = None
+    metadata: Optional[dict] = None
 
 
 @api_router.post("/bookings")
@@ -753,10 +754,13 @@ async def initialize_paystack_shop_checkout(request: Request, payload: PaystackS
         "amount": amount_kobo,
         "reference": reference,
         "currency": (payload.currency or 'NGN').upper(),
+        "channels": ["card", "bank", "ussd", "bank_transfer"],
         "callback_url": payload.redirect_url,
         "metadata": {
             "name": payload.name or '',
             "phone": payload.phone or '',
+            "delivery_address": (payload.metadata or {}).get('delivery_address') or payload.delivery_address or '',
+            "phone_number": (payload.metadata or {}).get('phone_number') or payload.phone or '',
             "purpose": 'shop_checkout',
             "items": [item.dict() for item in (payload.items or [])],
         },

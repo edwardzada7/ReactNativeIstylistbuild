@@ -20,6 +20,7 @@ import { useTheme } from '../../src/contexts/ThemeContext';
 import { formatCurrency } from '../../src/utils/currency';
 import { derivePaymentStatus, getPaymentStatusMeta, formatStatusLabel } from '../../src/utils/walletHelpers';
 import { Booking, Transaction } from '../../src/types';
+import { ProfileAvatar } from '../../src/components/common';
 
 const FILTERS = ['Pending', 'Upcoming', 'Completed', 'Cancelled'] as const;
 
@@ -238,6 +239,13 @@ export default function ProviderBookings() {
                   <Text style={[styles.meta, { color: colors.textSecondary }]}>
                     {booking.date} {booking.time ? `· ${booking.time}` : ''}
                   </Text>
+                  <View style={styles.customerRow}>
+                    <ProfileAvatar uri={booking.customer_profile_image_url} name={booking.customer_name || 'Customer'} size={34} type="customer" />
+                    <View style={styles.customerInfo}>
+                      <Text style={[styles.customerName, { color: colors.text }]} numberOfLines={1}>{booking.customer_name || 'Customer'}</Text>
+                      <Text style={[styles.customerAddress, { color: colors.textSecondary }]} numberOfLines={1}>{booking.customer_address || booking.location || 'Location not provided'}</Text>
+                    </View>
+                  </View>
                   {!!booking.notes && <Text style={[styles.notes, { color: colors.textSecondary }]}>{`"${booking.notes}"`}</Text>}
                   <Text style={[styles.amount, { color: Colors.primary }]}>{formatCurrency(booking.total_amount)}</Text>
 
@@ -336,6 +344,10 @@ const styles = StyleSheet.create({
   statusPill: { paddingHorizontal: Spacing.sm, paddingVertical: 2, borderRadius: BorderRadius.full },
   statusText: { fontSize: FontSizes.xs, fontWeight: '700', textTransform: 'capitalize' },
   meta: { fontSize: FontSizes.sm, marginBottom: 4 },
+  customerRow: { flexDirection: 'row', alignItems: 'center', marginVertical: Spacing.sm },
+  customerInfo: { flex: 1, marginLeft: Spacing.sm },
+  customerName: { fontSize: FontSizes.sm, fontWeight: '700' },
+  customerAddress: { fontSize: FontSizes.xs, marginTop: 2 },
   notes: { fontSize: FontSizes.xs, marginBottom: 4, fontStyle: 'italic' },
   amount: { fontSize: FontSizes.md, fontWeight: '700', marginBottom: Spacing.sm },
   paymentPill: {

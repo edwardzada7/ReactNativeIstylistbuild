@@ -21,7 +21,6 @@ import * as ImagePicker from 'expo-image-picker';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
-import { apiService } from '../../src/services/api';
 import { providerService } from '../../src/services/provider.service';
 import staffService from '../../src/services/staff.service';
 import { Service, StaffAvailabilityDay, StaffMember } from '../../src/types';
@@ -182,20 +181,6 @@ export default function ProviderManageStaff() {
     }
   };
 
-  const uploadStaffPhoto = async (staffId: string, selectedImage: { uri: string }) => {
-    const formData = new FormData();
-    formData.append('file', {
-      uri: selectedImage.uri,
-      name: `staff_${Date.now()}.jpg`,
-      type: 'image/jpeg',
-    } as any);
-
-    const response = await apiService.post<any>(`/staff/${staffId}/photo`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
-    return response?.photo_url || response?.data?.photo_url;
-  };
-
   const saveProfile = async () => {
     if (!authId) return;
     if (!profileForm.name.trim()) {
@@ -205,23 +190,16 @@ export default function ProviderManageStaff() {
 
     setSavingProfile(true);
     try {
-      const payload = {
-        ...profileForm,
-        photo_url: selectedImage ? undefined : profileForm.photo_url || undefined,
-      };
-
-      let savedStaff: StaffMember;
       if (editingStaff) {
-        savedStaff = await staffService.update(editingStaff.id, authId, payload);
+        await staffService.updateMultipart(editingStaff.id, authId, {
+          name: profileForm.name.trim(), role: profileForm.role.trim(), bio: profileForm.bio.trim(),
+          service_ids: editingStaff.service_ids || [], photoUri: selectedImage?.uri,
+        });
       } else {
-        savedStaff = await staffService.create(authId, payload);
-      }
-      if (selectedImage) {
-        setPhotoUploadLoading(true);
-        const photoUrl = await uploadStaffPhoto(savedStaff.id, selectedImage);
-        if (photoUrl) {
-          await staffService.update(savedStaff.id, authId, { photo_url: photoUrl });
-        }
+        await staffService.createMultipart(authId, {
+          name: profileForm.name.trim(), role: profileForm.role.trim(), bio: profileForm.bio.trim(),
+          service_ids: [], photoUri: selectedImage?.uri,
+        });
       }
       setProfileVisible(false);
       await refreshAll();
