@@ -61,6 +61,14 @@ export function normalizeProvider(raw: any): Provider {
     ['businessName', 'business_name', 'name', 'full_name', 'stylist_name'],
     'Stylist'
   );
+  const ratingSource = pick(raw, ['rating', 'average_rating', 'avg_rating'], 0);
+  const ratingValue = typeof ratingSource === 'object'
+    ? pick(ratingSource, ['average', 'average_rating', 'avg_rating', 'value'], 0)
+    : ratingSource;
+  const reviewCountSource = pick(raw, ['review_count', 'ratingCount', 'rating_count', 'reviews_count', 'total_reviews'], 0);
+  const reviewCountValue = typeof reviewCountSource === 'object'
+    ? pick(reviewCountSource, ['count', 'review_count', 'rating_count', 'total'], 0)
+    : reviewCountSource;
 
   const verificationSource = raw?.user || raw?.profile || raw?.stylist || raw;
   const verificationStatus = String(pick(verificationSource, ['kyc_status', 'verification_status'], '')).toLowerCase();
@@ -74,8 +82,8 @@ export function normalizeProvider(raw: any): Provider {
     bio: pick(raw, ['bio', 'about', 'description'], ''),
     category_id: String(pick(raw, ['category_id', 'category'], '')),
     category: pick(raw, ['category', 'category_name', 'specialty']),
-    rating: Number(pick(raw, ['rating', 'average_rating', 'avg_rating'], 0)),
-    review_count: Number(pick(raw, ['review_count', 'ratingCount', 'rating_count', 'reviews_count', 'total_reviews'], 0)),
+    rating: Number(ratingValue) || 0,
+    review_count: Number(reviewCountValue) || 0,
     price_range: pick(raw, ['price_range', 'price_level'], '\u20A6\u20A6'),
     location: location || 'Location not set',
     location_address: locationAddress || location || null,
@@ -93,7 +101,7 @@ export function normalizeProvider(raw: any): Provider {
     avatarUrl: pick(raw, ['avatarUrl', 'avatar_url'], profileImageUrl),
     profileImage: pick(raw, ['profileImage', 'profile_image'], profileImageUrl),
     businessName,
-    ratingCount: Number(pick(raw, ['ratingCount', 'rating_count', 'review_count', 'reviews_count', 'total_reviews'], 0)),
+    ratingCount: Number(reviewCountValue) || 0,
     isKycVerified,
     firstName,
     lastName,

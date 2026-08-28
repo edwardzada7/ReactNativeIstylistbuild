@@ -38,7 +38,7 @@ export default function ProviderTabsLayout() {
       <Tabs.Screen
         name="bookings"
         options={{
-          title: 'Booking',
+          title: 'Bookings',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="calendar" size={size} color={color} />
           ),
@@ -71,6 +71,17 @@ export default function ProviderTabsLayout() {
           ),
         }}
       />
+      <Tabs.Screen name="availability" options={{ href: null }} />
+      <Tabs.Screen name="create-post" options={{ href: null }} />
+      <Tabs.Screen name="edit-post" options={{ href: null }} />
+      <Tabs.Screen name="kyc" options={{ href: null }} />
+      <Tabs.Screen name="orders" options={{ href: null }} />
+      <Tabs.Screen name="portfolio" options={{ href: null }} />
+      <Tabs.Screen name="profile" options={{ href: null }} />
+      <Tabs.Screen name="reviews" options={{ href: null }} />
+      <Tabs.Screen name="services" options={{ href: null }} />
+      <Tabs.Screen name="staff" options={{ href: null }} />
+      <Tabs.Screen name="withdraw" options={{ href: null }} />
     </Tabs>
   );
 }

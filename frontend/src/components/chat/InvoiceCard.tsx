@@ -2,6 +2,7 @@ import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { FontSizes, Spacing } from '../../constants/theme';
 import { useTheme } from '../../contexts/ThemeContext';
+import { formatCurrency } from '../../utils/currency';
 
 interface InvoiceCardProps {
   amount: number;
@@ -18,8 +19,8 @@ export function InvoiceCard({ amount, serviceDetails, platformFee = amount * 0.0
     <View style={[styles.card, { backgroundColor: colors.surfaceLight }]}>
       <Text style={[styles.title, { color: colors.text }]}>Custom invoice</Text>
       {!!serviceDetails && <Text style={[styles.details, { color: colors.textSecondary }]}>{serviceDetails}</Text>}
-      <Text style={[styles.amount, { color: colors.text }]}>NGN {amount.toLocaleString()}</Text>
-      <Text style={[styles.meta, { color: colors.textSecondary }]}>Platform fee: NGN {platformFee.toLocaleString()}  |  Provider payout: NGN {netPayout.toLocaleString()}</Text>
+      <Text style={[styles.amount, { color: colors.text }]}>{formatCurrency(amount)}</Text>
+      <Text style={[styles.meta, { color: colors.textSecondary }]}>Platform fee: {formatCurrency(platformFee)}  |  Provider payout: {formatCurrency(netPayout)}</Text>
       {status && <Text style={[styles.meta, { color: colors.textSecondary }]}>Status: {status}</Text>}
       {onPay && status !== 'paid' && (
         <TouchableOpacity style={[styles.button, { backgroundColor: colors.primary }]} onPress={onPay} accessibilityRole="button" accessibilityLabel="Pay invoice">
