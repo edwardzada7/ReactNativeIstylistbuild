@@ -27,24 +27,35 @@ export default function CreatePost() {
   const { colors } = useTheme();
   const [caption, setCaption] = useState('');
   const [image, setImage] = useState<string | null>(null);
+  const [mediaType, setMediaType] = useState<'photo' | 'video'>('photo');
+  const [videoDuration, setVideoDuration] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission needed', 'Please allow photo library access to add a photo.');
+      Alert.alert('Permission needed', 'Please allow photo library access to add media.');
       return;
     }
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
+      mediaTypes: ['images', 'videos'],
       quality: 0.8,
       base64: true,
       allowsEditing: true,
       aspect: [1, 1],
     });
-    if (result.canceled || !result.assets?.[0]?.base64) return;
-    setImage(`data:image/jpeg;base64,${result.assets![0].base64}`);
+    const asset = result.assets?.[0];
+    if (result.canceled || !asset?.base64) return;
+    const selectedType = asset.type === 'video' ? 'video' : 'photo';
+    const duration = asset.duration ? asset.duration / 1000 : null;
+    if (selectedType === 'video' && (!duration || duration <= 0 || duration > 10)) {
+      Alert.alert('Video too long', 'Feed videos must be between 1 and 10 seconds.');
+      return;
+    }
+    setMediaType(selectedType);
+    setVideoDuration(duration);
+    setImage(`data:${selectedType === 'video' ? 'video/mp4' : 'image/jpeg'};base64,${asset.base64}`);
   };
 
   const handleCreate = async () => {
@@ -58,7 +69,7 @@ export default function CreatePost() {
     }
     setSaving(true);
     try {
-      await feedService.createPost(caption.trim(), image);
+      await feedService.createPost(caption.trim(), image, { type: mediaType, url: image, durationSeconds: videoDuration || undefined });
       Alert.alert('Success', 'Your post has been published!', [
         { text: 'OK', onPress: () => {
           // Navigate back to Provider Feed

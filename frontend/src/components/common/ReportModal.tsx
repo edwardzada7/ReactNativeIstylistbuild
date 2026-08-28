@@ -59,8 +59,9 @@ export function ReportModal({ visible, targetId, targetType, onClose, onSubmitte
       reset();
       onSubmitted?.();
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       console.error('[report] submission failed', error);
+      setValidationMessage(error?.friendlyMessage || error?.message || 'Could not submit report. Please try again.');
     } finally {
       setSubmitting(false);
     }

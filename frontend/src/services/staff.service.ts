@@ -19,7 +19,7 @@ export const staffService = {
       formData.append('name', payload.name);
       formData.append('role', payload.role);
       formData.append('bio', payload.bio);
-      formData.append('services', JSON.stringify(payload.service_ids));
+      formData.append('service_ids', JSON.stringify(payload.service_ids));
       const raw = await apiService.post<any>('/staff', formData, {
         params: { auth_id: authId },
         headers: { 'Content-Type': 'multipart/form-data' },
@@ -39,7 +39,7 @@ export const staffService = {
       formData.append('name', payload.name);
       formData.append('role', payload.role);
       formData.append('bio', payload.bio);
-      formData.append('services', JSON.stringify(payload.service_ids));
+      formData.append('service_ids', JSON.stringify(payload.service_ids));
       const raw = await apiService.put<any>(`/staff/${staffId}`, formData, {
         params: { auth_id: authId },
         headers: { 'Content-Type': 'multipart/form-data' },

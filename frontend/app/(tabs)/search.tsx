@@ -62,13 +62,9 @@ export default function Search() {
   const filteredProviders = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
     return allProviders.filter((p) => {
-      const matchesFilter =
-        selectedFilter === 'All' ||
-        (typeof p.category === 'string' &&
-          p.category.toLowerCase() === selectedFilter.toLowerCase()) ||
-        p.services.some(
-          (s) => (s.category || '').toLowerCase() === selectedFilter.toLowerCase()
-        );
+      const categoryValues = [typeof p.category === 'string' ? p.category : '', ...p.services.map((service) => service.category || '')]
+        .map((value) => value.toLowerCase().trim());
+      const matchesFilter = selectedFilter === 'All' || categoryValues.includes(selectedFilter.toLowerCase().trim());
       if (!matchesFilter) return false;
       if (!query) return true;
       const haystack = [

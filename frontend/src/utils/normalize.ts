@@ -62,6 +62,11 @@ export function normalizeProvider(raw: any): Provider {
     'Stylist'
   );
 
+  const verificationSource = raw?.user || raw?.profile || raw?.stylist || raw;
+  const verificationStatus = String(pick(verificationSource, ['kyc_status', 'verification_status'], '')).toLowerCase();
+  const verificationFlag = pick(verificationSource, ['isKycVerified', 'is_kyc_verified', 'kyc_verified', 'is_verified', 'verified'], undefined);
+  const isKycVerified = verificationStatus === 'verified' || (Boolean(verificationFlag) && !['pending', 'rejected', 'unverified', 'false'].includes(verificationStatus));
+
   return {
     id: String(pick(raw, ['id', 'provider_id'], '')),
     user_id: String(pick(raw, ['auth_id', 'user_id'], '')),
@@ -78,7 +83,7 @@ export function normalizeProvider(raw: any): Provider {
     longitude: pick(raw, ['longitude', 'lng']),
     images: Array.isArray(images) ? images : [],
     services: Array.isArray(servicesRaw) ? servicesRaw.map(normalizeService) : [],
-    is_verified: !!pick(raw, ['is_verified', 'kyc_verified', 'verified'], false),
+    is_verified: isKycVerified,
     is_available: pick(raw, ['is_available', 'available'], true) !== false,
     response_time: pick(raw, ['response_time']),
     completion_rate: pick(raw, ['completion_rate']),
@@ -89,7 +94,7 @@ export function normalizeProvider(raw: any): Provider {
     profileImage: pick(raw, ['profileImage', 'profile_image'], profileImageUrl),
     businessName,
     ratingCount: Number(pick(raw, ['ratingCount', 'rating_count', 'review_count', 'reviews_count', 'total_reviews'], 0)),
-    isKycVerified: !!pick(raw, ['isKycVerified', 'is_kyc_verified', 'is_verified', 'kyc_verified', 'verified'], false),
+    isKycVerified,
     firstName,
     lastName,
   } as Provider;

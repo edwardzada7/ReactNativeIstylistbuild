@@ -11,6 +11,7 @@ import {
   Alert,
 } from 'react-native';
 import { Share } from 'react-native';
+import { WebView } from 'react-native-webview';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -99,8 +100,8 @@ export default function Feed() {
     try {
       const message = post.caption || '';
       await Share.share({
-        message: message,
-        url: post.image_url,
+        message: `${message}${message ? '\n' : ''}View this post on iStylist: https://istylist.app/feed/${post.id}`,
+        url: post.video_url || post.image_url,
       });
     } catch (error) {
       console.error('[feed] share failed', error);
@@ -198,7 +199,14 @@ export default function Feed() {
         )}
       </View>
 
-      {item.image_url && (
+      {item.video_url ? (
+        <WebView
+          source={{ html: `<video controls playsinline style="width:100%;height:100%;object-fit:contain" src=${JSON.stringify(item.video_url)}></video>` }}
+          style={styles.postVideo}
+          allowsInlineMediaPlayback
+          mediaPlaybackRequiresUserAction
+        />
+      ) : item.image_url && (
         <RNImage source={{ uri: item.image_url }} style={styles.postImage} />
       )}
 
@@ -392,6 +400,7 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.md,
     marginBottom: Spacing.md,
   },
+  postVideo: { width: '100%', height: 300, backgroundColor: '#000' },
   postContent: {
     fontSize: FontSizes.md,
     lineHeight: 22,

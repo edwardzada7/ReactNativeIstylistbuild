@@ -40,10 +40,20 @@ export const feedService = {
   },
 
   // Create post
-  async createPost(caption: string, image_url: string): Promise<Post> {
+  async createPost(caption: string, image_url?: string, media?: { type?: 'photo' | 'video'; url?: string; durationSeconds?: number }): Promise<Post> {
     const authId = await apiService.getAuthId();
     if (!authId) throw new Error('Not authenticated');
-    return await apiService.post<Post>(`/feed/posts?auth_id=${authId}`, { caption, image_url });
+    const duration = media?.durationSeconds;
+    if (media?.type === 'video' && (duration == null || duration <= 0 || duration > 10)) {
+      throw new Error('Feed videos must be between 0 and 10 seconds.');
+    }
+    return await apiService.post<Post>(`/feed/posts?auth_id=${authId}`, {
+      caption,
+      image_url: media?.type === 'video' ? undefined : image_url,
+      video_url: media?.type === 'video' ? media.url || image_url : undefined,
+      media_type: media?.type || 'photo',
+      video_duration_seconds: media?.type === 'video' ? duration : undefined,
+    });
   },
 
   // Like post
@@ -65,18 +75,22 @@ export const feedService = {
     postId: string,
     params?: { page?: number; per_page?: number }
   ): Promise<PaginatedResponse<Comment>> {
-    return await apiService.get<PaginatedResponse<Comment>>(`/feed/${postId}/comments`, {
+    return await apiService.get<PaginatedResponse<Comment>>(`/feed/posts/${postId}/comments`, {
       params,
     });
   },
 
   // Add comment
   async addComment(postId: string, content: string): Promise<Comment> {
-    return await apiService.post<Comment>(`/feed/${postId}/comments`, { content });
+    return await apiService.post<Comment>(`/feed/posts/${postId}/comments`, { content });
   },
 
   async reportPost(postId: string, reason: string): Promise<void> {
-    await apiService.post('/feed/report', { postId, reason });
+    await apiService.post('/reports', {
+      target_id: postId,
+      target_type: 'POST',
+      reason,
+    });
   },
 
   // Delete post

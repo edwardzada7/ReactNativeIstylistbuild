@@ -14,6 +14,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Image } from 'expo-image';
+import { Share } from 'react-native';
+import { WebView } from 'react-native-webview';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { Button } from '../../src/components/common';
@@ -200,7 +202,12 @@ export default function ProviderProfile() {
               </View>
               {!!categoryLabel && <Text style={[styles.category, { color: colors.textSecondary }]}>{categoryLabel}</Text>}
             </View>
-            <Text style={[styles.priceRange, { color: colors.text }]}>{formatPriceRange(provider.price_range)}</Text>
+            <View style={styles.titleActions}>
+              <TouchableOpacity onPress={() => Share.share({ title: provider.business_name, message: `${provider.business_name} on iStylist\n${provider.bio || ''}`, url: `https://istylist.app/provider/${provider.id}` })} accessibilityRole="button" accessibilityLabel="Share provider profile">
+                <Ionicons name="share-social-outline" size={22} color={colors.text} />
+              </TouchableOpacity>
+              <Text style={[styles.priceRange, { color: colors.text }]}>{formatPriceRange(provider.price_range)}</Text>
+            </View>
           </View>
 
           {isOwnProvider ? (
@@ -357,7 +364,14 @@ export default function ProviderProfile() {
                 keyExtractor={(item) => String(item.id)}
                 renderItem={({ item }) => (
                   <View style={[styles.postCard, { backgroundColor: colors.surface }]}>
-                    {item.image_url && (
+                    {item.video_url ? (
+                      <WebView
+                        source={{ html: `<video controls playsinline style="width:100%;height:100%;object-fit:contain" src=${JSON.stringify(item.video_url)}></video>` }}
+                        style={styles.postVideo}
+                        allowsInlineMediaPlayback
+                        mediaPlaybackRequiresUserAction
+                      />
+                    ) : item.image_url && (
                       <RNImage source={{ uri: item.image_url }} style={styles.postImage} resizeMode="cover" />
                     )}
                     {item.caption && (
@@ -440,6 +454,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: Spacing.sm,
   },
+  titleActions: { alignItems: 'flex-end', gap: Spacing.sm },
   nameRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -569,6 +584,7 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 200,
   },
+  postVideo: { width: '100%', height: 220, backgroundColor: '#000' },
   postCaption: {
     fontSize: FontSizes.sm,
     padding: Spacing.sm,

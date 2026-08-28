@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
+  Alert,
   View,
   Text,
   StyleSheet,
@@ -301,6 +302,7 @@ export function SharedShopScreen({ showManageButton = false }: SharedShopScreenP
         targetId={reportTargetId}
         targetType="PRODUCT"
         onClose={() => setReportTargetId(null)}
+        onSubmitted={() => Alert.alert('Report submitted', 'Thank you. We will review this product.')}
       />
     </SafeAreaView>
   );

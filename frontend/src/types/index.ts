@@ -305,6 +305,9 @@ export interface Post {
   caption?: string;
   images?: string[];
   image_url?: string;
+  video_url?: string;
+  media_type?: 'photo' | 'video';
+  video_duration_seconds?: number;
   likes_count: number;
   comments_count: number;
   is_liked?: boolean;
@@ -340,6 +343,7 @@ export interface Comment {
   user?: User;
   content: string;
   created_at: string;
+  post_author_id?: string;
 }
 
 // Review Types
@@ -375,6 +379,8 @@ export interface ProductReview {
   review_text: string;
   created_at: string;
   verified_purchase: boolean;
+  order_id?: number | null;
+  item_id?: number | null;
 }
 
 export interface ProductReviewsResponse {

@@ -25,7 +25,9 @@ export default function Index() {
       return;
     }
 
-    router.replace('/(auth)/login');
+    // Public tabs remain browsable in guest mode. Individual booking,
+    // payment, messaging, review, and reporting actions enforce auth.
+    router.replace('/(tabs)');
   }, [isLoading, isAuthenticated, user?.role, router]);
 
   if (isLoading) {
