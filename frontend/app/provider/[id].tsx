@@ -84,7 +84,12 @@ export default function ProviderProfile() {
       console.log('[customer-provider-profile] filtered posts:', providerPosts.length);
       setPosts(providerPosts);
       if (profile.services.length > 0) {
-        setSelectedServiceId((prev) => prev || profile.services[0].id);
+        setSelectedServiceId((prev) => {
+          const isCurrentSelectionValid = profile.services.some((service) => String(service.id) === String(prev));
+          return isCurrentSelectionValid ? prev : String(profile.services[0].id);
+        });
+      } else {
+        setSelectedServiceId(null);
       }
     } catch (err: any) {
       console.error('[provider-profile] failed to load', err);

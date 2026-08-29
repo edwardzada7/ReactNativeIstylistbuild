@@ -85,36 +85,23 @@ export default function Cart() {
     setCheckingOut(true);
     setError(null);
     try {
-      const cartItems = lines.map((line) => ({ productId: line.productId, quantity: line.quantity, price: line.price }));
-      const reference = `SHOP_${Date.now()}_${user.id}`;
-      const checkoutMetadata = {
-        userId: user.id,
-        deliveryAddress: `${address.street}, ${address.city}`,
-        phone: address.phone,
-        custom_fields: [
-          { display_name: 'Delivery Address', variable_name: 'delivery_address', value: `${address.street}, ${address.city}` },
-          { display_name: 'Phone Number', variable_name: 'phone_number', value: address.phone },
-        ],
-        cart_items: cartItems.map((item) => ({ id: item.productId, name: lines.find((line) => line.productId === item.productId)?.name || '', quantity: item.quantity, price: item.price })),
-        user_id: user.id,
-      };
+      const shippingAddressText = `${address.street}, ${address.city}, ${address.state}`.trim();
+      const order = await shopService.createOrder({
+        customer_auth_id: user.auth_id,
+        items,
+        shipping_address: shippingAddressText || legacyDeliveryAddress,
+        note: address.phone ? `Phone: ${address.phone}` : undefined,
+      });
+      const orderId = order?.id ?? order?.order_id;
+      if (!orderId) {
+        throw new Error('Shop order was not returned by the server.');
+      }
+
       const response = await shopService.initializePaystackCheckout({
         amount,
         email: user.email,
-        items,
-        name: user.full_name || user.name || undefined,
-        phone: user.phone || undefined,
-        redirect_url: REDIRECT_URL,
-        currency: 'NGN',
-        payment_method: paymentMethod,
-        delivery_address: `${address.street}, ${address.city}, ${address.state}`,
-        cartItems,
-        totalAmount: amount,
-        deliveryAddress: address,
-        deliveryAddressId: addressId || undefined,
-        paymentMethod,
-        ref: reference,
-        metadata: checkoutMetadata,
+        order_id: orderId,
+        callback_url: REDIRECT_URL,
       });
 
       if (response?.status && response.authorization_url) {
@@ -188,16 +175,6 @@ export default function Cart() {
       shopService
         .verifyPaystackCheckout({
           reference: reference || '',
-          transaction_id: transactionId,
-          items: pendingItems,
-          amount: pendingAmount ?? (Number(total()) || 0),
-          email: user?.email || undefined,
-          name: user?.full_name || user?.name || undefined,
-          phone: deliveryAddress.phone || user?.phone || undefined,
-          delivery_address: `${deliveryAddress.street}, ${deliveryAddress.city}, ${deliveryAddress.state}`,
-          currency: 'NGN',
-          provider_auth_id: lines.find((line) => line.stylistAuthId)?.stylistAuthId || undefined,
-          payment_method: 'paystack',
         })
         .then((res) => {
           if (res?.status === 'success') {

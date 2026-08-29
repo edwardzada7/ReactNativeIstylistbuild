@@ -181,6 +181,7 @@ export const shopService = {
   },
 
   async createOrder(input: {
+    customer_auth_id?: string;
     items: { product_id: number; quantity: number }[];
     payment_reference?: string;
     payment_status?: string;
@@ -192,6 +193,8 @@ export const shopService = {
     order_status?: string;
     payment_method?: string;
     delivery_address?: string;
+    shipping_address?: string;
+    note?: string;
     currency?: string;
   }): Promise<any> {
     const sanitizedItems = (input.items || []).filter((item) => item && Number.isFinite(item.product_id) && Number.isFinite(item.quantity) && item.quantity > 0);
@@ -214,74 +217,29 @@ export const shopService = {
   async initializePaystackCheckout(input: {
     amount: number;
     email: string;
-    items?: { product_id: number; quantity: number }[];
-    name?: string;
-    phone?: string;
-    redirect_url?: string;
-    currency?: string;
-    payment_method?: string;
-    delivery_address?: string;
-    cartItems?: { productId: number; quantity: number; price: number }[];
-    totalAmount?: number;
-    deliveryAddress?: { street: string; city: string; state: string; phone: string };
-    deliveryAddressId?: string;
-    paymentMethod?: string;
-    ref?: string;
-    metadata?: Record<string, any>;
+    order_id: number | string;
+    callback_url: string;
   }): Promise<{ status: boolean; authorization_url?: string; reference?: string; message?: string }> {
-    const sanitizedItems = (input.items || []).filter((item) => item && Number.isFinite(item.product_id) && Number.isFinite(item.quantity) && item.quantity > 0);
     const amount = Number(input.amount || 0);
-    const body: Record<string, any> = {
-      amount: Number.isFinite(amount) ? amount : 0,
+    const orderId = input.order_id != null ? Number(input.order_id) : NaN;
+    if (!Number.isFinite(amount) || amount <= 0 || !Number.isFinite(orderId) || orderId <= 0 || !input.email || !input.callback_url) {
+      throw new Error('Shop Paystack checkout requires a valid amount, email, order_id, and callback_url.');
+    }
+
+    return apiService.post('/payments/paystack/shop/initialize', {
+      amount: amount,
       email: input.email,
-      currency: (input.currency || 'NGN').trim().toUpperCase() || 'NGN',
-      payment_method: (input.payment_method || 'paystack').trim() || 'paystack',
-      ...(sanitizedItems.length > 0 ? { items: sanitizedItems } : {}),
-      cartItems: input.cartItems || sanitizedItems.map((item) => ({ ...item, productId: item.product_id, price: 0 })),
-      totalAmount: Number(input.totalAmount ?? amount),
-      paymentMethod: input.paymentMethod || input.payment_method || 'paystack',
-      channels: ['card', 'bank', 'ussd', 'qr', 'bank_transfer'],
-      ...(input.ref ? { reference: input.ref } : {}),
-      ...(input.deliveryAddress ? { deliveryAddress: input.deliveryAddress } : {}),
-      ...(input.metadata ? { metadata: input.metadata } : {}),
-    };
-
-    if (input.name) body.name = input.name;
-    if (input.phone) body.phone = input.phone;
-    if (input.redirect_url) body.redirect_url = input.redirect_url;
-    if (input.delivery_address) body.delivery_address = input.delivery_address.trim();
-    if (input.deliveryAddressId) body.deliveryAddressId = input.deliveryAddressId;
-
-    return apiService.post('/payments/paystack/shop/initialize', body);
+      order_id: orderId,
+      callback_url: input.callback_url,
+    });
   },
 
   async verifyPaystackCheckout(input: {
     reference: string;
-    transaction_id?: string | null;
-    items?: { product_id: number; quantity: number }[];
-    amount?: number;
-    email?: string;
-    name?: string;
-    phone?: string;
-    currency?: string;
-    provider_auth_id?: string;
-    payment_method?: string;
-    delivery_address?: string;
   }): Promise<{ status: string; message?: string; order?: any }> {
-    const sanitizedItems = (input.items || []).filter((item) => item && Number.isFinite(item.product_id) && Number.isFinite(item.quantity) && item.quantity > 0);
     return apiService.get('/payments/paystack/shop/verify', {
       params: {
         reference: input.reference,
-        ...(input.transaction_id ? { transaction_id: input.transaction_id } : {}),
-        ...(input.amount !== undefined ? { amount: Number(input.amount) || 0 } : {}),
-        ...(input.currency ? { currency: input.currency.trim().toUpperCase() } : {}),
-        ...(input.email ? { email: input.email } : {}),
-        ...(input.name ? { name: input.name } : {}),
-        ...(input.phone ? { phone: input.phone } : {}),
-        ...(input.provider_auth_id ? { provider_auth_id: input.provider_auth_id } : {}),
-        ...(input.payment_method ? { payment_method: input.payment_method.trim() } : {}),
-        ...(input.delivery_address ? { delivery_address: input.delivery_address.trim() } : {}),
-        ...(sanitizedItems.length > 0 ? { items: JSON.stringify(sanitizedItems) } : {}),
       },
     });
   },
