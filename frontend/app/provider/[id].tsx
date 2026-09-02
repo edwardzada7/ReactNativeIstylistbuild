@@ -25,6 +25,7 @@ import { formatCurrency, formatPriceRange } from '../../src/utils/currency';
 import { Provider, Review, Post, StaffMember } from '../../src/types';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { chatService } from '../../src/services/chat.service';
 
 export default function ProviderProfile() {
   const router = useRouter();
@@ -43,6 +44,8 @@ export default function ProviderProfile() {
   const [error, setError] = useState<string | null>(null);
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
   const [coverImageError, setCoverImageError] = useState(false);
+  const [consultation, setConsultation] = useState<Provider['consultation'] | null>(null);
+  const [contacting, setContacting] = useState(false);
   const isOwnProvider = Boolean(user && provider && (user.id === provider.id || user.auth_id === provider.user_id));
 
   const loadData = useCallback(async () => {
@@ -50,6 +53,7 @@ export default function ProviderProfile() {
     try {
       setError(null);
       const profile = await providerService.getProviderFullProfile(id);
+      const consultationEligibility = await providerService.getConsultationEligibility(profile.user_id).catch(() => null);
       const today = new Date().toISOString().slice(0, 10);
       const defaultDuration = profile.services[0]?.duration || 30;
       const [reviewList, slotList, portfolioList, staffList, feedResponse] = await Promise.all([
@@ -60,6 +64,7 @@ export default function ProviderProfile() {
         feedService.getFeed({ page: 1, per_page: 100 }).catch(() => ({ data: [] })),
       ]);
       setProvider(profile);
+      setConsultation(consultationEligibility?.eligible ? consultationEligibility : null);
       setCoverImageError(false);
       setReviews(reviewList);
       setSlots(slotList);
@@ -120,6 +125,37 @@ export default function ProviderProfile() {
       pathname: '/booking/[providerId]',
       params: { providerId: provider.id, serviceId: selectedServiceId },
     });
+  };
+
+  const handleAskQuestion = async () => {
+    if (!provider?.user_id || !user?.auth_id || contacting) return;
+    setContacting(true);
+    try {
+      const conversation = await chatService.createInquiry(provider.user_id);
+      router.push({ pathname: '/chat/[counterpartAuthId]', params: { counterpartAuthId: provider.user_id, conversationId: String(conversation.id), conversationType: 'inquiry', counterpartName: provider.business_name } });
+    } catch (err: any) {
+      Alert.alert('Could not start inquiry', err?.friendlyMessage || 'Please try again.');
+    } finally {
+      setContacting(false);
+    }
+  };
+
+  const handleConsult = async () => {
+    if (!provider?.user_id || !consultation || contacting) return;
+    setContacting(true);
+    try {
+      const created = await chatService.createConsultation({
+        provider_auth_id: provider.user_id,
+        specialty: consultation.specialty || categoryLabel,
+        fee: Number(consultation.consultation_fee),
+        currency: consultation.currency || 'NGN',
+      });
+      router.push({ pathname: '/consultation/payment' as any, params: { consultationId: String(created.consultation.id), conversationId: String(created.conversation.id), providerAuthId: provider.user_id, providerName: provider.business_name, specialty: consultation.specialty || categoryLabel, fee: String(consultation.consultation_fee), currency: consultation.currency || 'NGN' } });
+    } catch (err: any) {
+      Alert.alert('Could not start consultation', err?.friendlyMessage || 'Please try again.');
+    } finally {
+      setContacting(false);
+    }
   };
 
   if (loading) {
@@ -243,6 +279,13 @@ export default function ProviderProfile() {
             <View style={styles.section}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>About</Text>
               <Text style={[styles.bio, { color: colors.textSecondary }]}>{provider.bio}</Text>
+            </View>
+          )}
+
+          {!isOwnProvider && (
+            <View style={styles.contactActions}>
+              <Button title="Ask a Question" onPress={handleAskQuestion} variant="outline" disabled={contacting} fullWidth />
+              {consultation && <Button title={`Consult a Professional — ${formatCurrency(Number(consultation.consultation_fee))}`} onPress={handleConsult} disabled={contacting} fullWidth />}
             </View>
           )}
 
@@ -610,4 +653,5 @@ const styles = StyleSheet.create({
     right: 0,
     padding: Spacing.lg,
   },
+  contactActions: { gap: Spacing.sm, marginBottom: Spacing.lg },
 });

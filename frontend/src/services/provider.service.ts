@@ -60,6 +60,10 @@ export const providerService = {
     return normalizeProvider(raw);
   },
 
+  async getConsultationEligibility(providerAuthId: string): Promise<NonNullable<Provider['consultation']>> {
+    return apiService.get(`/providers/${providerAuthId}/consultation-eligibility`);
+  },
+
   // Services offered by one specific provider.
   async getProviderServices(providerId: string): Promise<Service[]> {
     const raw = await apiService.get<any>(`/provider-services/${providerId}`);

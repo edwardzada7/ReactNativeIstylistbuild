@@ -12,6 +12,8 @@ import { formatRating } from '../../src/utils/display';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { ProductReview } from '../../src/types';
+import { chatService } from '../../src/services/chat.service';
+import { providerService } from '../../src/services/provider.service';
 
 export default function ProductDetail() {
   const router = useRouter();
@@ -28,6 +30,8 @@ export default function ProductDetail() {
   const [editingReview, setEditingReview] = useState<ProductReview | null>(null);
   const [reviewRating, setReviewRating] = useState(0);
   const [reviewText, setReviewText] = useState('');
+  const [consultation, setConsultation] = useState<{ eligible: boolean; specialty?: string | null; consultation_fee?: number | null; currency?: string } | null>(null);
+  const [contacting, setContacting] = useState(false);
   const addItem = useCartStore((s) => s.addItem);
   const isOwnProduct = Boolean(user && product && user.auth_id === product.stylist_auth_id);
 
@@ -41,6 +45,10 @@ export default function ProductDetail() {
       setProduct(productData);
 
       if (productData) {
+        if (productData.stylist_auth_id) {
+          const eligibility = await providerService.getConsultationEligibility(productData.stylist_auth_id).catch(() => null);
+          setConsultation(eligibility?.eligible ? eligibility : null);
+        }
         try {
           const reviewData = await shopService.getProductReviews(Number(id));
           setReviews(reviewData.reviews);
@@ -57,6 +65,37 @@ export default function ProductDetail() {
       console.error('[product-detail] failed to load product', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAskAboutProduct = async () => {
+    if (!product?.stylist_auth_id || !isAuthenticated || contacting) return;
+    setContacting(true);
+    try {
+      const conversation = await chatService.createInquiry(product.stylist_auth_id);
+      router.push({ pathname: '/chat/[counterpartAuthId]', params: { counterpartAuthId: product.stylist_auth_id, conversationId: String(conversation.id), conversationType: 'inquiry', counterpartName: 'Product provider' } });
+    } catch (err: any) {
+      Alert.alert('Could not start inquiry', err?.friendlyMessage || 'Please try again.');
+    } finally {
+      setContacting(false);
+    }
+  };
+
+  const handleProductConsultation = async () => {
+    if (!product?.stylist_auth_id || !consultation || contacting) return;
+    setContacting(true);
+    try {
+      const created = await chatService.createConsultation({
+        provider_auth_id: product.stylist_auth_id,
+        specialty: consultation.specialty || 'Product consultation',
+        fee: Number(consultation.consultation_fee),
+        currency: consultation.currency || 'NGN',
+      });
+      router.push({ pathname: '/consultation/payment' as any, params: { consultationId: String(created.consultation.id), conversationId: String(created.conversation.id), providerAuthId: product.stylist_auth_id, providerName: 'Product provider', specialty: consultation.specialty || 'Product consultation', fee: String(consultation.consultation_fee), currency: consultation.currency || 'NGN' } });
+    } catch (err: any) {
+      Alert.alert('Could not start consultation', err?.friendlyMessage || 'Please try again.');
+    } finally {
+      setContacting(false);
     }
   };
 
@@ -246,6 +285,13 @@ export default function ProductDetail() {
         ) : null}
         {!!product.description && <Text style={[styles.description, { color: colors.textSecondary }]}>{product.description}</Text>}
 
+        {!isProvider && !isOwnProduct && product.stylist_auth_id && (
+          <View style={styles.productContactActions}>
+            <Button title="Ask About Product" onPress={handleAskAboutProduct} variant="outline" disabled={contacting || !isAuthenticated} fullWidth />
+            {consultation && <Button title={`Consult a Professional — ${formatCurrency(Number(consultation.consultation_fee))}`} onPress={handleProductConsultation} disabled={contacting || !isAuthenticated} fullWidth />}
+          </View>
+        )}
+
         <View style={[styles.reviewSection, { borderTopColor: colors.border }]}>
           <View style={styles.reviewHeaderRow}>
             <View>
@@ -384,6 +430,7 @@ const styles = StyleSheet.create({
   metaLabel: { fontSize: FontSizes.xs, fontWeight: '700' },
   metaValue: { fontSize: FontSizes.sm, marginTop: 2 },
   description: { fontSize: FontSizes.sm, lineHeight: 21 },
+  productContactActions: { gap: Spacing.sm, marginTop: Spacing.lg },
   reviewSection: { marginTop: Spacing.xl, paddingTop: Spacing.lg, borderTopWidth: 1 },
   reviewHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: Spacing.md },
   sectionTitle: { fontSize: FontSizes.lg, fontWeight: '800' },

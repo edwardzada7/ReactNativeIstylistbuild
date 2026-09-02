@@ -74,11 +74,11 @@ export default function ChatList() {
         <FlatList
           data={conversations}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />}
-          keyExtractor={(item) => String(item.booking_id)}
+          keyExtractor={(item) => `${item.conversation_type || 'booking'}-${item.conversation_id || item.booking_id}`}
           renderItem={({ item }) => (
             <TouchableOpacity
               style={[styles.conversationItem, { backgroundColor: colors.surface }]}
-              onPress={() => router.push(`/chat/${item.counterpart_auth_id}?bookingId=${item.booking_id}`)}
+              onPress={() => router.push({ pathname: '/chat/[counterpartAuthId]', params: { counterpartAuthId: item.counterpart_auth_id, bookingId: item.booking_id ? String(item.booking_id) : undefined, conversationId: item.conversation_id ? String(item.conversation_id) : undefined, conversationType: item.conversation_type || 'booking', counterpartName: item.counterpart_name } })}
               accessibilityRole="button"
             >
               <View style={[styles.avatar, { backgroundColor: colors.surfaceLight }]}>
@@ -101,7 +101,7 @@ export default function ChatList() {
                   {item.provider?.businessName || item.provider?.firstName || item.counterpart_name || 'Stylist'}
                 </Text>
                 <Text style={[styles.lastMessage, { color: colors.textSecondary }]} numberOfLines={1}>
-                  {item.last_message?.message || 'No messages yet'}
+                  {item.conversation_type === 'inquiry' ? 'Inquiry' : item.conversation_type === 'consultation' ? 'Consultation' : item.last_message?.message || 'No messages yet'}
                 </Text>
               </View>
               {item.unread_count > 0 && (

@@ -94,7 +94,7 @@ export const walletService = {
   async initializePayment(data: {
     amount: number;
     email: string;
-    purpose: 'wallet_topup';
+    purpose: 'wallet_topup' | 'consultation' | 'service_invoice';
     name?: string;
     phone?: string;
     redirect_url?: string;

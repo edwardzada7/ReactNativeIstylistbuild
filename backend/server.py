@@ -1109,9 +1109,406 @@ class SendMessageInput(BaseModel):
     receiver_auth_id: str
     message: str = ''
     booking_id: Optional[int] = None
+    conversation_id: Optional[int] = None
     message_type: MessageType = MessageType.TEXT
     location_data: Optional[dict] = None
     invoice_data: Optional[dict] = None
+    recommendation_data: Optional[dict] = None
+
+
+class InquiryInput(BaseModel):
+    provider_auth_id: str
+
+
+class ProviderRecommendationInput(BaseModel):
+    recommended_provider_auth_id: str
+    message: str = ''
+
+
+class ConsultationInput(BaseModel):
+    provider_auth_id: str
+    specialty: str
+    fee: float = Field(gt=0)
+    currency: str = 'NGN'
+
+
+class ActivateConsultationInput(BaseModel):
+    payment_reference: str
+    transaction_id: Optional[str] = None
+
+
+class InvoiceItemInput(BaseModel):
+    service_id: Optional[int] = None
+    product_id: Optional[int] = None
+    quantity: int = Field(default=1, gt=0)
+
+
+class CreateInvoiceInput(BaseModel):
+    conversation_id: int
+    customer_auth_id: str
+    provider_auth_id: str
+    invoice_type: str
+    amount: float = Field(gt=0)
+    service_date: Optional[str] = None
+    service_time: Optional[str] = None
+    location: Optional[str] = None
+    service_type: Optional[str] = None
+    staff_id: Optional[int] = None
+    note: Optional[str] = None
+    items: List[InvoiceItemInput] = Field(..., min_items=1)
+
+
+class PayServiceInvoiceInput(BaseModel):
+    payment_reference: str
+    transaction_id: Optional[str] = None
+
+
+class CompleteProductInvoiceInput(BaseModel):
+    order_id: int
+    payment_reference: Optional[str] = None
+
+
+def _supabase_request(method: str, table: str, **kwargs):
+    response = requests.request(
+        method,
+        f"{SUPABASE_URL}/rest/v1/{table}",
+        headers=_supabase_headers(),
+        timeout=10,
+        **kwargs,
+    )
+    if response.status_code not in (200, 201, 204):
+        raise HTTPException(status_code=502, detail=f"Could not access {table}")
+    return response.json() if response.content else []
+
+
+def _conversation_for_invoice(conversation_id: int, auth_id: str):
+    rows = _supabase_request("GET", "conversations", params={"id": f"eq.{conversation_id}", "select": "*", "limit": "1"})
+    if not rows or auth_id not in (rows[0].get("customer_auth_id"), rows[0].get("provider_auth_id")):
+        raise HTTPException(status_code=403, detail="You are not a participant in this conversation")
+    return rows[0]
+
+
+def _mark_invoice_chat(invoice_id: int, status: str, payment_reference: Optional[str] = None):
+    rows = _supabase_request("GET", "chats", params={"invoice_data->>invoice_id": f"eq.{invoice_id}", "select": "id,invoice_data"})
+    for row in rows:
+        data = {**(row.get("invoice_data") or {}), "status": status}
+        if payment_reference:
+            data["paymentReference"] = payment_reference
+        _supabase_request("PATCH", "chats", params={"id": f"eq.{row['id']}"}, json={"invoice_data": data})
+
+
+@api_router.post("/invoices")
+def create_invoice(payload: CreateInvoiceInput, authorization: Optional[str] = Header(None)):
+    auth_id = _verify_supabase_user(authorization)
+    if payload.invoice_type not in ("service", "product"):
+        raise HTTPException(status_code=400, detail="Invoice type must be service or product")
+    if auth_id != payload.provider_auth_id:
+        raise HTTPException(status_code=403, detail="Only the provider can create this invoice")
+    conversation = _conversation_for_invoice(payload.conversation_id, auth_id)
+    if conversation.get("provider_auth_id") != payload.provider_auth_id or conversation.get("customer_auth_id") != payload.customer_auth_id:
+        raise HTTPException(status_code=403, detail="Invoice participants do not match the conversation")
+
+    provider = _supabase_request("GET", "stylists", params={"auth_id": f"eq.{auth_id}", "select": "id", "limit": "1"})
+    provider_id = provider[0]["id"] if provider else None
+    if payload.invoice_type == "service":
+        if not provider_id or len(payload.items) != 1 or not payload.items[0].service_id:
+            raise HTTPException(status_code=400, detail="A provider service is required")
+        owned = _supabase_request("GET", "provider_services", params={"id": f"eq.{payload.items[0].service_id}", "provider_id": f"eq.{provider_id}", "is_active": "eq.true", "select": "id,price,duration_minutes"})
+        if not owned:
+            raise HTTPException(status_code=403, detail="You can only invoice services you offer")
+        if abs(float(owned[0].get("price", 0)) - payload.amount) > 0.01:
+            raise HTTPException(status_code=400, detail="Invoice amount must match the selected service price")
+        slots = requests.get(
+            f"{PRIMARY_BACKEND_URL.rstrip('/')}/api/providers/{provider_id}/available-slots",
+            params={"date": payload.service_date, "service_duration": 30}, timeout=20,
+        )
+        if payload.service_date and payload.service_time and slots.status_code == 200 and payload.service_time not in (slots.json() if isinstance(slots.json(), list) else slots.json().get("slots", [])):
+            raise HTTPException(status_code=400, detail="That time is not available")
+        if payload.staff_id:
+            staff_row = _supabase_request("GET", "staff", params={"id": f"eq.{payload.staff_id}", "business_auth_id": f"eq.{auth_id}", "select": "id", "limit": "1"})
+            assigned = _supabase_request("GET", "staff_services", params={"staff_id": f"eq.{payload.staff_id}", "service_id": f"eq.{payload.items[0].service_id}", "select": "staff_id", "limit": "1"})
+            if not staff_row or not assigned:
+                raise HTTPException(status_code=400, detail="That staff member is not assigned to this service")
+    else:
+        for item in payload.items:
+            if not item.product_id:
+                raise HTTPException(status_code=400, detail="A product is required")
+            owned = _supabase_request("GET", "products", params={"id": f"eq.{item.product_id}", "stylist_auth_id": f"eq.{auth_id}", "select": "id,price,stock"})
+            if not owned or owned[0].get("stock", 0) < item.quantity:
+                raise HTTPException(status_code=403, detail="You can only invoice products you sell with available stock")
+        expected_total = sum(float(_supabase_request("GET", "products", params={"id": f"eq.{item.product_id}", "stylist_auth_id": f"eq.{auth_id}", "select": "price", "limit": "1"})[0]["price"]) * item.quantity for item in payload.items)
+        if abs(expected_total - payload.amount) > 0.01:
+            raise HTTPException(status_code=400, detail="Invoice amount must match product prices")
+
+    invoice = _supabase_request("POST", "invoices", json={
+        "conversation_id": payload.conversation_id, "customer_auth_id": payload.customer_auth_id,
+        "provider_auth_id": payload.provider_auth_id, "invoice_type": payload.invoice_type,
+        "payment_provider": "flutterwave" if payload.invoice_type == "service" else "paystack",
+        "amount": round(payload.amount, 2), "status": "pending", "service_date": payload.service_date,
+        "service_time": payload.service_time, "location": payload.location, "service_type": payload.service_type,
+        "staff_id": payload.staff_id, "note": payload.note,
+    })
+    invoice_row = invoice[0]
+    item_rows = [{"invoice_id": invoice_row["id"], "service_id": item.service_id, "product_id": item.product_id, "quantity": item.quantity} for item in payload.items]
+    _supabase_request("POST", "invoice_items", json=item_rows)
+    return {**invoice_row, "items": item_rows}
+
+
+@api_router.get("/invoices/{invoice_id}")
+def get_invoice(invoice_id: int, authorization: Optional[str] = Header(None)):
+    auth_id = _verify_supabase_user(authorization)
+    rows = _supabase_request("GET", "invoices", params={"id": f"eq.{invoice_id}", "select": "*", "limit": "1"})
+    if not rows or auth_id not in (rows[0].get("customer_auth_id"), rows[0].get("provider_auth_id")):
+        raise HTTPException(status_code=404, detail="Invoice not found")
+    items = _supabase_request("GET", "invoice_items", params={"invoice_id": f"eq.{invoice_id}", "select": "*"})
+    return {**rows[0], "items": items}
+
+
+@api_router.post("/invoices/{invoice_id}/pay-service")
+def pay_service_invoice(invoice_id: int, payload: PayServiceInvoiceInput, request: Request, authorization: Optional[str] = Header(None)):
+    auth_id = _verify_supabase_user(authorization)
+    rows = _supabase_request("GET", "invoices", params={"id": f"eq.{invoice_id}", "invoice_type": "eq.service", "customer_auth_id": f"eq.{auth_id}", "status": "eq.pending", "select": "*", "limit": "1"})
+    if not rows:
+        raise HTTPException(status_code=404, detail="Pending service invoice not found")
+    verification = requests.get(f"{PRIMARY_BACKEND_URL.rstrip('/')}/api/payments/flutterwave/verify", headers=_proxy_request_headers(request), params={"reference": payload.payment_reference, "transaction_id": payload.transaction_id}, timeout=20)
+    if verification.status_code != 200 or verification.json().get("status") != "success":
+        raise HTTPException(status_code=402, detail="Payment could not be verified")
+    invoice = rows[0]
+    items = _supabase_request("GET", "invoice_items", params={"invoice_id": f"eq.{invoice_id}", "select": "service_id,quantity", "limit": "1"})
+    if not items:
+        raise HTTPException(status_code=400, detail="Invoice has no service item")
+    service_id = items[0]["service_id"]
+    provider = _supabase_request("GET", "stylists", params={"auth_id": f"eq.{invoice['provider_auth_id']}", "select": "id", "limit": "1"})
+    if not provider:
+        raise HTTPException(status_code=400, detail="Provider profile not found")
+    booking_payload = {"provider_id": provider[0]["id"], "customer_auth_id": auth_id, "service_ids": [service_id], "booking_date": invoice.get("service_date"), "booking_time": invoice.get("service_time"), "total_amount": invoice["amount"], "payment_method": "FLUTTERWAVE", "notes": invoice.get("note"), "status": "pending_payment"}
+    booking_resp = requests.post(f"{PRIMARY_BACKEND_URL.rstrip('/')}/api/bookings", headers=_proxy_request_headers(request), json=booking_payload, timeout=20)
+    if booking_resp.status_code not in (200, 201):
+        raise HTTPException(status_code=502, detail="Could not create booking")
+    booking = booking_resp.json()
+    booking_id = booking.get("id") or booking.get("booking", {}).get("id")
+    _supabase_request("PATCH", "invoices", params={"id": f"eq.{invoice_id}"}, json={"status": "paid", "payment_reference": payload.payment_reference, "booking_id": booking_id})
+    _mark_invoice_chat(invoice_id, "paid", payload.payment_reference)
+    return {"invoice": {**invoice, "status": "paid", "payment_reference": payload.payment_reference, "booking_id": booking_id}, "booking": booking}
+
+
+@api_router.post("/invoices/{invoice_id}/complete-product")
+def complete_product_invoice(invoice_id: int, payload: CompleteProductInvoiceInput, authorization: Optional[str] = Header(None)):
+    auth_id = _verify_supabase_user(authorization)
+    rows = _supabase_request("GET", "invoices", params={"id": f"eq.{invoice_id}", "invoice_type": "eq.product", "customer_auth_id": f"eq.{auth_id}", "status": "eq.pending", "select": "*", "limit": "1"})
+    if not rows:
+        raise HTTPException(status_code=404, detail="Pending product invoice not found")
+    order = _supabase_request("GET", "orders", params={"id": f"eq.{payload.order_id}", "customer_auth_id": f"eq.{auth_id}", "select": "id", "limit": "1"})
+    if not order:
+        raise HTTPException(status_code=403, detail="Order does not belong to this customer")
+    _supabase_request("PATCH", "invoices", params={"id": f"eq.{invoice_id}"}, json={"status": "paid", "payment_reference": payload.payment_reference, "order_id": payload.order_id})
+    _mark_invoice_chat(invoice_id, "paid", payload.payment_reference)
+    return {"status": "paid", "invoice_id": invoice_id, "order_id": payload.order_id}
+
+
+@api_router.get("/providers/{provider_auth_id}/consultation-eligibility")
+def get_consultation_eligibility(provider_auth_id: str, authorization: Optional[str] = Header(None)):
+    _verify_supabase_user(authorization)
+    certifications = _supabase_request(
+        "GET", "provider_certifications",
+        params={
+            "provider_auth_id": f"eq.{provider_auth_id}",
+            "status": "eq.approved",
+            "is_active": "eq.true",
+            "select": "*",
+        },
+    )
+    settings = _supabase_request(
+        "GET", "provider_consultation_settings",
+        params={
+            "provider_auth_id": f"eq.{provider_auth_id}",
+            "enabled": "eq.true",
+            "select": "*",
+            "limit": "1",
+        },
+    )
+    setting = settings[0] if settings else None
+    certification = certifications[0] if certifications else None
+    return {
+        "eligible": bool(certification and setting),
+        "specialty": (certification or {}).get("specialty") or (setting or {}).get("specialty"),
+        "consultation_fee": (setting or {}).get("consultation_fee"),
+        "currency": (setting or {}).get("currency") or "NGN",
+    }
+
+
+def _create_conversation(customer_auth_id: str, provider_auth_id: str, conversation_type: str):
+    existing = _supabase_request(
+        "GET", "conversations",
+        params={
+            "customer_auth_id": f"eq.{customer_auth_id}",
+            "provider_auth_id": f"eq.{provider_auth_id}",
+            "type": f"eq.{conversation_type}",
+            "select": "*",
+            "limit": "1",
+        },
+    )
+    if existing:
+        return existing[0]
+    created = _supabase_request(
+        "POST", "conversations",
+        json={
+            "customer_auth_id": customer_auth_id,
+            "provider_auth_id": provider_auth_id,
+            "type": conversation_type,
+        },
+    )
+    return created[0]
+
+
+@api_router.post("/conversations/inquiry")
+def create_inquiry(payload: InquiryInput, authorization: Optional[str] = Header(None)):
+    customer_auth_id = _verify_supabase_user(authorization)
+    return _create_conversation(customer_auth_id, payload.provider_auth_id, "inquiry")
+
+
+@api_router.get("/conversations")
+def list_conversations(authorization: Optional[str] = Header(None)):
+    auth_id = _verify_supabase_user(authorization)
+    rows = _supabase_request(
+        "GET", "conversations",
+        params={
+            "or": f"(customer_auth_id.eq.{auth_id},provider_auth_id.eq.{auth_id})",
+            "select": "*",
+            "order": "updated_at.desc",
+        },
+    )
+    result = []
+    for row in rows:
+        messages = _supabase_request(
+            "GET", "chats",
+            params={"conversation_id": f"eq.{row['id']}", "select": "*", "order": "created_at.desc", "limit": "1"},
+        )
+        result.append({**row, "last_message": messages[0] if messages else None, "unread_count": 0})
+    return result
+
+
+@api_router.post("/consultations")
+def create_consultation(payload: ConsultationInput, authorization: Optional[str] = Header(None)):
+    customer_auth_id = _verify_supabase_user(authorization)
+    eligibility = get_consultation_eligibility(payload.provider_auth_id, authorization)
+    if not eligibility["eligible"]:
+        raise HTTPException(status_code=403, detail="This provider is not eligible for consultation")
+    conversation = _create_conversation(customer_auth_id, payload.provider_auth_id, "consultation")
+    created = _supabase_request(
+        "POST", "consultations",
+        json={
+            "conversation_id": conversation["id"],
+            "customer_auth_id": customer_auth_id,
+            "provider_auth_id": payload.provider_auth_id,
+            "specialty": payload.specialty,
+            "fee": payload.fee,
+            "currency": payload.currency,
+            "payment_provider": "flutterwave",
+            "payment_status": "pending",
+            "status": "pending",
+        },
+    )
+    return {"conversation": conversation, "consultation": created[0]}
+
+
+@api_router.post("/consultations/{consultation_id}/activate")
+def activate_consultation(consultation_id: int, payload: ActivateConsultationInput, request: Request, authorization: Optional[str] = Header(None)):
+    auth_id = _verify_supabase_user(authorization)
+    verification = requests.get(
+        f"{PRIMARY_BACKEND_URL.rstrip('/')}/api/payments/flutterwave/verify",
+        headers=_proxy_request_headers(request),
+        params={"reference": payload.payment_reference, "transaction_id": payload.transaction_id},
+        timeout=20,
+    )
+    if verification.status_code != 200 or verification.json().get("status") != "success":
+        raise HTTPException(status_code=402, detail="Payment could not be verified")
+    rows = _supabase_request(
+        "GET", "consultations",
+        params={"id": f"eq.{consultation_id}", "customer_auth_id": f"eq.{auth_id}", "select": "*", "limit": "1"},
+    )
+    if not rows:
+        raise HTTPException(status_code=404, detail="Consultation not found")
+    now = datetime.utcnow().isoformat()
+    updated = _supabase_request(
+        "PATCH", "consultations",
+        params={"id": f"eq.{consultation_id}"},
+        json={
+            "payment_status": "paid",
+            "payment_reference": payload.payment_reference,
+            "status": "active",
+            "paid_at": now,
+            "activated_at": now,
+        },
+    )
+    return updated[0] if updated else {**rows[0], "status": "active", "payment_status": "paid"}
+
+
+@api_router.get("/conversations/{conversation_id}/messages")
+def get_conversation_messages(conversation_id: int, authorization: Optional[str] = Header(None)):
+    auth_id = _verify_supabase_user(authorization)
+    conversation = _supabase_request("GET", "conversations", params={"id": f"eq.{conversation_id}", "select": "*", "limit": "1"})
+    if not conversation or auth_id not in (conversation[0].get("customer_auth_id"), conversation[0].get("provider_auth_id")):
+        raise HTTPException(status_code=403, detail="You are not a participant in this conversation")
+    messages = _supabase_request("GET", "chats", params={"conversation_id": f"eq.{conversation_id}", "select": "*", "order": "created_at.asc"})
+    return {"conversation": conversation[0], "messages": messages}
+
+
+@api_router.post("/conversations/{conversation_id}/messages")
+def send_conversation_message(conversation_id: int, payload: SendMessageInput, authorization: Optional[str] = Header(None)):
+    auth_id = _verify_supabase_user(authorization)
+    conversation = _supabase_request("GET", "conversations", params={"id": f"eq.{conversation_id}", "select": "*", "limit": "1"})
+    if not conversation:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    row = conversation[0]
+    if auth_id not in (row.get("customer_auth_id"), row.get("provider_auth_id")):
+        raise HTTPException(status_code=403, detail="You are not a participant in this conversation")
+    if row.get("type") == "consultation":
+        consultation = _supabase_request("GET", "consultations", params={"conversation_id": f"eq.{conversation_id}", "status": "eq.active", "select": "id", "limit": "1"})
+        if not consultation:
+            raise HTTPException(status_code=403, detail="Consultation payment is required before chatting")
+    receiver = row["provider_auth_id"] if auth_id == row["customer_auth_id"] else row["customer_auth_id"]
+    if payload.message_type == MessageType.PROVIDER_RECOMMENDATION:
+        recommendation = payload.recommendation_data or {}
+        recommended_provider_auth_id = recommendation.get("recommended_provider_auth_id")
+        if not recommended_provider_auth_id or recommended_provider_auth_id == auth_id:
+            raise HTTPException(status_code=400, detail="You cannot recommend yourself")
+        recommendation_row = _supabase_request(
+            "POST", "provider_recommendations",
+            json={
+                "conversation_id": conversation_id,
+                "sender_auth_id": auth_id,
+                "recommended_provider_auth_id": recommended_provider_auth_id,
+                "message": payload.message.strip(),
+            },
+        )[0]
+        message = json.dumps({
+            **recommendation,
+            "recommendation_id": recommendation_row.get("id"),
+            "message": payload.message.strip(),
+        })
+    if payload.message_type == MessageType.TEXT:
+        sanitized = sanitizeMessagePayload(payload.message)
+        message = sanitized["content"]
+        is_masked = sanitized["is_masked"]
+        original_content = sanitized["original_content"]
+    elif payload.message_type != MessageType.PROVIDER_RECOMMENDATION:
+        message, is_masked, original_content = payload.message, False, None
+    else:
+        is_masked, original_content = False, None
+    return _supabase_request(
+        "POST", "chats",
+        json={
+            "conversation_id": conversation_id,
+            "sender_auth_id": auth_id,
+            "receiver_auth_id": receiver,
+            "message": message,
+            "message_type": payload.message_type.value,
+            "is_masked": is_masked,
+            "original_content": original_content,
+            "is_read": False,
+        },
+    )[0]
 
 
 def _chat_row(sender_auth_id: str, payload: SendMessageInput, message: str, is_masked: bool = False, original_content: Optional[str] = None):

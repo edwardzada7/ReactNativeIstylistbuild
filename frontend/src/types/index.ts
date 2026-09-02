@@ -117,6 +117,12 @@ export interface Provider {
   isKycVerified?: boolean;
   firstName?: string;
   lastName?: string;
+  consultation?: {
+    eligible: boolean;
+    specialty?: string | null;
+    consultation_fee?: number | null;
+    currency?: string;
+  };
 }
 
 // Category Types
@@ -405,7 +411,9 @@ export interface ProviderAvailability {
 // Message Types - Booking-based chat to match web implementation
 export interface Conversation {
   id: number; // booking_id
-  booking_id: number;
+  booking_id?: number;
+  conversation_id?: number;
+  conversation_type?: 'booking' | 'inquiry' | 'consultation';
   counterpart_auth_id: string;
   counterpart_name?: string;
   counterpart_profile_image_url?: string | null;
@@ -425,11 +433,12 @@ export interface Conversation {
 
 export interface ChatMessage {
   id: number;
-  booking_id: number;
+  booking_id?: number;
+  conversation_id?: number;
   sender_auth_id: string;
   receiver_auth_id: string;
   message: string;
-  message_type?: 'TEXT' | 'IMAGE' | 'LOCATION' | 'CUSTOM_INVOICE' | 'SYSTEM_ALERT';
+  message_type?: 'TEXT' | 'IMAGE' | 'LOCATION' | 'CUSTOM_INVOICE' | 'PROVIDER_RECOMMENDATION' | 'SYSTEM_ALERT';
   is_masked?: boolean;
   original_content?: string | null;
   location_data?: {
@@ -437,9 +446,27 @@ export interface ChatMessage {
     longitude: number;
     addressName?: string | null;
   } | null;
+  recommendation_data?: {
+    recommendation_id?: number;
+    recommended_provider_auth_id: string;
+    provider_id?: string;
+    provider_name?: string;
+    provider_image?: string | null;
+    provider_bio?: string | null;
+    provider_category?: string | null;
+    message?: string;
+  } | null;
   invoice_data?: {
     amount: number;
+    invoice_id?: number;
+    invoice_type?: 'service' | 'product';
     serviceDetails?: string;
+    service?: string;
+    date?: string;
+    time?: string;
+    location?: string;
+    staff?: string;
+    items?: Array<{ product_id: number; quantity: number; name?: string; price?: number; image?: string | null; stylist_auth_id?: string }>;
     platformFee?: number;
     netPayout?: number;
     status?: string;

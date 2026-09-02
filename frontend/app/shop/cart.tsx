@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Alert, Act
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { WebView } from 'react-native-webview';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { Button } from '../../src/components/common';
 import { useAuth } from '../../src/contexts/AuthContext';
@@ -11,6 +11,7 @@ import { shopService } from '../../src/services/shop.service';
 import { useCartStore } from '../../src/store/cartStore';
 import { formatCurrency } from '../../src/utils/currency';
 import { useTheme } from '../../src/contexts/ThemeContext';
+import { chatService } from '../../src/services/chat.service';
 
 const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_BASE_URL ||
@@ -21,6 +22,7 @@ type DeliveryAddress = { street: string; city: string; state: string; phone: str
 
 export default function Cart() {
   const router = useRouter();
+  const { invoiceId } = useLocalSearchParams<{ invoiceId?: string }>();
   const { user } = useAuth();
   const { colors } = useTheme();
   const { lines, setQuantity, removeItem, clear, total } = useCartStore();
@@ -37,6 +39,7 @@ export default function Cart() {
   const [addressForm, setAddressForm] = useState<DeliveryAddress>(deliveryAddress);
   const [pendingItems, setPendingItems] = useState<Array<{ product_id: number; quantity: number }>>([]);
   const [pendingAmount, setPendingAmount] = useState<number | null>(null);
+  const [pendingOrderId, setPendingOrderId] = useState<number | null>(null);
   const handledRef = useRef(false);
 
   useEffect(() => {
@@ -108,6 +111,7 @@ export default function Cart() {
         handledRef.current = false;
         setPendingItems(items);
         setPendingAmount(amount);
+        setPendingOrderId(Number(orderId));
         setCheckoutUrl(response.authorization_url);
         setStep('checkout');
       } else {
@@ -176,8 +180,11 @@ export default function Cart() {
         .verifyPaystackCheckout({
           reference: reference || '',
         })
-        .then((res) => {
+        .then(async (res) => {
           if (res?.status === 'success') {
+            if (invoiceId && pendingOrderId) {
+              await chatService.completeProductInvoice(Number(invoiceId), pendingOrderId, reference);
+            }
             clear();
             setStep('success');
           } else {
@@ -193,7 +200,7 @@ export default function Cart() {
 
       return false;
     },
-    [clear, deliveryAddress, pendingAmount, pendingItems, total, user?.email, user?.full_name, user?.name, user?.phone, lines]
+    [clear, deliveryAddress, invoiceId, pendingAmount, pendingItems, pendingOrderId, total, user?.email, user?.full_name, user?.name, user?.phone, lines]
   );
 
   if (step === 'checkout' && checkoutUrl) {
