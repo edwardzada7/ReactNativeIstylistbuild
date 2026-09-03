@@ -1132,6 +1132,13 @@ class ConsultationInput(BaseModel):
     currency: str = 'NGN'
 
 
+class ProviderConsultationSettingsInput(BaseModel):
+    enabled: bool = False
+    consultation_fee: Optional[float] = Field(default=None, gt=0)
+    description: Optional[str] = None
+    currency: str = 'NGN'
+
+
 class ActivateConsultationInput(BaseModel):
     payment_reference: str
     transaction_id: Optional[str] = None
@@ -1335,6 +1342,47 @@ def get_consultation_eligibility(provider_auth_id: str, authorization: Optional[
         "consultation_fee": (setting or {}).get("consultation_fee"),
         "currency": (setting or {}).get("currency") or "NGN",
     }
+
+
+@api_router.get("/providers/{provider_auth_id}/consultation-settings")
+def get_provider_consultation_settings(provider_auth_id: str, authorization: Optional[str] = Header(None)):
+    auth_id = _verify_supabase_user(authorization)
+    if auth_id != provider_auth_id:
+        raise HTTPException(status_code=403, detail="You can only view your own consultation settings")
+    certifications = _supabase_request("GET", "provider_certifications", params={"provider_auth_id": f"eq.{auth_id}", "status": "eq.approved", "is_active": "eq.true", "select": "specialty", "limit": "1"})
+    settings = _supabase_request("GET", "provider_consultation_settings", params={"provider_auth_id": f"eq.{auth_id}", "select": "*", "limit": "1"})
+    setting = settings[0] if settings else {}
+    return {
+        "enabled": bool(setting.get("enabled")) if certifications else False,
+        "consultation_fee": setting.get("consultation_fee"),
+        "description": setting.get("description") or "",
+        "currency": setting.get("currency") or "NGN",
+        "eligible": bool(certifications),
+        "specialty": certifications[0].get("specialty") if certifications else None,
+    }
+
+
+@api_router.patch("/providers/{provider_auth_id}/consultation-settings")
+def update_provider_consultation_settings(provider_auth_id: str, payload: ProviderConsultationSettingsInput, authorization: Optional[str] = Header(None)):
+    auth_id = _verify_supabase_user(authorization)
+    if auth_id != provider_auth_id:
+        raise HTTPException(status_code=403, detail="You can only update your own consultation settings")
+    certifications = _supabase_request("GET", "provider_certifications", params={"provider_auth_id": f"eq.{auth_id}", "status": "eq.approved", "is_active": "eq.true", "select": "specialty", "limit": "1"})
+    if payload.enabled and not certifications:
+        raise HTTPException(status_code=403, detail="An approved professional certification is required")
+    if payload.enabled and payload.consultation_fee is None:
+        raise HTTPException(status_code=400, detail="A consultation fee is required when enabled")
+    settings = _supabase_request("GET", "provider_consultation_settings", params={"provider_auth_id": f"eq.{auth_id}", "select": "id", "limit": "1"})
+    setting_payload = {
+        "provider_auth_id": auth_id,
+        "enabled": payload.enabled,
+        "consultation_fee": payload.consultation_fee,
+        "description": (payload.description or "").strip() or None,
+        "currency": (payload.currency or "NGN").upper(),
+    }
+    updated = (_supabase_request("PATCH", "provider_consultation_settings", params={"id": f"eq.{settings[0]['id']}"}, json=setting_payload)
+               if settings else _supabase_request("POST", "provider_consultation_settings", json=setting_payload))
+    return {**(updated[0] if updated else setting_payload), "eligible": bool(certifications), "specialty": certifications[0].get("specialty") if certifications else None}
 
 
 def _create_conversation(customer_auth_id: str, provider_auth_id: str, conversation_type: str):

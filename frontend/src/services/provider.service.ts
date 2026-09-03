@@ -64,6 +64,26 @@ export const providerService = {
     return apiService.get(`/providers/${providerAuthId}/consultation-eligibility`);
   },
 
+  async getConsultationSettings(providerAuthId: string): Promise<{
+    enabled: boolean;
+    consultation_fee?: number | null;
+    description?: string | null;
+    currency?: string;
+    eligible: boolean;
+    specialty?: string | null;
+  }> {
+    return apiService.get(`/providers/${providerAuthId}/consultation-settings`);
+  },
+
+  async updateConsultationSettings(providerAuthId: string, data: {
+    enabled: boolean;
+    consultation_fee?: number;
+    description?: string;
+    currency?: string;
+  }) {
+    return apiService.patch(`/providers/${providerAuthId}/consultation-settings`, data);
+  },
+
   // Services offered by one specific provider.
   async getProviderServices(providerId: string): Promise<Service[]> {
     const raw = await apiService.get<any>(`/provider-services/${providerId}`);
