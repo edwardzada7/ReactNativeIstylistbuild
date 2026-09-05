@@ -319,6 +319,7 @@ export default function ProviderProfile() {
       onPress: () => router.push('/(provider)/wallet'),
     },
     { icon: 'shield-checkmark-outline', label: 'KYC Verification', onPress: () => router.push('/(provider)/kyc') },
+    { icon: 'ribbon-outline', label: 'Verify Your Certificate', onPress: () => router.push('/(provider)/certificate' as any) },
     { icon: 'settings-outline', label: 'Settings', onPress: () => router.push('/settings') },
     { icon: 'help-circle-outline', label: 'Help Center', onPress: () => router.push('/settings/help') },
   ];

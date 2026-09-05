@@ -1118,6 +1118,8 @@ class SendMessageInput(BaseModel):
 
 class InquiryInput(BaseModel):
     provider_auth_id: str
+    product_id: Optional[int] = None
+    product_name: Optional[str] = None
 
 
 class ProviderRecommendationInput(BaseModel):
@@ -1137,6 +1139,13 @@ class ProviderConsultationSettingsInput(BaseModel):
     consultation_fee: Optional[float] = Field(default=None, gt=0)
     description: Optional[str] = None
     currency: str = 'NGN'
+
+
+class ProviderCertificationInput(BaseModel):
+    specialty: str = Field(min_length=1)
+    certification_name: str = Field(min_length=1)
+    certificate_url: str = Field(min_length=1)
+    expiry_date: Optional[str] = None
 
 
 class ActivateConsultationInput(BaseModel):
@@ -1325,6 +1334,7 @@ def get_consultation_eligibility(provider_auth_id: str, authorization: Optional[
             "select": "*",
         },
     )
+    certifications = [certification for certification in certifications if _certification_is_active(certification)]
     settings = _supabase_request(
         "GET", "provider_consultation_settings",
         params={
@@ -1344,12 +1354,67 @@ def get_consultation_eligibility(provider_auth_id: str, authorization: Optional[
     }
 
 
+def _certification_is_active(certification: dict) -> bool:
+    expiry_date = certification.get("expiry_date")
+    if not expiry_date:
+        return True
+    try:
+        return datetime.fromisoformat(str(expiry_date).replace("Z", "+00:00")).date() >= datetime.utcnow().date()
+    except ValueError:
+        return False
+
+
+@api_router.get("/providers/{provider_auth_id}/certification")
+def get_provider_certification(provider_auth_id: str, authorization: Optional[str] = Header(None)):
+    auth_id = _verify_supabase_user(authorization)
+    if auth_id != provider_auth_id:
+        raise HTTPException(status_code=403, detail="You can only view your own certification")
+    rows = _supabase_request(
+        "GET", "provider_certifications",
+        params={"provider_auth_id": f"eq.{auth_id}", "select": "*", "order": "created_at.desc", "limit": "1"},
+    )
+    certification = rows[0] if rows else None
+    if certification and certification.get("status") == "approved" and not _certification_is_active(certification):
+        certification = {**certification, "status": "expired"}
+    return {"certification": certification, "status": certification.get("status", "not_submitted") if certification else "not_submitted"}
+
+
+@api_router.post("/providers/{provider_auth_id}/certification")
+def submit_provider_certification(provider_auth_id: str, payload: ProviderCertificationInput, authorization: Optional[str] = Header(None)):
+    auth_id = _verify_supabase_user(authorization)
+    if auth_id != provider_auth_id:
+        raise HTTPException(status_code=403, detail="You can only submit your own certification")
+    existing = _supabase_request(
+        "GET", "provider_certifications",
+        params={"provider_auth_id": f"eq.{auth_id}", "select": "id,status", "order": "created_at.desc", "limit": "1"},
+    )
+    certification_payload = {
+        "provider_auth_id": auth_id,
+        "specialty": payload.specialty.strip(),
+        "certification_name": payload.certification_name.strip(),
+        "certificate_url": payload.certificate_url,
+        "expiry_date": payload.expiry_date,
+        "status": "pending",
+        "rejection_reason": None,
+        "verified_by_auth_id": None,
+        "verified_at": None,
+    }
+    if existing and existing[0].get("status") in ("pending", "rejected", "expired"):
+        updated = _supabase_request("PATCH", "provider_certifications", params={"id": f"eq.{existing[0]['id']}"}, json=certification_payload)
+    elif existing:
+        raise HTTPException(status_code=409, detail="Your certificate is already approved and active")
+    else:
+        updated = _supabase_request("POST", "provider_certifications", json=certification_payload)
+    return updated[0] if updated else certification_payload
+
+
 @api_router.get("/providers/{provider_auth_id}/consultation-settings")
 def get_provider_consultation_settings(provider_auth_id: str, authorization: Optional[str] = Header(None)):
     auth_id = _verify_supabase_user(authorization)
     if auth_id != provider_auth_id:
         raise HTTPException(status_code=403, detail="You can only view your own consultation settings")
-    certifications = _supabase_request("GET", "provider_certifications", params={"provider_auth_id": f"eq.{auth_id}", "status": "eq.approved", "is_active": "eq.true", "select": "specialty", "limit": "1"})
+    certifications = _supabase_request("GET", "provider_certifications", params={"provider_auth_id": f"eq.{auth_id}", "status": "eq.approved", "is_active": "eq.true", "select": "*", "limit": "1"})
+    certifications = [certification for certification in certifications if _certification_is_active(certification)]
     settings = _supabase_request("GET", "provider_consultation_settings", params={"provider_auth_id": f"eq.{auth_id}", "select": "*", "limit": "1"})
     setting = settings[0] if settings else {}
     return {
@@ -1367,7 +1432,8 @@ def update_provider_consultation_settings(provider_auth_id: str, payload: Provid
     auth_id = _verify_supabase_user(authorization)
     if auth_id != provider_auth_id:
         raise HTTPException(status_code=403, detail="You can only update your own consultation settings")
-    certifications = _supabase_request("GET", "provider_certifications", params={"provider_auth_id": f"eq.{auth_id}", "status": "eq.approved", "is_active": "eq.true", "select": "specialty", "limit": "1"})
+    certifications = _supabase_request("GET", "provider_certifications", params={"provider_auth_id": f"eq.{auth_id}", "status": "eq.approved", "is_active": "eq.true", "select": "*", "limit": "1"})
+    certifications = [certification for certification in certifications if _certification_is_active(certification)]
     if payload.enabled and not certifications:
         raise HTTPException(status_code=403, detail="An approved professional certification is required")
     if payload.enabled and payload.consultation_fee is None:
@@ -1412,7 +1478,54 @@ def _create_conversation(customer_auth_id: str, provider_auth_id: str, conversat
 @api_router.post("/conversations/inquiry")
 def create_inquiry(payload: InquiryInput, authorization: Optional[str] = Header(None)):
     customer_auth_id = _verify_supabase_user(authorization)
-    return _create_conversation(customer_auth_id, payload.provider_auth_id, "inquiry")
+    provider = _supabase_request(
+        "GET", "stylists",
+        params={"auth_id": f"eq.{payload.provider_auth_id}", "select": "auth_id", "limit": "1"},
+    )
+    if not provider:
+        raise HTTPException(status_code=404, detail="Provider not found")
+
+    if payload.product_id is not None:
+        products = _supabase_request(
+            "GET", "products",
+            params={
+                "id": f"eq.{payload.product_id}",
+                "stylist_auth_id": f"eq.{payload.provider_auth_id}",
+                "select": "id,name,stylist_auth_id",
+                "limit": "1",
+            },
+        )
+        if not products:
+            raise HTTPException(status_code=403, detail="That product does not belong to this provider")
+
+    existing = _supabase_request(
+        "GET", "conversations",
+        params={
+            "customer_auth_id": f"eq.{customer_auth_id}",
+            "provider_auth_id": f"eq.{payload.provider_auth_id}",
+            "type": "eq.inquiry",
+            "select": "*",
+            "limit": "1",
+        },
+    )
+    if existing:
+        return existing[0]
+
+    conversation = _create_conversation(customer_auth_id, payload.provider_auth_id, "inquiry")
+    if payload.product_id is not None:
+        product_label = payload.product_name or f"Product #{payload.product_id}"
+        _supabase_request(
+            "POST", "chats",
+            json={
+                "conversation_id": conversation["id"],
+                "sender_auth_id": customer_auth_id,
+                "receiver_auth_id": payload.provider_auth_id,
+                "message": f"Product inquiry: {product_label} (product ID {payload.product_id})",
+                "message_type": MessageType.TEXT.value,
+                "is_read": False,
+            },
+        )
+    return conversation
 
 
 @api_router.get("/conversations")

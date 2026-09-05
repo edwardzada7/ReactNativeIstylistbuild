@@ -94,8 +94,12 @@ const profileDisplayName = (profile: any): string | undefined => {
  * and providers can only chat with customers who have booked them.
  */
 export const chatService = {
-  async createInquiry(providerAuthId: string): Promise<{ id: number }> {
-    return apiService.post('/conversations/inquiry', { provider_auth_id: providerAuthId });
+  async createInquiry(providerAuthId: string, product?: { id: number; name?: string }): Promise<{ id: number }> {
+    return apiService.post('/conversations/inquiry', {
+      provider_auth_id: providerAuthId,
+      product_id: product?.id,
+      product_name: product?.name,
+    });
   },
 
   async createConsultation(data: { provider_auth_id: string; specialty: string; fee: number; currency: string }) {
@@ -266,7 +270,7 @@ export const chatService = {
       const sharedConversations: Conversation[] = shared.map((item: any) => ({
         id: Number(item.id),
         conversation_id: Number(item.id),
-        conversation_type: item.type,
+        conversation_type: item.type || item.conversation_type,
         counterpart_auth_id: authId === item.customer_auth_id ? item.provider_auth_id : item.customer_auth_id,
         counterpart_name: item.counterpart_name,
         last_message: item.last_message || { id: 0, message: '', read: true, created_at: item.updated_at || new Date().toISOString() },
@@ -303,7 +307,7 @@ export const chatService = {
       return chatData.messages || [];
     } catch (err) {
       console.error('[chat] failed to load thread', err);
-      return [];
+      throw err;
     }
   },
 

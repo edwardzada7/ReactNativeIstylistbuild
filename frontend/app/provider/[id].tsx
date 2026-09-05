@@ -284,7 +284,7 @@ export default function ProviderProfile() {
 
           {!isOwnProvider && (
             <View style={styles.contactActions}>
-              <Button title="Ask a Question" onPress={handleAskQuestion} variant="outline" disabled={contacting} fullWidth />
+              <Button title={contacting ? 'Opening...' : 'Ask a Question'} onPress={handleAskQuestion} variant="outline" disabled={contacting} loading={contacting} fullWidth />
               {consultation && <Button title={`Consult a Professional — ${formatCurrency(Number(consultation.consultation_fee))}`} onPress={handleConsult} disabled={contacting} fullWidth />}
             </View>
           )}

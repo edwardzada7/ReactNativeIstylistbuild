@@ -75,6 +75,7 @@ export default function ProviderTabsLayout() {
       <Tabs.Screen name="create-post" options={{ href: null }} />
       <Tabs.Screen name="edit-post" options={{ href: null }} />
       <Tabs.Screen name="kyc" options={{ href: null }} />
+      <Tabs.Screen name="certificate" options={{ href: null }} />
       <Tabs.Screen name="orders" options={{ href: null }} />
       <Tabs.Screen name="portfolio" options={{ href: null }} />
       <Tabs.Screen name="profile" options={{ href: null }} />

@@ -61,7 +61,7 @@ export default function ChatThread() {
     conversationType?: 'booking' | 'inquiry' | 'consultation';
   }>();
   const bookingId = conversationId || legacyBookingId;
-  const isSharedConversation = Boolean(conversationId && conversationType && conversationType !== 'booking');
+  const isSharedConversation = Boolean(conversationId && conversationType !== 'booking');
   const { user } = useAuth();
   const addItem = useCartStore((state) => state.addItem);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -78,6 +78,7 @@ export default function ChatThread() {
   const [selectedProvider, setSelectedProvider] = useState<any | null>(null);
   const [recommendationMessage, setRecommendationMessage] = useState('');
   const [recommendationLoading, setRecommendationLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const openRecommendation = async () => {
     if (!isSharedConversation || !conversationId || !user?.auth_id) return;
@@ -116,8 +117,13 @@ export default function ChatThread() {
   };
 
   const loadData = useCallback(async (isPullToRefresh = false) => {
-    if (!bookingId) return;
+    if (!counterpartAuthId || (!isSharedConversation && !legacyBookingId) || (isSharedConversation && !conversationId)) {
+      setLoadError('This chat link is incomplete. Please return to Messages and try again.');
+      setLoading(false);
+      return;
+    }
     if (isPullToRefresh) setRefreshing(true);
+    setLoadError(null);
     try {
       if (isSharedConversation) {
         const result = await chatService.getConversationThread(Number(conversationId));
@@ -148,11 +154,12 @@ export default function ChatThread() {
       }
     } catch (err) {
       console.error('[chat] failed to load thread', err);
+      setLoadError('Could not load messages. Please try again.');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [bookingId, conversationId, counterpartAuthId, isSharedConversation, resolvedCounterpartName]);
+  }, [bookingId, conversationId, counterpartAuthId, conversationType, isSharedConversation, legacyBookingId, resolvedCounterpartName]);
 
   const handleRefresh = () => loadData(true);
 
@@ -277,6 +284,12 @@ export default function ChatThread() {
           <View style={styles.centerState}>
             <ActivityIndicator size="large" color={colors.primary} />
           </View>
+        ) : loadError ? (
+          <View style={styles.centerState}>
+            <Ionicons name="alert-circle-outline" size={28} color={colors.error} />
+            <Text style={[styles.emptyText, { color: colors.textSecondary }]}>{loadError}</Text>
+            <Button title="Retry" onPress={() => loadData()} variant="outline" />
+          </View>
         ) : (
           <FlatList
             data={messages}
@@ -324,7 +337,7 @@ export default function ChatThread() {
                         {!!recommendationData.message && <Text style={[styles.recommendationMessage, { color: isMine ? '#fff' : colors.text }]}>{recommendationData.message}</Text>}
                       </>
                     ) : (
-                      <Text style={[styles.bubbleText, { color: isMine ? '#fff' : colors.text }]}>{item.message}</Text>
+                      <Text style={[styles.bubbleText, { color: isMine ? '#fff' : colors.text }]}>{messageContent}</Text>
                     )}
                     <View style={styles.timestampRow}>
                       <Text style={[styles.timestamp, { color: colors.textSecondary }]}>{formatTime(item.created_at)}</Text>

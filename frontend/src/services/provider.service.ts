@@ -84,6 +84,19 @@ export const providerService = {
     return apiService.patch(`/providers/${providerAuthId}/consultation-settings`, data);
   },
 
+  async getCertification(providerAuthId: string) {
+    return apiService.get<{ status: string; certification: any | null }>(`/providers/${providerAuthId}/certification`);
+  },
+
+  async submitCertification(providerAuthId: string, data: {
+    specialty: string;
+    certification_name: string;
+    certificate_url: string;
+    expiry_date?: string;
+  }) {
+    return apiService.post(`/providers/${providerAuthId}/certification`, data);
+  },
+
   // Services offered by one specific provider.
   async getProviderServices(providerId: string): Promise<Service[]> {
     const raw = await apiService.get<any>(`/provider-services/${providerId}`);

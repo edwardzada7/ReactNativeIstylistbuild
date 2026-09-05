@@ -72,7 +72,7 @@ export default function ProductDetail() {
     if (!product?.stylist_auth_id || !isAuthenticated || contacting) return;
     setContacting(true);
     try {
-      const conversation = await chatService.createInquiry(product.stylist_auth_id);
+      const conversation = await chatService.createInquiry(product.stylist_auth_id, { id: Number(product.id), name: product.name });
       router.push({ pathname: '/chat/[counterpartAuthId]', params: { counterpartAuthId: product.stylist_auth_id, conversationId: String(conversation.id), conversationType: 'inquiry', counterpartName: 'Product provider' } });
     } catch (err: any) {
       Alert.alert('Could not start inquiry', err?.friendlyMessage || 'Please try again.');
@@ -287,7 +287,7 @@ export default function ProductDetail() {
 
         {!isProvider && !isOwnProduct && product.stylist_auth_id && (
           <View style={styles.productContactActions}>
-            <Button title="Ask About Product" onPress={handleAskAboutProduct} variant="outline" disabled={contacting || !isAuthenticated} fullWidth />
+            <Button title={contacting ? 'Opening...' : 'Ask About Product'} onPress={handleAskAboutProduct} variant="outline" disabled={contacting || !isAuthenticated} loading={contacting} fullWidth />
             {consultation && <Button title={`Consult a Professional — ${formatCurrency(Number(consultation.consultation_fee))}`} onPress={handleProductConsultation} disabled={contacting || !isAuthenticated} fullWidth />}
           </View>
         )}

@@ -34,16 +34,20 @@ export default function Settings() {
   const [consultationSpecialty, setConsultationSpecialty] = useState<string | null>(null);
   const [consultationFee, setConsultationFee] = useState('');
   const [consultationDescription, setConsultationDescription] = useState('');
+  const [certificationStatus, setCertificationStatus] = useState('not_submitted');
+  const [certificationReason, setCertificationReason] = useState('');
 
   useEffect(() => {
     if (!isProvider || !user?.auth_id) return;
     setConsultationLoading(true);
-    providerService.getConsultationSettings(user.auth_id).then((settings) => {
+    Promise.all([providerService.getConsultationSettings(user.auth_id), providerService.getCertification(user.auth_id)]).then(([settings, certification]) => {
       setConsultationEligible(settings.eligible);
       setConsultationEnabled(settings.eligible && settings.enabled);
       setConsultationSpecialty(settings.specialty || null);
       setConsultationFee(settings.consultation_fee == null ? '' : String(settings.consultation_fee));
       setConsultationDescription(settings.description || '');
+      setCertificationStatus(certification.status || 'not_submitted');
+      setCertificationReason(certification.certification?.rejection_reason || '');
     }).catch((err: any) => Alert.alert('Could not load consultation settings', err?.friendlyMessage || 'Please try again.'))
       .finally(() => setConsultationLoading(false));
   }, [isProvider, user?.auth_id]);
@@ -188,11 +192,18 @@ export default function Settings() {
               <Text style={[styles.consultationDescription, { color: colors.textSecondary }]}>Allow customers to pay through iStylist for a professional consultation.</Text>
               {consultationLoading ? <ActivityIndicator color={colors.primary} /> : (
                 <>
+                  <Text style={[styles.certificationStatus, { color: consultationEligible ? colors.success : colors.warning }]}>Certification: {certificationStatus === 'approved' && consultationEligible ? 'Approved' : certificationStatus === 'pending' ? 'Pending Review' : certificationStatus === 'expired' ? 'Expired' : 'Not Verified'}</Text>
+                  {!!certificationReason && <Text style={[styles.eligibilityText, { color: colors.error }]}>{certificationReason}</Text>}
                   <View style={styles.consultationRow}>
                     <Text style={[styles.menuItemLabel, { color: colors.text }]}>Enable Professional Consultation</Text>
                     <Switch value={consultationEnabled} onValueChange={setConsultationEnabled} disabled={!consultationEligible || consultationSaving} trackColor={{ false: colors.border, true: colors.primary }} thumbColor={consultationEnabled ? colors.primary : colors.textMuted} />
                   </View>
-                  {!consultationEligible && <Text style={[styles.eligibilityText, { color: colors.error }]}>An approved professional certification is required before consultation can be enabled.</Text>}
+                  {!consultationEligible && <>
+                    <Text style={[styles.eligibilityText, { color: colors.error }]}>Verify your professional certificate to enable Professional Consultation.</Text>
+                    <TouchableOpacity style={[styles.verifyButton, { borderColor: colors.primary }]} onPress={() => router.push('/(provider)/certificate' as any)}>
+                      <Text style={[styles.verifyButtonText, { color: colors.primary }]}>Verify Your Certificate</Text>
+                    </TouchableOpacity>
+                  </>}
                   {consultationSpecialty && <Text style={[styles.specialtyText, { color: colors.textSecondary }]}>Approved specialty: {consultationSpecialty}</Text>}
                   <Input label="Consultation Fee (NGN)" value={consultationFee} onChangeText={setConsultationFee} placeholder="e.g. 15000" keyboardType="decimal-pad" editable={!consultationSaving} />
                   {consultationFee && <Text style={[styles.feePreview, { color: colors.textSecondary }]}>{formatCurrency(consultationFee)}</Text>}
@@ -281,8 +292,11 @@ const styles = StyleSheet.create({
   consultationCard: { borderRadius: BorderRadius.lg, padding: Spacing.md },
   consultationTitle: { fontSize: FontSizes.md, fontWeight: '700' },
   consultationDescription: { fontSize: FontSizes.sm, lineHeight: 20, marginTop: Spacing.xs, marginBottom: Spacing.md },
+  certificationStatus: { fontSize: FontSizes.sm, fontWeight: '700', marginBottom: Spacing.sm },
   consultationRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.md, marginBottom: Spacing.sm },
   eligibilityText: { fontSize: FontSizes.sm, lineHeight: 19, marginBottom: Spacing.md },
+  verifyButton: { alignItems: 'center', borderWidth: 1, borderRadius: BorderRadius.md, paddingVertical: Spacing.sm, marginBottom: Spacing.md },
+  verifyButtonText: { fontSize: FontSizes.sm, fontWeight: '700' },
   specialtyText: { fontSize: FontSizes.sm, marginBottom: Spacing.md },
   feePreview: { fontSize: FontSizes.sm, marginTop: -Spacing.sm, marginBottom: Spacing.md },
   descriptionInput: { minHeight: 90, textAlignVertical: 'top' },
