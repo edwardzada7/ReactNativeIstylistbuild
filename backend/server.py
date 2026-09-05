@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, Header, HTTPException, Path, Request, Response
+from fastapi import Depends, FastAPI, APIRouter, Header, HTTPException, Path, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
@@ -6,6 +6,7 @@ from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
+import hmac
 import requests
 from pathlib import Path as PathlibPath
 from pydantic import BaseModel, Field
@@ -96,6 +97,13 @@ def _verify_supabase_user(authorization: Optional[str]) -> str:
     if resp.status_code != 200:
         raise HTTPException(status_code=401, detail="Invalid or expired session")
     return resp.json()["id"]
+
+
+def _require_admin_key(admin_key: Optional[str] = Header(None, alias="X-ADMIN-KEY")) -> None:
+    """Authorize Admin Web requests using the configured shared secret."""
+    configured_key = os.environ.get("ADMIN_DASH_KEY", "")
+    if not configured_key or not admin_key or not hmac.compare_digest(admin_key, configured_key):
+        raise HTTPException(status_code=401, detail="Invalid admin credentials")
 
 
 def _supabase_headers():
@@ -1362,6 +1370,217 @@ def _certification_is_active(certification: dict) -> bool:
         return datetime.fromisoformat(str(expiry_date).replace("Z", "+00:00")).date() >= datetime.utcnow().date()
     except ValueError:
         return False
+
+
+class AdminCertificationRejectionInput(BaseModel):
+    rejection_reason: str = Field(min_length=1)
+
+
+def _admin_certification_status(certification: dict) -> str:
+    status = certification.get("status") or certification.get("verification_status") or "pending"
+    if status == "approved" and not _certification_is_active(certification):
+        return "expired"
+    return status
+
+
+def _admin_provider_info(provider_auth_id: str) -> dict:
+    users = _supabase_request(
+        "GET",
+        "users",
+        params={
+            "auth_id": f"eq.{provider_auth_id}",
+            "select": "*",
+            "limit": "1",
+        },
+    )
+    stylists = _supabase_request(
+        "GET",
+        "stylists",
+        params={
+            "auth_id": f"eq.{provider_auth_id}",
+            "select": "*",
+            "limit": "1",
+        },
+    )
+    provider = {**(stylists[0] if stylists else {}), **(users[0] if users else {})}
+    return {
+        "auth_id": provider_auth_id,
+        "name": provider.get("name") or provider.get("full_name"),
+        "email": provider.get("email"),
+        "profile_image_url": provider.get("profile_image_url") or provider.get("avatar") or provider.get("photo_url"),
+        "role": provider.get("role"),
+    }
+
+
+def _admin_certificate_response(certification: dict) -> dict:
+    provider_auth_id = certification.get("provider_auth_id")
+    provider = _admin_provider_info(provider_auth_id) if provider_auth_id else {}
+    status = _admin_certification_status(certification)
+    return {
+        **certification,
+        "provider": provider,
+        "provider_auth_id": provider_auth_id,
+        "provider_name": provider.get("name") or provider.get("full_name"),
+        "provider_profile_image": provider.get("profile_image_url") or provider.get("avatar") or provider.get("photo_url"),
+        "verification_status": status,
+        "expires_at": certification.get("expires_at") or certification.get("expiry_date"),
+    }
+
+
+@api_router.get("/admin/certifications")
+def list_admin_certifications(
+    status: Optional[str] = None,
+    provider_auth_id: Optional[str] = None,
+    search: Optional[str] = None,
+    _admin_authorized: None = Depends(_require_admin_key),
+):
+    rows = _supabase_request(
+        "GET",
+        "provider_certifications",
+        params={"select": "*", "order": "created_at.desc"},
+    )
+    requested_status = status.strip().lower() if status else None
+    search_value = search.strip().lower() if search else None
+    result = []
+    for row in rows:
+        if provider_auth_id and row.get("provider_auth_id") != provider_auth_id:
+            continue
+        row_status = _admin_certification_status(row)
+        if requested_status and row_status != requested_status:
+            continue
+        item = _admin_certificate_response(row)
+        provider_text = " ".join(
+            str(item.get("provider", {}).get(field) or "")
+            for field in ("name", "full_name", "email", "auth_id")
+        ).lower()
+        if search_value and search_value not in provider_text and search_value not in str(row.get("specialty") or "").lower():
+            continue
+        result.append(item)
+    return {"certifications": result}
+
+
+@api_router.get("/admin/certifications/{certification_id}")
+def get_admin_certification(certification_id: int, _admin_authorized: None = Depends(_require_admin_key)):
+    rows = _supabase_request(
+        "GET",
+        "provider_certifications",
+        params={"id": f"eq.{certification_id}", "select": "*", "limit": "1"},
+    )
+    if not rows:
+        raise HTTPException(status_code=404, detail="Certificate not found")
+    return {"certification": _admin_certificate_response(rows[0])}
+
+
+def _moderate_admin_certification(certification_id: int, update: dict) -> dict:
+    rows = _supabase_request(
+        "GET",
+        "provider_certifications",
+        params={"id": f"eq.{certification_id}", "select": "*", "limit": "1"},
+    )
+    if not rows:
+        raise HTTPException(status_code=404, detail="Certificate not found")
+    updated = _supabase_request(
+        "PATCH",
+        "provider_certifications",
+        params={"id": f"eq.{certification_id}"},
+        json=update,
+    )
+    return updated[0] if updated else {**rows[0], **update}
+
+
+@api_router.post("/admin/certifications/{certification_id}/approve")
+def approve_admin_certification(certification_id: int, _admin_authorized: None = Depends(_require_admin_key)):
+    certification = _moderate_admin_certification(
+        certification_id,
+        {
+            "status": "approved",
+            "verified_at": datetime.utcnow().isoformat(),
+            "is_active": True,
+        },
+    )
+    return {"certification": _admin_certificate_response(certification)}
+
+
+@api_router.post("/admin/certifications/{certification_id}/reject")
+def reject_admin_certification(
+    certification_id: int,
+    payload: AdminCertificationRejectionInput,
+    _admin_authorized: None = Depends(_require_admin_key),
+):
+    rejection_reason = payload.rejection_reason.strip()
+    if not rejection_reason:
+        raise HTTPException(status_code=400, detail="Rejection reason is required")
+    certification = _moderate_admin_certification(
+        certification_id,
+        {
+            "status": "rejected",
+            "rejection_reason": rejection_reason,
+            "verified_at": datetime.utcnow().isoformat(),
+            "is_active": False,
+        },
+    )
+    return {"certification": _admin_certificate_response(certification)}
+
+
+def _admin_consultation_response(provider_auth_id: str, certification: Optional[dict], setting: Optional[dict]) -> dict:
+    certification = certification or {}
+    setting = setting or {}
+    certified = (
+        _admin_certification_status(certification) == "approved"
+        and certification.get("is_active") is True
+        and _certification_is_active(certification)
+    )
+    enabled = setting.get("enabled") is True
+    return {
+        "provider": _admin_provider_info(provider_auth_id),
+        "provider_auth_id": provider_auth_id,
+        "specialty": certification.get("specialty") or setting.get("specialty"),
+        "certification_name": certification.get("certification_name"),
+        "certification_status": _admin_certification_status(certification) if certification else "not_submitted",
+        "certification_expiry": certification.get("expires_at") or certification.get("expiry_date"),
+        "consultation_enabled": enabled,
+        "consultation_fee": setting.get("consultation_fee"),
+        "currency": setting.get("currency") or "NGN",
+        "description": setting.get("description") or "",
+        "eligible": certified and enabled,
+    }
+
+
+@api_router.get("/admin/consultations")
+def list_admin_consultations(_admin_authorized: None = Depends(_require_admin_key)):
+    settings = _supabase_request(
+        "GET", "provider_consultation_settings", params={"select": "*", "order": "updated_at.desc"}
+    )
+    certification_rows = _supabase_request(
+        "GET", "provider_certifications", params={"select": "*", "order": "created_at.desc"}
+    )
+    certifications = {}
+    for row in certification_rows:
+        certifications.setdefault(row.get("provider_auth_id"), row)
+    return {
+        "consultations": [
+            _admin_consultation_response(row["provider_auth_id"], certifications.get(row.get("provider_auth_id")), row)
+            for row in settings
+            if row.get("provider_auth_id")
+        ]
+    }
+
+
+@api_router.get("/admin/consultations/{provider_auth_id}")
+def get_admin_consultation(provider_auth_id: str, _admin_authorized: None = Depends(_require_admin_key)):
+    certifications = _supabase_request(
+        "GET",
+        "provider_certifications",
+        params={"provider_auth_id": f"eq.{provider_auth_id}", "select": "*", "order": "created_at.desc", "limit": "1"},
+    )
+    settings = _supabase_request(
+        "GET",
+        "provider_consultation_settings",
+        params={"provider_auth_id": f"eq.{provider_auth_id}", "select": "*", "limit": "1"},
+    )
+    if not certifications and not settings:
+        raise HTTPException(status_code=404, detail="Consultation provider not found")
+    return {"consultation": _admin_consultation_response(provider_auth_id, certifications[0] if certifications else None, settings[0] if settings else None)}
 
 
 @api_router.get("/providers/{provider_auth_id}/certification")
