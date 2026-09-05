@@ -363,7 +363,14 @@ export default function Bookings() {
                       onPress={() => {
                         const providerAuthId = item.provider_auth_id || item.provider_id;
                         if (providerAuthId) {
-                          router.push(`/chat/${providerAuthId}?bookingId=${item.id}`);
+                          router.push({
+                            pathname: '/chat/[counterpartAuthId]',
+                            params: {
+                              counterpartAuthId: providerAuthId,
+                              bookingId: item.id,
+                              conversationType: 'booking',
+                            },
+                          });
                         }
                       }}
                       accessibilityRole="button"

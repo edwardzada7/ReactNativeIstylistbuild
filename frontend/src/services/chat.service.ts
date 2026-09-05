@@ -363,7 +363,7 @@ export const chatService = {
   },
 
   async markRead(bookingId: number): Promise<number> {
-    const result = await apiService.post(`/conversations/${bookingId}/mark-read`);
+    const result = await apiService.post(`/conversations/${bookingId}/mark-read?conversation_type=booking`);
     return result.clearedCount ?? 0;
   },
 };

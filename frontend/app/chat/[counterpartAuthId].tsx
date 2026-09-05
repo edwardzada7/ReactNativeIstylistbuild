@@ -60,8 +60,10 @@ export default function ChatThread() {
     conversationId?: string;
     conversationType?: 'booking' | 'inquiry' | 'consultation';
   }>();
-  const bookingId = conversationId || legacyBookingId;
-  const isSharedConversation = Boolean(conversationId && conversationType !== 'booking');
+  const isSharedConversation = Boolean(
+    conversationId && (conversationType === 'inquiry' || conversationType === 'consultation')
+  );
+  const activeChatId = isSharedConversation ? conversationId : legacyBookingId;
   const { user } = useAuth();
   const addItem = useCartStore((state) => state.addItem);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -117,7 +119,7 @@ export default function ChatThread() {
   };
 
   const loadData = useCallback(async (isPullToRefresh = false) => {
-    if (!counterpartAuthId || (!isSharedConversation && !legacyBookingId) || (isSharedConversation && !conversationId)) {
+    if (!counterpartAuthId || !activeChatId) {
       setLoadError('This chat link is incomplete. Please return to Messages and try again.');
       setLoading(false);
       return;
@@ -129,8 +131,8 @@ export default function ChatThread() {
         const result = await chatService.getConversationThread(Number(conversationId));
         setMessages(result.messages || []);
       } else {
-        setMessages(await chatService.getThread(Number(bookingId)));
-        await chatService.markRead(Number(bookingId));
+        setMessages(await chatService.getThread(Number(legacyBookingId)));
+        await chatService.markRead(Number(legacyBookingId));
       }
       
       // Fetch counterpart's actual name if not provided or if it's "Unknown"
@@ -159,7 +161,7 @@ export default function ChatThread() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [bookingId, conversationId, counterpartAuthId, conversationType, isSharedConversation, legacyBookingId, resolvedCounterpartName]);
+  }, [activeChatId, conversationId, counterpartAuthId, conversationType, isSharedConversation, legacyBookingId, resolvedCounterpartName]);
 
   const handleRefresh = () => loadData(true);
 
@@ -170,7 +172,7 @@ export default function ChatThread() {
   );
 
   const handleSend = async () => {
-    if (!text.trim() || !bookingId) return;
+    if (!text.trim() || !activeChatId) return;
     const body = text.trim();
     if (containsBlockedContactInfo(body)) {
       Alert.alert(CONTACT_SHARING_WARNING);
@@ -181,7 +183,7 @@ export default function ChatThread() {
     try {
       const sent = isSharedConversation
         ? await chatService.sendConversationMessage(Number(conversationId), counterpartAuthId, body)
-        : await chatService.sendMessage(Number(bookingId), body);
+        : await chatService.sendMessage(Number(legacyBookingId), body);
       setMessages((prev) => [...prev, sent]);
     } catch (err) {
       console.error('[chat] failed to send', err);
@@ -231,13 +233,13 @@ export default function ChatThread() {
     setLocationLoading(true);
     try {
       const permission = await Location.requestForegroundPermissionsAsync();
-      if (permission.status !== 'granted' || !bookingId) return;
+      if (permission.status !== 'granted' || !activeChatId) return;
 
       const position = await Location.getCurrentPositionAsync({});
       const { latitude, longitude } = position.coords;
       const addressName = 'Shared Location';
       const messagePayload = {
-        conversationId: Number(bookingId),
+        conversationId: Number(activeChatId),
         type: 'LOCATION' as const,
         content: `https://www.google.com/maps/search/?api=1&query=${latitude},${longitude}`,
         latitude,
@@ -363,7 +365,7 @@ export default function ChatThread() {
                 <View style={[styles.locationTooltipArrow, { borderTopColor: colors.primary }]} />
               </View>
             )}
-            <TouchableOpacity onPress={handleShareLocation} disabled={locationLoading || !bookingId} accessibilityRole="button" accessibilityLabel="Share location">
+            <TouchableOpacity onPress={handleShareLocation} disabled={locationLoading || !activeChatId} accessibilityRole="button" accessibilityLabel="Share location">
               {locationLoading ? <ActivityIndicator size="small" color={colors.primary} /> : <Ionicons name="location-outline" size={22} color={colors.primary} />}
             </TouchableOpacity>
           </View>

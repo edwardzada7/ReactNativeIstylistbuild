@@ -53,7 +53,12 @@ export default function ProviderProfile() {
     try {
       setError(null);
       const profile = await providerService.getProviderFullProfile(id);
-      const consultationEligibility = await providerService.getConsultationEligibility(profile.user_id).catch(() => null);
+      setProvider(profile);
+      if (profile.user_id) {
+        void providerService.getConsultationEligibility(profile.user_id)
+          .then((eligibility) => setConsultation(eligibility?.eligible ? eligibility : null))
+          .catch(() => setConsultation(null));
+      }
       const today = new Date().toISOString().slice(0, 10);
       const defaultDuration = profile.services[0]?.duration || 30;
       const [reviewList, slotList, portfolioList, staffList, feedResponse] = await Promise.all([
@@ -63,8 +68,6 @@ export default function ProviderProfile() {
         providerService.getProviderStaff(id).catch(() => []),
         feedService.getFeed({ page: 1, per_page: 100 }).catch(() => ({ data: [] })),
       ]);
-      setProvider(profile);
-      setConsultation(consultationEligibility?.eligible ? consultationEligibility : null);
       setCoverImageError(false);
       setReviews(reviewList);
       setSlots(slotList);

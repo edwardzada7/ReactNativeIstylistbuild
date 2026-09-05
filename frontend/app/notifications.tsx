@@ -93,7 +93,14 @@ export default function Notifications() {
       const conversationId = data.conversation_id || data.conversationId;
       const counterpartAuthId = data.counterpart_auth_id || data.counterpartAuthId || data.sender_auth_id || 'conversation';
       if (item.type === 'message' && conversationId) {
-        router.push(`/chat/${String(counterpartAuthId)}?conversationId=${String(conversationId)}`);
+        router.push({
+          pathname: '/chat/[counterpartAuthId]',
+          params: {
+            counterpartAuthId: String(counterpartAuthId),
+            conversationId: String(conversationId),
+            conversationType: data.conversation_type || data.conversationType || 'inquiry',
+          },
+        });
         return;
       }
       const explicitRoute = data.route || data.pathname || data.path || data.screen || data.target;
@@ -103,8 +110,14 @@ export default function Notifications() {
       }
       if (data.booking_id) {
         if (item.type === 'message' || data.conversation_id || data.conversationId) {
-          const bookingConversationId = conversationId || data.booking_id;
-          router.push(`/chat/${String(counterpartAuthId)}?conversationId=${String(bookingConversationId)}`);
+          router.push({
+            pathname: '/chat/[counterpartAuthId]',
+            params: {
+              counterpartAuthId: String(counterpartAuthId),
+              bookingId: String(data.booking_id),
+              conversationType: 'booking',
+            },
+          });
           return;
         }
         router.push(`/bookings/${String(data.booking_id)}`);

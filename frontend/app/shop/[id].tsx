@@ -46,8 +46,9 @@ export default function ProductDetail() {
 
       if (productData) {
         if (productData.stylist_auth_id) {
-          const eligibility = await providerService.getConsultationEligibility(productData.stylist_auth_id).catch(() => null);
-          setConsultation(eligibility?.eligible ? eligibility : null);
+          void providerService.getConsultationEligibility(productData.stylist_auth_id)
+            .then((eligibility) => setConsultation(eligibility?.eligible ? eligibility : null))
+            .catch(() => setConsultation(null));
         }
         try {
           const reviewData = await shopService.getProductReviews(Number(id));

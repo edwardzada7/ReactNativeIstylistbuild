@@ -1728,6 +1728,30 @@ def create_inquiry(payload: InquiryInput, authorization: Optional[str] = Header(
         },
     )
     if existing:
+        if payload.product_id is not None:
+            product_label = payload.product_name or f"Product #{payload.product_id}"
+            context_marker = f"product ID {payload.product_id}"
+            context_messages = _supabase_request(
+                "GET", "chats",
+                params={
+                    "conversation_id": f"eq.{existing[0]['id']}",
+                    "message": f"ilike.*{context_marker}*",
+                    "select": "id",
+                    "limit": "1",
+                },
+            )
+            if not context_messages:
+                _supabase_request(
+                    "POST", "chats",
+                    json={
+                        "conversation_id": existing[0]["id"],
+                        "sender_auth_id": customer_auth_id,
+                        "receiver_auth_id": payload.provider_auth_id,
+                        "message": f"Product inquiry: {product_label} (product ID {payload.product_id})",
+                        "message_type": MessageType.TEXT.value,
+                        "is_read": False,
+                    },
+                )
         return existing[0]
 
     conversation = _create_conversation(customer_auth_id, payload.provider_auth_id, "inquiry")
@@ -1975,12 +1999,18 @@ def get_conversations_unread_count(authorization: Optional[str] = Header(None)):
 
 
 @api_router.post("/conversations/{conversation_id}/mark-read")
-def mark_conversation_read(conversation_id: int, authorization: Optional[str] = Header(None)):
-    """Mark unread messages in a booking conversation read for the current user."""
+def mark_conversation_read(conversation_id: int, conversation_type: Optional[str] = None, authorization: Optional[str] = Header(None)):
+    """Mark messages read without confusing shared conversation and booking IDs."""
     auth_id = _verify_supabase_user(authorization)
     now = datetime.utcnow().isoformat()
+    if conversation_type in ("inquiry", "consultation"):
+        key = "conversation_id"
+    elif conversation_type == "booking":
+        key = "booking_id"
+    else:
+        raise HTTPException(status_code=400, detail="conversation_type is required")
     resp = requests.patch(
-        f"{SUPABASE_URL}/rest/v1/chats?booking_id=eq.{conversation_id}&receiver_auth_id=eq.{auth_id}&is_read=eq.false",
+        f"{SUPABASE_URL}/rest/v1/chats?{key}=eq.{conversation_id}&receiver_auth_id=eq.{auth_id}&is_read=eq.false",
         headers=_supabase_headers(),
         json={"is_read": True, "read": True, "read_at": now},
         timeout=10,

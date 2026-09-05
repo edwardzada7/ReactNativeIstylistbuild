@@ -40,7 +40,10 @@ export default function Settings() {
   useEffect(() => {
     if (!isProvider || !user?.auth_id) return;
     setConsultationLoading(true);
-    Promise.all([providerService.getConsultationSettings(user.auth_id), providerService.getCertification(user.auth_id)]).then(([settings, certification]) => {
+    Promise.all([
+      providerService.getConsultationSettings(user.auth_id),
+      providerService.getCertification(user.auth_id).catch(() => ({ status: 'not_submitted', certification: null })),
+    ]).then(([settings, certification]) => {
       setConsultationEligible(settings.eligible);
       setConsultationEnabled(settings.eligible && settings.enabled);
       setConsultationSpecialty(settings.specialty || null);
