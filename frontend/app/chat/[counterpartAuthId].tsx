@@ -60,10 +60,9 @@ export default function ChatThread() {
     conversationId?: string;
     conversationType?: 'booking' | 'inquiry' | 'consultation';
   }>();
-  const isSharedConversation = Boolean(
-    conversationId && (conversationType === 'inquiry' || conversationType === 'consultation')
-  );
-  const activeChatId = isSharedConversation ? conversationId : legacyBookingId;
+  const isBookingConversation = conversationType === 'booking';
+  const isSharedConversation = conversationType === 'inquiry' || conversationType === 'consultation';
+  const activeChatId = isBookingConversation ? legacyBookingId : isSharedConversation ? conversationId : undefined;
   const { user } = useAuth();
   const addItem = useCartStore((state) => state.addItem);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -127,12 +126,12 @@ export default function ChatThread() {
     if (isPullToRefresh) setRefreshing(true);
     setLoadError(null);
     try {
-      if (isSharedConversation) {
-        const result = await chatService.getConversationThread(Number(conversationId));
-        setMessages(result.messages || []);
-      } else {
+      if (isBookingConversation) {
         setMessages(await chatService.getThread(Number(legacyBookingId)));
         await chatService.markRead(Number(legacyBookingId));
+      } else if (isSharedConversation) {
+        const result = await chatService.getConversationThread(Number(conversationId));
+        setMessages(result.messages || []);
       }
       
       // Fetch counterpart's actual name if not provided or if it's "Unknown"
@@ -161,7 +160,7 @@ export default function ChatThread() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [activeChatId, conversationId, counterpartAuthId, conversationType, isSharedConversation, legacyBookingId, resolvedCounterpartName]);
+  }, [activeChatId, conversationId, counterpartAuthId, conversationType, isBookingConversation, isSharedConversation, legacyBookingId, resolvedCounterpartName]);
 
   const handleRefresh = () => loadData(true);
 
@@ -181,9 +180,9 @@ export default function ChatThread() {
     setText('');
     setSending(true);
     try {
-      const sent = isSharedConversation
-        ? await chatService.sendConversationMessage(Number(conversationId), counterpartAuthId, body)
-        : await chatService.sendMessage(Number(legacyBookingId), body);
+      const sent = isBookingConversation
+        ? await chatService.sendMessage(Number(legacyBookingId), body)
+        : await chatService.sendConversationMessage(Number(conversationId), counterpartAuthId, body);
       setMessages((prev) => [...prev, sent]);
     } catch (err) {
       console.error('[chat] failed to send', err);
@@ -247,9 +246,9 @@ export default function ChatThread() {
         addressName,
       };
 
-      const sent = isSharedConversation
-        ? await chatService.sendConversationMessage(Number(conversationId), counterpartAuthId, messagePayload.content)
-        : await chatService.sendMessage(messagePayload);
+      const sent = isBookingConversation
+        ? await chatService.sendMessage(messagePayload)
+        : await chatService.sendConversationMessage(Number(conversationId), counterpartAuthId, messagePayload.content);
       setMessages((prev) => [...prev, sent]);
     } catch (err) {
       console.error('[chat] failed to share location', err);

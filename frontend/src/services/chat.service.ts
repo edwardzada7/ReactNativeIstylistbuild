@@ -95,11 +95,16 @@ const profileDisplayName = (profile: any): string | undefined => {
  */
 export const chatService = {
   async createInquiry(providerAuthId: string, product?: { id: number; name?: string }): Promise<{ id: number }> {
-    return apiService.post('/conversations/inquiry', {
+    const response = await apiService.post<{ id?: number; conversation_id?: number }>('/conversations/inquiry', {
       provider_auth_id: providerAuthId,
       product_id: product?.id,
       product_name: product?.name,
     });
+    const id = response.id ?? response.conversation_id;
+    if (!Number.isInteger(id)) {
+      throw new Error('Inquiry conversation was not created.');
+    }
+    return { id };
   },
 
   async createConsultation(data: { provider_auth_id: string; specialty: string; fee: number; currency: string }) {
@@ -240,6 +245,7 @@ export const chatService = {
             conversations.push({
               id: booking.id,
               booking_id: booking.id,
+              conversation_type: 'booking',
               counterpart_auth_id: counterpartAuthId,
               counterpart_name: counterpartName,
               counterpart_profile_image_url: counterpartProfileImageUrl,

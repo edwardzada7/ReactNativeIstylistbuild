@@ -18,6 +18,7 @@ import { providerService } from '../../src/services/provider.service';
 export default function ProductDetail() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const productId = Number(Array.isArray(id) ? id[0] : id);
   const { user, isAuthenticated, isProvider } = useAuth();
   const { colors } = useTheme();
   const [product, setProduct] = useState<Product | null>(null);
@@ -38,10 +39,10 @@ export default function ProductDetail() {
   const myReview = useMemo(() => reviews.find((review) => review.user_id === user?.auth_id) ?? null, [reviews, user?.auth_id]);
 
   const loadProduct = async () => {
-    if (!id) return;
+    if (!Number.isInteger(productId) || productId <= 0) return;
 
     try {
-      const productData = await shopService.getProduct(Number(id));
+      const productData = await shopService.getProduct(productId);
       setProduct(productData);
 
       if (productData) {
@@ -51,7 +52,7 @@ export default function ProductDetail() {
             .catch(() => setConsultation(null));
         }
         try {
-          const reviewData = await shopService.getProductReviews(Number(id));
+          const reviewData = await shopService.getProductReviews(productId);
           setReviews(reviewData.reviews);
           setAverageRating(reviewData.average_rating);
           setReviewCount(reviewData.review_count);
@@ -104,7 +105,7 @@ export default function ProductDetail() {
     if (!id) return;
     setLoading(true);
     loadProduct();
-  }, [id]);
+  }, [id, productId]);
 
   const handleAddToCart = () => {
     if (isOwnProduct) return;

@@ -91,7 +91,19 @@ export default function Notifications() {
     (item: Notification) => {
       const data = item?.data || {};
       const conversationId = data.conversation_id || data.conversationId;
+      const bookingId = data.booking_id || data.bookingId;
       const counterpartAuthId = data.counterpart_auth_id || data.counterpartAuthId || data.sender_auth_id || 'conversation';
+      if (bookingId && (item.type === 'message' || conversationId)) {
+        router.push({
+          pathname: '/chat/[counterpartAuthId]',
+          params: {
+            counterpartAuthId: String(counterpartAuthId),
+            bookingId: String(bookingId),
+            conversationType: 'booking',
+          },
+        });
+        return;
+      }
       if (item.type === 'message' && conversationId) {
         router.push({
           pathname: '/chat/[counterpartAuthId]',
@@ -108,19 +120,8 @@ export default function Notifications() {
         router.push(explicitRoute as any);
         return;
       }
-      if (data.booking_id) {
-        if (item.type === 'message' || data.conversation_id || data.conversationId) {
-          router.push({
-            pathname: '/chat/[counterpartAuthId]',
-            params: {
-              counterpartAuthId: String(counterpartAuthId),
-              bookingId: String(data.booking_id),
-              conversationType: 'booking',
-            },
-          });
-          return;
-        }
-        router.push(`/bookings/${String(data.booking_id)}`);
+      if (bookingId) {
+        router.push(`/bookings/${String(bookingId)}`);
         return;
       }
       if (data.provider_id) {

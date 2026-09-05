@@ -131,7 +131,7 @@ export default function ProviderProfile() {
   };
 
   const handleAskQuestion = async () => {
-    if (!provider?.user_id || !user?.auth_id || contacting) return;
+    if (!provider?.user_id || contacting) return;
     setContacting(true);
     try {
       const conversation = await chatService.createInquiry(provider.user_id);
