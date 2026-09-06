@@ -60,6 +60,20 @@ export interface ChatMessage {
   read_at?: string;
 }
 
+type SharedMessageType = 'text' | 'image' | 'invoice' | 'provider_recommendation' | 'system';
+
+function normalizeSharedMessageType(messageType?: string): SharedMessageType {
+  switch (messageType?.toLowerCase()) {
+    case 'image': return 'image';
+    case 'invoice':
+    case 'custom_invoice': return 'invoice';
+    case 'provider_recommendation': return 'provider_recommendation';
+    case 'system':
+    case 'system_alert': return 'system';
+    default: return 'text';
+  }
+}
+
 export interface LocationMessagePayload {
   conversationId: number;
   type: 'LOCATION';
@@ -100,7 +114,7 @@ export const chatService = {
       product_id: product?.id,
       product_name: product?.name,
     });
-    const id = response.id ?? response.conversation_id;
+    const id = response.id ?? response.conversation_id ?? response.conversation?.id;
     if (!Number.isInteger(id)) {
       throw new Error('Inquiry conversation was not created.');
     }
@@ -119,15 +133,23 @@ export const chatService = {
   },
 
   async getConversationThread(conversationId: number): Promise<{ conversation: any; messages: ChatMessage[] }> {
-    return apiService.get(`/conversations/${conversationId}/messages`);
+    const response = await apiService.get<any>(`/conversations/${conversationId}/messages`);
+    const messages = Array.isArray(response) ? response : response?.messages || response?.data || [];
+    return {
+      conversation: response?.conversation || null,
+      messages,
+    };
   },
 
-  async sendConversationMessage(conversationId: number, receiverAuthId: string, message: string, messageType: 'TEXT' | 'IMAGE' = 'TEXT') {
-    return apiService.post(`/conversations/${conversationId}/messages`, {
+  async sendConversationMessage(conversationId: number, receiverAuthId: string, message: string, messageType?: string) {
+    const response = await apiService.post<any>(`/conversations/${conversationId}/messages`, {
       receiver_auth_id: receiverAuthId,
       message,
-      message_type: messageType,
+      message_type: normalizeSharedMessageType(messageType),
     });
+    return (response?.message && typeof response.message === 'object')
+      ? response.message
+      : (response?.data && typeof response.data === 'object' ? response.data : response);
   },
 
   async createInvoice(data: InvoiceDraft) {
@@ -142,7 +164,7 @@ export const chatService = {
     return apiService.post('/conversations/' + conversationId + '/messages', {
       receiver_auth_id: receiverAuthId,
       message: invoiceData.invoice_type === 'product' ? 'Product invoice' : 'Service invoice',
-      message_type: 'CUSTOM_INVOICE',
+      message_type: 'invoice',
       invoice_data: invoiceData,
     });
   },
@@ -151,7 +173,7 @@ export const chatService = {
     return apiService.post('/conversations/' + conversationId + '/messages', {
       receiver_auth_id: receiverAuthId,
       message: recommendation.message || `Recommended provider: ${recommendation.provider_name}`,
-      message_type: 'PROVIDER_RECOMMENDATION',
+      message_type: 'provider_recommendation',
       recommendation_data: recommendation,
     });
   },

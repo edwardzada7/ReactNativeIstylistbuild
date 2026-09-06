@@ -75,19 +75,28 @@ export const feedService = {
     postId: string,
     params?: { page?: number; per_page?: number }
   ): Promise<PaginatedResponse<Comment>> {
-    return await apiService.get<PaginatedResponse<Comment>>(`/feed/posts/${postId}/comments`, {
+    const response = await apiService.get<any>(`/feed/posts/${postId}/comments`, {
       params,
     });
+    const comments = Array.isArray(response) ? response : response?.comments || response?.data || [];
+    return {
+      data: comments,
+      total: response?.total ?? comments.length,
+      page: response?.page ?? params?.page ?? 1,
+      per_page: response?.per_page ?? params?.per_page ?? comments.length,
+      total_pages: response?.total_pages ?? 1,
+    };
   },
 
   // Add comment
   async addComment(postId: string, content: string): Promise<Comment> {
     const authorAuthId = await apiService.getAuthId();
     if (!authorAuthId) throw new Error('Not authenticated');
-    return await apiService.post<Comment>(`/feed/posts/${postId}/comments`, {
+    const response = await apiService.post<any>(`/feed/posts/${postId}/comments`, {
       author_auth_id: authorAuthId,
       content,
     });
+    return response?.comment || response?.data || response;
   },
 
   async reportPost(postId: string, reason: string): Promise<void> {

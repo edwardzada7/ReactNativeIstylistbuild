@@ -153,9 +153,9 @@ export default function ChatThread() {
           console.warn('[chat] failed to load counterpart profile', err);
         }
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('[chat] failed to load thread', err);
-      setLoadError('Could not load messages. Please try again.');
+      setLoadError(err?.friendlyMessage || err?.message || 'Could not load messages. Please try again.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -221,10 +221,11 @@ export default function ChatThread() {
     const asset = result.assets?.[0];
     if (result.canceled || !asset?.base64) return;
     try {
-      const sent = await chatService.sendConversationMessage(Number(conversationId), counterpartAuthId, `data:image/jpeg;base64,${asset.base64}`, 'IMAGE');
+      const sent = await chatService.sendConversationMessage(Number(conversationId), counterpartAuthId, `data:image/jpeg;base64,${asset.base64}`, 'image');
       setMessages((prev) => [...prev, sent]);
-    } catch (err) {
+    } catch (err: any) {
       console.error('[chat] failed to send photo', err);
+      Alert.alert('Could not send photo', err?.friendlyMessage || err?.message || 'Please try again.');
     }
   };
 
@@ -305,13 +306,14 @@ export default function ChatThread() {
             }
             renderItem={({ item }) => {
               const isMine = item.sender_auth_id === user?.auth_id;
-              const isSystemAlert = item.message_type === 'SYSTEM_ALERT';
+              const messageType = String(item.message_type || item.type || '').toLowerCase();
+              const isSystemAlert = messageType === 'system' || messageType === 'system_alert';
               let recommendationData = item.recommendation_data;
-              if (!recommendationData && item.message_type === 'PROVIDER_RECOMMENDATION') {
+              if (!recommendationData && messageType === 'provider_recommendation') {
                 try { recommendationData = JSON.parse(item.message); } catch { recommendationData = null; }
               }
               const messageContent = item.content || item.message || '';
-              const isLocation = item.message_type === 'LOCATION' || item.type === 'LOCATION' || messageContent.includes('google.com/maps');
+              const isLocation = messageType === 'location' || messageContent.includes('google.com/maps');
               return (
                 <View style={[styles.bubbleWrapper, isMine ? styles.bubbleWrapperMine : styles.bubbleWrapperTheirs]}>
                   <View style={[styles.bubble, isMine ? styles.bubbleMine : { backgroundColor: colors.surface }, isSystemAlert && styles.systemBubble]}>
@@ -322,11 +324,11 @@ export default function ChatThread() {
                         addressName={item.location_data?.addressName}
                         mapUrl={messageContent}
                       />
-                    ) : item.message_type === 'IMAGE' && messageContent.startsWith('data:image') ? (
+                    ) : messageType === 'image' && messageContent.startsWith('data:image') ? (
                       <Image source={{ uri: messageContent }} style={styles.messageImage} />
-                    ) : item.message_type === 'CUSTOM_INVOICE' && item.invoice_data ? (
+                    ) : (messageType === 'invoice' || messageType === 'custom_invoice') && item.invoice_data ? (
                       <InvoiceCard {...item.invoice_data} onPay={item.sender_auth_id !== user?.auth_id && item.invoice_data.status !== 'paid' ? () => handlePayInvoice(item.invoice_data!) : undefined} />
-                    ) : item.message_type === 'PROVIDER_RECOMMENDATION' && recommendationData ? (
+                    ) : messageType === 'provider_recommendation' && recommendationData ? (
                       <>
                         <ProviderRecommendationCard
                           providerName={recommendationData.provider_name}
