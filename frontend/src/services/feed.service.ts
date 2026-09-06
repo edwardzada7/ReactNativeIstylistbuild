@@ -82,7 +82,12 @@ export const feedService = {
 
   // Add comment
   async addComment(postId: string, content: string): Promise<Comment> {
-    return await apiService.post<Comment>(`/feed/posts/${postId}/comments`, { content });
+    const authorAuthId = await apiService.getAuthId();
+    if (!authorAuthId) throw new Error('Not authenticated');
+    return await apiService.post<Comment>(`/feed/posts/${postId}/comments`, {
+      author_auth_id: authorAuthId,
+      content,
+    });
   },
 
   async reportPost(postId: string, reason: string): Promise<void> {
