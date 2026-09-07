@@ -20,20 +20,38 @@ export interface Product {
   status?: string;
   created_at: string;
   seller_listing_id?: number;
+  seller_id?: number;
+  seller_name?: string | null;
+  seller_type?: 'official' | 'provider' | 'brand_partner' | string | null;
+  listing_status?: string | null;
   isMarketplaceListing?: boolean;
 }
 
 interface ProviderSeller {
   id: number;
   seller_type: string;
-  provider_auth_id: string;
+  provider_auth_id: string | null;
 }
 
 interface ProductListing {
   id: number;
   product_id: number;
+  seller_id: number;
   price: number;
   stock: number;
+  status?: string | null;
+}
+
+interface ShopSeller {
+  id: number;
+  seller_type?: string | null;
+  provider_auth_id?: string | null;
+  name?: string | null;
+  display_name?: string | null;
+  business_name?: string | null;
+  seller_name?: string | null;
+  status?: string | null;
+  is_active?: boolean | null;
 }
 
 export interface OrderItemSummary {
@@ -98,19 +116,60 @@ export const shopService = {
       query = query.eq('approved', true);
     }
 
-    if (!params?.includeOutOfStock) {
+    if (!params?.includeOutOfStock && params?.includeUnapproved) {
       query = query.gt('stock', 0);
     }
 
     const { data, error } = await query.order('created_at', { ascending: false });
     if (error) throw error;
-    return (data || []).map((product) => normalizeProductCategoryMetadata(product as Product));
+    const products = (data || []).map((product) => normalizeProductCategoryMetadata(product as Product));
+    if (params?.includeUnapproved) return products;
+
+    try {
+      const [{ data: listingRows, error: listingError }, { data: sellerRows, error: sellerError }] = await Promise.all([
+        supabase.from('product_listings').select('*'),
+        supabase.from('shop_sellers').select('*'),
+      ]);
+      if (listingError) throw listingError;
+      if (sellerError) throw sellerError;
+
+      const sellers = (sellerRows || []) as ShopSeller[];
+      const sellersById = new Map(sellers.map((seller) => [Number(seller.id), seller]));
+      const listings = (listingRows || []) as ProductListing[];
+      const listedProductIds = new Set(listings.map((listing) => Number(listing.product_id)));
+      const productsById = new Map(products.map((product) => [Number(product.id), product]));
+      const marketplaceProducts = listings.flatMap((listing) => {
+        const seller = sellersById.get(Number(listing.seller_id));
+        const product = productsById.get(Number(listing.product_id));
+        const sellerStatus = String(seller?.status || '').toLowerCase();
+        const listingStatus = String(listing.status || '').toLowerCase();
+        if (!seller || !product || seller.is_active === false || ['inactive', 'suspended'].includes(sellerStatus)) return [];
+        if (listingStatus !== 'active' || Number(listing.stock) <= 0) return [];
+
+        return [normalizeProductCategoryMetadata({
+          ...product,
+          price: Number(listing.price),
+          stock: Number(listing.stock),
+          seller_listing_id: Number(listing.id),
+          seller_id: Number(listing.seller_id),
+          seller_type: seller.seller_type,
+          seller_name: seller.display_name || seller.business_name || seller.seller_name || seller.name || null,
+          listing_status: listing.status,
+          isMarketplaceListing: true,
+        })];
+      });
+
+      const legacyProducts = products.filter((product) => !listedProductIds.has(Number(product.id)) && Number(product.stock) > 0);
+      return [...marketplaceProducts, ...legacyProducts];
+    } catch (sellerError) {
+      console.warn('[shop] seller listings unavailable; using legacy products', sellerError);
+      return products.filter((product) => Number(product.stock) > 0);
+    }
   },
 
-  async getProduct(id: number): Promise<Product | null> {
-    const { data, error } = await supabase.from('products').select('*').eq('id', id).maybeSingle();
-    if (error) throw error;
-    return data ? normalizeProductCategoryMetadata(data as Product) : null;
+  async getProduct(id: number, sellerListingId?: number): Promise<Product | null> {
+    const products = await this.getProducts();
+    return products.find((product) => Number(product.id) === id && (!sellerListingId || product.seller_listing_id === sellerListingId)) || null;
   },
 
   async getProviderProducts(stylistAuthId: string): Promise<Product[]> {

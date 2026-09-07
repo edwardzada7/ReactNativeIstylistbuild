@@ -17,8 +17,9 @@ import { providerService } from '../../src/services/provider.service';
 
 export default function ProductDetail() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, listingId } = useLocalSearchParams<{ id: string; listingId?: string }>();
   const productId = Number(Array.isArray(id) ? id[0] : id);
+  const sellerListingId = Number(Array.isArray(listingId) ? listingId[0] : listingId);
   const { user, isAuthenticated, isProvider } = useAuth();
   const { colors } = useTheme();
   const [product, setProduct] = useState<Product | null>(null);
@@ -42,7 +43,7 @@ export default function ProductDetail() {
     if (!Number.isInteger(productId) || productId <= 0) return;
 
     try {
-      const productData = await shopService.getProduct(productId);
+      const productData = await shopService.getProduct(productId, Number.isInteger(sellerListingId) ? sellerListingId : undefined);
       setProduct(productData);
 
       if (productData) {
@@ -105,7 +106,7 @@ export default function ProductDetail() {
     if (!id) return;
     setLoading(true);
     loadProduct();
-  }, [id, productId]);
+  }, [id, productId, sellerListingId]);
 
   const handleAddToCart = () => {
     if (isOwnProduct) return;
@@ -120,6 +121,9 @@ export default function ProductDetail() {
       price: product.price,
       image: product.image_urls?.[0] || null,
       stylistAuthId: product.stylist_auth_id,
+      sellerId: product.seller_id,
+      sellerListingId: product.seller_listing_id,
+      sellerName: product.seller_name,
     });
     Alert.alert('Added to Cart', `${product.name} was added to your cart.`, [
       { text: 'Keep Shopping', style: 'cancel' },
@@ -271,13 +275,16 @@ export default function ProductDetail() {
         )}
         <Text style={[styles.name, { color: colors.text }]}>{product.name}</Text>
         <Text style={[styles.price, { color: Colors.primary }]}>{formatCurrency(product.price)}</Text>
+        <Text style={[styles.seller, { color: colors.textSecondary }]}>
+          Sold by {product.seller_name || (product.seller_type ? product.seller_type.replace('_', ' ') : 'iStylist Provider')}
+        </Text>
         {isOwnProduct ? (
           <View style={[styles.infoBanner, { backgroundColor: `${Colors.info}15` }]}>
             <Ionicons name="information-circle-outline" size={18} color={Colors.info} />
             <Text style={[styles.infoBannerText, { color: colors.text }]}>Providers cannot book their own services or purchase their own products.</Text>
           </View>
         ) : null}
-        <Text style={[styles.stock, { color: colors.textSecondary }]}>{product.stock > 0 ? `${product.stock} in stock` : 'Out of stock'}</Text>
+        <Text style={[styles.stock, { color: colors.textSecondary }]}>{product.stock > 0 && product.listing_status !== 'out_of_stock' ? `${product.stock} in stock` : 'Out of stock'}</Text>
         {(product.main_category || product.category) ? (
           <View style={[styles.metaBox, { backgroundColor: colors.surface }]}>
             <Text style={[styles.metaLabel, { color: Colors.primary }]}>Category</Text>
@@ -368,9 +375,9 @@ export default function ProductDetail() {
       </ScrollView>
       <View style={[styles.footer, { borderTopColor: colors.border }]}>
         <Button
-          title={isProvider ? 'Manage Products' : isOwnProduct ? 'Unavailable' : product.stock > 0 ? 'Add to Cart' : 'Out of Stock'}
+          title={isProvider ? 'Manage Products' : isOwnProduct ? 'Unavailable' : product.stock > 0 && product.listing_status !== 'out_of_stock' ? 'Add to Cart' : 'Out of Stock'}
           onPress={handleAddToCart}
-          disabled={isOwnProduct || (!isProvider && product.stock <= 0)}
+          disabled={isOwnProduct || (!isProvider && (product.stock <= 0 || product.listing_status === 'out_of_stock'))}
           fullWidth
           size="large"
         />
@@ -425,6 +432,7 @@ const styles = StyleSheet.create({
   imagePlaceholder: { justifyContent: 'center', alignItems: 'center' },
   name: { fontSize: FontSizes.xl, fontWeight: '800' },
   price: { fontSize: FontSizes.lg, fontWeight: '700', marginTop: Spacing.xs },
+  seller: { fontSize: FontSizes.sm, marginTop: Spacing.xs },
   infoBanner: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, padding: Spacing.sm, borderRadius: BorderRadius.md, marginTop: Spacing.md },
   infoBannerText: { flex: 1, fontSize: FontSizes.sm, lineHeight: 19 },
   stock: { fontSize: FontSizes.sm, marginTop: Spacing.xs, marginBottom: Spacing.md },

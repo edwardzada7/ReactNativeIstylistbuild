@@ -3,6 +3,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export interface CartLine {
   productId: number;
+  sellerId?: number;
+  sellerListingId?: number;
+  sellerName?: string | null;
   name: string;
   price: number;
   image: string | null;
@@ -10,14 +13,17 @@ export interface CartLine {
   stylistAuthId: string;
 }
 
+export const getCartLineKey = (line: Pick<CartLine, 'productId' | 'sellerId' | 'sellerListingId'>) =>
+  `${line.productId}:${line.sellerListingId ?? line.sellerId ?? 'legacy'}`;
+
 interface CartState {
   lines: CartLine[];
   userRole: string | null;
   storageKey: string | null;
   setSession: (userId: string | null, userRole: string | null) => Promise<void>;
   addItem: (line: Omit<CartLine, 'quantity'>, qty?: number) => void;
-  removeItem: (productId: number) => void;
-  setQuantity: (productId: number, quantity: number) => void;
+  removeItem: (lineKey: string | number) => void;
+  setQuantity: (lineKey: string | number, quantity: number) => void;
   clearCart: () => void;
   clear: () => void;
   total: () => number;
@@ -45,25 +51,25 @@ export const useCartStore = create<CartState>((set, get) => ({
   addItem: (line, qty = 1) =>
     set((state) => {
       if (state.userRole === 'provider') return state;
-      const existing = state.lines.find((l) => l.productId === line.productId);
+      const existing = state.lines.find((l) => getCartLineKey(l) === getCartLineKey(line));
       const lines = existing
         ? state.lines.map((l) =>
-            l.productId === line.productId ? { ...l, quantity: l.quantity + qty } : l
+            getCartLineKey(l) === getCartLineKey(line) ? { ...l, quantity: l.quantity + qty } : l
           )
         : [...state.lines, { ...line, quantity: qty }];
       if (state.storageKey) void AsyncStorage.setItem(state.storageKey, JSON.stringify(lines));
       return { lines };
     }),
-  removeItem: (productId) => set((state) => {
-    const lines = state.lines.filter((l) => l.productId !== productId);
+  removeItem: (lineKey) => set((state) => {
+    const lines = state.lines.filter((l) => typeof lineKey === 'number' ? l.productId !== lineKey : getCartLineKey(l) !== lineKey);
     if (state.storageKey) void AsyncStorage.setItem(state.storageKey, JSON.stringify(lines));
     return { lines };
   }),
-  setQuantity: (productId, quantity) =>
+  setQuantity: (lineKey, quantity) =>
     set((state) => {
       const lines = quantity <= 0
-        ? state.lines.filter((l) => l.productId !== productId)
-        : state.lines.map((l) => (l.productId === productId ? { ...l, quantity } : l));
+        ? state.lines.filter((l) => typeof lineKey === 'number' ? l.productId !== lineKey : getCartLineKey(l) !== lineKey)
+        : state.lines.map((l) => (typeof lineKey === 'number' ? l.productId === lineKey : getCartLineKey(l) === lineKey) ? { ...l, quantity } : l);
       if (state.storageKey) void AsyncStorage.setItem(state.storageKey, JSON.stringify(lines));
       return { lines };
     }),

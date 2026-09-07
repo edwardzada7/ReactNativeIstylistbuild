@@ -239,7 +239,7 @@ export function SharedShopScreen({ showManageButton = false }: SharedShopScreenP
           </View>
           <FlatList
             data={filtered}
-            keyExtractor={(item) => String(item.id)}
+            keyExtractor={(item) => `${item.id}:${item.seller_listing_id ?? 'legacy'}`}
             numColumns={2}
             contentContainerStyle={styles.grid}
             columnWrapperStyle={{ gap: Spacing.sm }}
@@ -247,7 +247,7 @@ export function SharedShopScreen({ showManageButton = false }: SharedShopScreenP
             renderItem={({ item }) => (
               <View style={[styles.card, { backgroundColor: colors.surface }]}>
                 <TouchableOpacity
-                  onPress={() => router.push(`/shop/${item.id}`)}
+                  onPress={() => router.push({ pathname: `/shop/${item.id}`, params: item.seller_listing_id ? { listingId: String(item.seller_listing_id) } : undefined })}
                   accessibilityRole="button"
                   accessibilityLabel={item.name}
                 >
@@ -261,7 +261,7 @@ export function SharedShopScreen({ showManageButton = false }: SharedShopScreenP
                 <Text style={[styles.cardName, { color: colors.text }]} numberOfLines={1}>{item.name}</Text>
                 <Text style={[styles.cardPrice, { color: colors.primary }]}>{formatCurrency(item.price)}</Text>
                 <Text style={[styles.cardProvider, { color: colors.textSecondary }]} numberOfLines={1}>
-                  {providerNames[item.stylist_auth_id] || 'iStylist Provider'}
+                  {item.seller_name || (item.seller_type ? item.seller_type.replace('_', ' ') : providerNames[item.stylist_auth_id] || 'iStylist Provider')}
                 </Text>
                 {item.main_category || item.category ? (
                   <Text style={[styles.cardMeta, { color: colors.textSecondary }]} numberOfLines={1}>
@@ -277,6 +277,9 @@ export function SharedShopScreen({ showManageButton = false }: SharedShopScreenP
                     price: item.price,
                     image: item.image_urls?.[0] || null,
                     stylistAuthId: item.stylist_auth_id,
+                    sellerId: item.seller_id,
+                    sellerListingId: item.seller_listing_id,
+                    sellerName: item.seller_name,
                   })}
                   accessibilityRole="button"
                   accessibilityLabel={`Add ${item.name} to cart`}

@@ -109,7 +109,11 @@ const profileDisplayName = (profile: any): string | undefined => {
  */
 export const chatService = {
   async createInquiry(providerAuthId: string, product?: { id: number; name?: string }): Promise<{ id: number }> {
-    const response = await apiService.post<{ id?: number; conversation_id?: number }>('/conversations/inquiry', {
+    const response = await apiService.post<{
+      id?: number;
+      conversation_id?: number;
+      conversation?: { id?: number };
+    }>('/conversations/inquiry', {
       provider_auth_id: providerAuthId,
       product_id: product?.id,
       product_name: product?.name,
@@ -118,7 +122,7 @@ export const chatService = {
     if (!Number.isInteger(id)) {
       throw new Error('Inquiry conversation was not created.');
     }
-    return { id };
+    return { id: Number(id) };
   },
 
   async createConsultation(data: { provider_auth_id: string; specialty: string; fee: number; currency: string }) {

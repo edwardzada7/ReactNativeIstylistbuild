@@ -8,7 +8,7 @@ import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/th
 import { Button } from '../../src/components/common';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { shopService } from '../../src/services/shop.service';
-import { useCartStore } from '../../src/store/cartStore';
+import { getCartLineKey, useCartStore } from '../../src/store/cartStore';
 import { formatCurrency } from '../../src/utils/currency';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { chatService } from '../../src/services/chat.service';
@@ -298,7 +298,7 @@ export default function Cart() {
         <>
           <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
             {lines.map((line) => (
-              <View key={line.productId} style={[styles.line, { backgroundColor: colors.surface }]}>
+              <View key={getCartLineKey(line)} style={[styles.line, { backgroundColor: colors.surface }]}>
                 {line.image ? (
                   <Image source={{ uri: line.image }} style={styles.lineImage} />
                 ) : (
@@ -309,17 +309,18 @@ export default function Cart() {
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.lineName, { color: colors.text }]} numberOfLines={1}>{line.name}</Text>
                   <Text style={[styles.linePrice, { color: colors.primary }]}>{formatCurrency(line.price)}</Text>
+                  {line.sellerName ? <Text style={[styles.lineSeller, { color: colors.textSecondary }]} numberOfLines={1}>{line.sellerName}</Text> : null}
                 </View>
                 <View style={styles.qtyRow}>
-                  <TouchableOpacity style={[styles.qtyBtn, { backgroundColor: colors.background }]} onPress={() => setQuantity(line.productId, line.quantity - 1)} accessibilityLabel="Decrease quantity">
+                  <TouchableOpacity style={[styles.qtyBtn, { backgroundColor: colors.background }]} onPress={() => setQuantity(getCartLineKey(line), line.quantity - 1)} accessibilityLabel="Decrease quantity">
                     <Ionicons name="remove" size={16} color={colors.text} />
                   </TouchableOpacity>
                   <Text style={[styles.qtyText, { color: colors.text }]}>{line.quantity}</Text>
-                  <TouchableOpacity style={[styles.qtyBtn, { backgroundColor: colors.background }]} onPress={() => setQuantity(line.productId, line.quantity + 1)} accessibilityLabel="Increase quantity">
+                  <TouchableOpacity style={[styles.qtyBtn, { backgroundColor: colors.background }]} onPress={() => setQuantity(getCartLineKey(line), line.quantity + 1)} accessibilityLabel="Increase quantity">
                     <Ionicons name="add" size={16} color={colors.text} />
                   </TouchableOpacity>
                 </View>
-                <TouchableOpacity onPress={() => removeItem(line.productId)} accessibilityLabel="Remove item">
+                <TouchableOpacity onPress={() => removeItem(getCartLineKey(line))} accessibilityLabel="Remove item">
                   <Ionicons name="trash-outline" size={18} color={colors.error} />
                 </TouchableOpacity>
               </View>
@@ -387,6 +388,7 @@ const styles = StyleSheet.create({
   lineImagePlaceholder: { justifyContent: 'center', alignItems: 'center' },
   lineName: { fontSize: FontSizes.sm, fontWeight: '600' },
   linePrice: { fontSize: FontSizes.xs, fontWeight: '700', marginTop: 2 },
+  lineSeller: { fontSize: FontSizes.xs, marginTop: 2 },
   qtyRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   qtyBtn: { width: 26, height: 26, borderRadius: 13, justifyContent: 'center', alignItems: 'center' },
   qtyText: { fontSize: FontSizes.sm, fontWeight: '600', minWidth: 18, textAlign: 'center' },
