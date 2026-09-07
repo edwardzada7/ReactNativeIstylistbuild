@@ -83,6 +83,7 @@ export default function ProviderTabsLayout() {
       <Tabs.Screen name="services" options={{ href: null }} />
       <Tabs.Screen name="staff" options={{ href: null }} />
       <Tabs.Screen name="withdraw" options={{ href: null }} />
+      <Tabs.Screen name="referral-earnings" options={{ href: null }} />
     </Tabs>
   );
 }

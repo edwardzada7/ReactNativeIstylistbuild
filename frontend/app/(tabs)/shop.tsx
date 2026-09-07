@@ -247,7 +247,7 @@ export function SharedShopScreen({ showManageButton = false }: SharedShopScreenP
             renderItem={({ item }) => (
               <View style={[styles.card, { backgroundColor: colors.surface }]}>
                 <TouchableOpacity
-                  onPress={() => router.push({ pathname: `/shop/${item.id}`, params: item.seller_listing_id ? { listingId: String(item.seller_listing_id) } : undefined })}
+                  onPress={() => router.push({ pathname: "/shop/[id]", params: { id: String(item.id), ...(item.seller_listing_id ? { listingId: String(item.seller_listing_id) } : {}) } })}
                   accessibilityRole="button"
                   accessibilityLabel={item.name}
                 >

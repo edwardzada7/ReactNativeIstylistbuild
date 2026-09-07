@@ -318,6 +318,7 @@ export default function ProviderProfile() {
       label: 'Wallet',
       onPress: () => router.push('/(provider)/wallet'),
     },
+    { icon: 'trending-up-outline', label: 'Referral Earnings', onPress: () => router.push('/(provider)/referral-earnings' as any) },
     { icon: 'shield-checkmark-outline', label: 'KYC Verification', onPress: () => router.push('/(provider)/kyc') },
     { icon: 'ribbon-outline', label: 'Verify Your Certificate', onPress: () => router.push('/(provider)/certificate' as any) },
     { icon: 'settings-outline', label: 'Settings', onPress: () => router.push('/settings') },

@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 import uuid
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from utils.message_sanitizer import MessageType, sanitizeMessagePayload
 
 
@@ -118,6 +118,7 @@ def _supabase_headers():
 class OrderItemInput(BaseModel):
     product_id: int
     quantity: int = Field(gt=0)
+    listing_id: Optional[int] = Field(default=None, gt=0)
 
 
 class PaystackCartItemInput(BaseModel):
@@ -209,6 +210,20 @@ class PaystackShopInitializeInput(BaseModel):
     reference: Optional[str] = None
     ref: Optional[str] = None
     metadata: Optional[dict] = None
+
+
+class ProviderPurchaseInitializeInput(BaseModel):
+    listing_id: int = Field(gt=0)
+    quantity: int = Field(gt=0)
+    email: str
+    currency: str = 'NGN'
+    redirect_url: Optional[str] = None
+
+
+class ProviderInventoryListingInput(BaseModel):
+    inventory_id: int = Field(gt=0)
+    quantity: int = Field(gt=0)
+    price: Optional[float] = Field(default=None, gt=0)
 
 
 @api_router.post("/bookings")
@@ -449,14 +464,30 @@ def _validate_shop_checkout_items(items: List[OrderItemInput], amount: Optional[
         raise HTTPException(status_code=502, detail="Could not verify products")
     products = {p["id"]: p for p in resp.json()}
 
+    listing_ids = sorted({item.listing_id for item in items if item.listing_id})
+    listings = {}
+    if listing_ids:
+        listing_resp = requests.get(
+            f"{SUPABASE_URL}/rest/v1/product_listings?id=in.({','.join(str(value) for value in listing_ids)})&select=id,product_id,price,stock,status,seller_id",
+            headers=_supabase_headers(),
+            timeout=10,
+        )
+        if listing_resp.status_code != 200:
+            raise HTTPException(status_code=502, detail="Could not verify seller listings")
+        listings = {listing["id"]: listing for listing in listing_resp.json()}
+
     subtotal = 0.0
     for item in items:
         product = products.get(item.product_id)
         if not product:
             raise HTTPException(status_code=404, detail=f"Product {item.product_id} not found")
-        if product.get("stock", 0) < item.quantity:
+        listing = listings.get(item.listing_id) if item.listing_id else None
+        if item.listing_id and (not listing or listing.get("product_id") != item.product_id or listing.get("status") != "active"):
+            raise HTTPException(status_code=400, detail="Seller listing is not available")
+        available_stock = listing.get("stock", 0) if listing else product.get("stock", 0)
+        if available_stock < item.quantity:
             raise HTTPException(status_code=400, detail=f"Not enough stock for {product['name']}")
-        subtotal += float(product["price"]) * item.quantity
+        subtotal += float(listing["price"] if listing else product["price"]) * item.quantity
 
     total = round(subtotal + float(delivery_fee or 0.0), 2)
     if amount is not None and round(float(amount), 2) != total:
@@ -465,6 +496,7 @@ def _validate_shop_checkout_items(items: List[OrderItemInput], amount: Optional[
     provider_auth_id = next((p.get("stylist_auth_id") for p in products.values() if p.get("stylist_auth_id")), None)
     return {
         "products": products,
+        "listings": listings,
         "subtotal": round(subtotal, 2),
         "total": total,
         "provider_auth_id": provider_auth_id,
@@ -479,7 +511,7 @@ def _delivery_address_value(payload: PaystackShopInitializeInput) -> Optional[st
     return None
 
 
-def _create_pending_shop_order(auth_id: str, reference: str, items: List[OrderItemInput], products: dict, provider_auth_id: Optional[str], customer_name: Optional[str], subtotal: float, total_amount: float, delivery_fee: float = 0.0, delivery_address: Optional[str] = None, currency: str = 'NGN'):
+def _create_pending_shop_order(auth_id: str, reference: str, items: List[OrderItemInput], products: dict, listings: dict, provider_auth_id: Optional[str], customer_name: Optional[str], subtotal: float, total_amount: float, delivery_fee: float = 0.0, delivery_address: Optional[str] = None, currency: str = 'NGN'):
     order_payload = {
         "customer_auth_id": auth_id,
         "status": "pending",
@@ -513,7 +545,8 @@ def _create_pending_shop_order(auth_id: str, reference: str, items: List[OrderIt
             "order_id": order["id"],
             "product_id": item.product_id,
             "quantity": item.quantity,
-            "price": products[item.product_id]["price"],
+            "price": listings[item.listing_id]["price"] if item.listing_id else products[item.product_id]["price"],
+            **({"listing_id": item.listing_id} if item.listing_id is not None else {}),
         }
         for item in items
     ]
@@ -528,7 +561,282 @@ def _create_pending_shop_order(auth_id: str, reference: str, items: List[OrderIt
     return order
 
 
-def _finalize_verified_shop_order(order_id: int, auth_id: str, items: List[OrderItemInput], products: dict, provider_auth_id: Optional[str], customer_name: Optional[str], subtotal: float, total_amount: float, delivery_fee: float = 0.0, delivery_address: Optional[str] = None, currency: Optional[str] = None):
+def _create_shop_commissions_for_order(order_id: int, order_currency: Optional[str] = None):
+    """Create the post-payment Shop commission ledger entries once per item."""
+    try:
+        settings_resp = requests.get(
+            f"{SUPABASE_URL}/rest/v1/shop_commission_settings?is_active=eq.true&select=id,commission_rate,currency",
+            headers=_supabase_headers(),
+            timeout=10,
+        )
+        if settings_resp.status_code != 200:
+            logger.error("Shop commission configuration could not be loaded for order %s: status=%s", order_id, settings_resp.status_code)
+            return
+        settings = settings_resp.json() or []
+        if len(settings) != 1:
+            logger.error("Shop commission configuration must have exactly one active row; found %s for order %s", len(settings), order_id)
+            return
+        setting = settings[0]
+        try:
+            commission_rate = float(setting["commission_rate"])
+        except (KeyError, TypeError, ValueError):
+            logger.error("Shop commission configuration has an invalid rate for order %s", order_id)
+            return
+        if not 0 <= commission_rate <= 100:
+            logger.error("Shop commission configuration rate is outside 0-100 for order %s", order_id)
+            return
+
+        items_resp = requests.get(
+            f"{SUPABASE_URL}/rest/v1/order_items?order_id=eq.{order_id}&select=id,product_id,listing_id,price,quantity",
+            headers=_supabase_headers(),
+            timeout=10,
+        )
+        if items_resp.status_code != 200:
+            logger.error("Could not load order items for Shop commission order %s: status=%s", order_id, items_resp.status_code)
+            return
+
+        for item in items_resp.json() or []:
+            listing_id = item.get("listing_id")
+            if not listing_id:
+                continue
+
+            product_resp = requests.get(
+                f"{SUPABASE_URL}/rest/v1/products?id=eq.{item['product_id']}&select=id,approved",
+                headers=_supabase_headers(),
+                timeout=10,
+            )
+            if product_resp.status_code != 200 or not product_resp.json() or product_resp.json()[0].get("approved") is not True:
+                continue
+
+            listing_resp = requests.get(
+                f"{SUPABASE_URL}/rest/v1/product_listings?id=eq.{listing_id}&select=id,product_id,seller_id",
+                headers=_supabase_headers(),
+                timeout=10,
+            )
+            listing = listing_resp.json()[0] if listing_resp.status_code == 200 and listing_resp.json() else None
+            if not listing or listing.get("product_id") != item.get("product_id"):
+                continue
+
+            seller_resp = requests.get(
+                f"{SUPABASE_URL}/rest/v1/shop_sellers?id=eq.{listing['seller_id']}&select=id,seller_type,provider_auth_id,is_active,status",
+                headers=_supabase_headers(),
+                timeout=10,
+            )
+            seller = seller_resp.json()[0] if seller_resp.status_code == 200 and seller_resp.json() else None
+            provider_auth_id = seller.get("provider_auth_id") if seller else None
+            if (
+                not seller
+                or str(seller.get("seller_type", "")).lower() != "provider"
+                or not provider_auth_id
+                or seller.get("is_active") is False
+                or str(seller.get("status", "")).lower() in {"inactive", "suspended"}
+            ):
+                continue
+
+            inventory_listing_resp = requests.get(
+                f"{SUPABASE_URL}/rest/v1/provider_inventory_listings?product_listing_id=eq.{listing_id}&select=provider_inventory_id",
+                headers=_supabase_headers(),
+                timeout=10,
+            )
+            if inventory_listing_resp.status_code != 200:
+                logger.error("Could not resolve provider-owned inventory for listing %s in order %s", listing_id, order_id)
+                continue
+            inventory_ids = [row.get("provider_inventory_id") for row in inventory_listing_resp.json() or [] if row.get("provider_inventory_id")]
+            if inventory_ids:
+                inventory_resp = requests.get(
+                    f"{SUPABASE_URL}/rest/v1/provider_inventory?id=in.({','.join(str(value) for value in inventory_ids)})&provider_auth_id=eq.{provider_auth_id}&select=id",
+                    headers=_supabase_headers(),
+                    timeout=10,
+                )
+                if inventory_resp.status_code != 200:
+                    logger.error("Could not verify provider-owned inventory for listing %s in order %s", listing_id, order_id)
+                    continue
+                if inventory_resp.json():
+                    continue
+
+            existing_resp = requests.get(
+                f"{SUPABASE_URL}/rest/v1/provider_shop_commissions?order_item_id=eq.{item['id']}&select=id",
+                headers=_supabase_headers(),
+                timeout=10,
+            )
+            if existing_resp.status_code != 200:
+                logger.error("Could not check Shop commission idempotency for order item %s", item["id"])
+                continue
+            if existing_resp.json():
+                continue
+
+            sale_amount = round(float(item.get("price") or 0) * int(item.get("quantity") or 0), 2)
+            commission_amount = round(sale_amount * commission_rate / 100, 2)
+            commission_payload = {
+                "provider_auth_id": provider_auth_id,
+                "order_id": order_id,
+                "order_item_id": item["id"],
+                "product_id": item["product_id"],
+                "listing_id": listing_id,
+                "sale_amount": sale_amount,
+                "commission_rate": commission_rate,
+                "commission_amount": commission_amount,
+                "currency": (order_currency or setting.get("currency") or "NGN").upper(),
+                "status": "pending",
+            }
+            commission_resp = requests.post(
+                f"{SUPABASE_URL}/rest/v1/provider_shop_commissions",
+                headers=_supabase_headers(),
+                json=commission_payload,
+                timeout=10,
+            )
+            if commission_resp.status_code not in (200, 201):
+                if commission_resp.status_code == 409:
+                    logger.info("Shop commission already exists for order item %s", item["id"])
+                else:
+                    logger.error("Could not create Shop commission for order item %s: status=%s", item["id"], commission_resp.status_code)
+    except Exception:
+        logger.exception("Unexpected Shop commission processing failure for order %s", order_id)
+
+
+PROVIDER_SHOP_REFERRAL = "provider_shop"
+
+
+def _create_provider_shop_referrals_for_order(order_id: int, order_currency: Optional[str] = None):
+    """Create provider referral ledger rows for eligible, non-owned listings."""
+    try:
+        settings_resp = requests.get(
+            f"{SUPABASE_URL}/rest/v1/platform_referral_settings?is_active=eq.true&select=*",
+            headers=_supabase_headers(),
+            timeout=10,
+        )
+        if settings_resp.status_code != 200:
+            logger.error("Provider referral settings could not be loaded for order %s: status=%s", order_id, settings_resp.status_code)
+            return
+        setting = next(
+            (
+                row for row in settings_resp.json() or []
+                if str(row.get("referral_type", "")).lower() in {PROVIDER_SHOP_REFERRAL, "provider_shop_referral"}
+            ),
+            None,
+        )
+        if not setting:
+            return
+        reward_type = str(setting.get("reward_type", "")).lower()
+        try:
+            reward_value = float(setting["reward_value"])
+            pending_days = int(setting.get("pending_days") or 0)
+        except (KeyError, TypeError, ValueError):
+            logger.error("Provider referral settings are invalid for order %s", order_id)
+            return
+        if reward_type not in {"percentage", "fixed"} or reward_value < 0 or pending_days < 0:
+            logger.error("Provider referral settings are invalid for order %s", order_id)
+            return
+
+        items_resp = requests.get(
+            f"{SUPABASE_URL}/rest/v1/order_items?order_id=eq.{order_id}&select=id,product_id,listing_id,price,quantity",
+            headers=_supabase_headers(),
+            timeout=10,
+        )
+        if items_resp.status_code != 200:
+            logger.error("Could not load referral order items for order %s: status=%s", order_id, items_resp.status_code)
+            return
+
+        for item in items_resp.json() or []:
+            listing_id = item.get("listing_id")
+            if not listing_id:
+                continue
+
+            listing_resp = requests.get(
+                f"{SUPABASE_URL}/rest/v1/product_listings?id=eq.{listing_id}&select=id,product_id,seller_id,status",
+                headers=_supabase_headers(),
+                timeout=10,
+            )
+            listing = listing_resp.json()[0] if listing_resp.status_code == 200 and listing_resp.json() else None
+            if not listing or listing.get("product_id") != item.get("product_id"):
+                continue
+
+            seller_resp = requests.get(
+                f"{SUPABASE_URL}/rest/v1/shop_sellers?id=eq.{listing['seller_id']}&select=id,seller_type,provider_auth_id,is_active,status",
+                headers=_supabase_headers(),
+                timeout=10,
+            )
+            seller = seller_resp.json()[0] if seller_resp.status_code == 200 and seller_resp.json() else None
+            provider_auth_id = seller.get("provider_auth_id") if seller else None
+            if (
+                not seller
+                or str(seller.get("seller_type", "")).lower() != "provider"
+                or not provider_auth_id
+                or seller.get("is_active") is False
+                or str(seller.get("status", "")).lower() in {"inactive", "suspended"}
+            ):
+                continue
+
+            # A provider-owned resale listing is linked to purchased inventory.
+            inventory_listing_resp = requests.get(
+                f"{SUPABASE_URL}/rest/v1/provider_inventory_listings?product_listing_id=eq.{listing_id}&select=provider_inventory_id",
+                headers=_supabase_headers(),
+                timeout=10,
+            )
+            if inventory_listing_resp.status_code != 200:
+                logger.error("Could not verify referral ownership for listing %s", listing_id)
+                continue
+            inventory_ids = [row.get("provider_inventory_id") for row in inventory_listing_resp.json() or [] if row.get("provider_inventory_id")]
+            if inventory_ids:
+                inventory_resp = requests.get(
+                    f"{SUPABASE_URL}/rest/v1/provider_inventory?id=in.({','.join(str(value) for value in inventory_ids)})&provider_auth_id=eq.{provider_auth_id}&select=id",
+                    headers=_supabase_headers(),
+                    timeout=10,
+                )
+                if inventory_resp.status_code != 200:
+                    logger.error("Could not verify provider-owned inventory for listing %s", listing_id)
+                    continue
+                if inventory_resp.json():
+                    continue
+
+            existing_resp = requests.get(
+                f"{SUPABASE_URL}/rest/v1/platform_referral_earnings?order_item_id=eq.{item['id']}&recipient_auth_id=eq.{provider_auth_id}&referral_type=eq.{PROVIDER_SHOP_REFERRAL}&select=id",
+                headers=_supabase_headers(),
+                timeout=10,
+            )
+            if existing_resp.status_code != 200:
+                logger.error("Could not check referral idempotency for order item %s", item["id"])
+                continue
+            if existing_resp.json():
+                continue
+
+            sale_amount = round(float(item.get("price") or 0) * int(item.get("quantity") or 0), 2)
+            earning_amount = round(
+                sale_amount * reward_value / 100 if reward_type == "percentage" else reward_value,
+                2,
+            )
+            available_at = datetime.utcnow() + timedelta(days=pending_days)
+            referral_payload = {
+                "referral_type": PROVIDER_SHOP_REFERRAL,
+                "recipient_auth_id": provider_auth_id,
+                "order_id": order_id,
+                "order_item_id": item["id"],
+                "product_id": item["product_id"],
+                "listing_id": listing_id,
+                "sale_amount": sale_amount,
+                "reward_type": reward_type,
+                "reward_value": reward_value,
+                "earning_amount": earning_amount,
+                "currency": (order_currency or setting.get("currency") or "NGN").upper(),
+                "status": "pending" if pending_days > 0 else "available",
+                "available_at": available_at.isoformat(),
+            }
+            earning_resp = requests.post(
+                f"{SUPABASE_URL}/rest/v1/platform_referral_earnings",
+                headers=_supabase_headers(),
+                json=referral_payload,
+                timeout=10,
+            )
+            if earning_resp.status_code not in (200, 201):
+                if earning_resp.status_code == 409:
+                    logger.info("Provider referral already exists for order item %s", item["id"])
+                else:
+                    logger.error("Could not create provider referral for order item %s: status=%s", item["id"], earning_resp.status_code)
+    except Exception:
+        logger.exception("Unexpected provider referral processing failure for order %s", order_id)
+
+
+def _finalize_verified_shop_order(order_id: int, auth_id: str, items: List[OrderItemInput], products: dict, listings: dict, provider_auth_id: Optional[str], customer_name: Optional[str], subtotal: float, total_amount: float, delivery_fee: float = 0.0, delivery_address: Optional[str] = None, currency: Optional[str] = None):
     update_payload = {
         "payment_status": "verified",
         "status": "pending",
@@ -590,6 +898,8 @@ def _finalize_verified_shop_order(order_id: int, auth_id: str, items: List[Order
         "payment",
         notification_payload,
     )
+    _create_shop_commissions_for_order(order_id, currency)
+    _create_provider_shop_referrals_for_order(order_id, currency)
 
 
 @api_router.get("/shop/products/{product_id}/reviews")
@@ -737,6 +1047,296 @@ async def delete_product_review(product_id: int, review_id: int, authorization: 
     return {"deleted": True}
 
 
+def _provider_purchase_listing(listing_id: int, quantity: int):
+    listing_resp = requests.get(
+        f"{SUPABASE_URL}/rest/v1/product_listings?id=eq.{listing_id}&select=id,product_id,seller_id,stock,status,provider_purchase_enabled,provider_purchase_price",
+        headers=_supabase_headers(),
+        timeout=10,
+    )
+    if listing_resp.status_code != 200 or not listing_resp.json():
+        raise HTTPException(status_code=404, detail="Marketplace listing not found")
+    listing = listing_resp.json()[0]
+    seller_resp = requests.get(
+        f"{SUPABASE_URL}/rest/v1/shop_sellers?id=eq.{listing['seller_id']}&select=id,seller_type,name,display_name,business_name,is_active,status",
+        headers=_supabase_headers(),
+        timeout=10,
+    )
+    seller = seller_resp.json()[0] if seller_resp.status_code == 200 and seller_resp.json() else None
+    if not seller or str(seller.get('seller_type', '')).lower() != 'official' or seller.get('is_active') is False:
+        raise HTTPException(status_code=400, detail="This listing is not an eligible official purchase source")
+    if str(listing.get('status', '')).lower() != 'active' or int(listing.get('stock') or 0) < quantity:
+        raise HTTPException(status_code=400, detail="The requested quantity is not available")
+    if listing.get('provider_purchase_enabled') is not True:
+        raise HTTPException(status_code=400, detail="Provider purchase is not enabled for this listing")
+    if listing.get('provider_purchase_price') is None or float(listing['provider_purchase_price']) <= 0:
+        raise HTTPException(status_code=400, detail="This listing has no valid provider purchase price")
+
+    product_resp = requests.get(
+        f"{SUPABASE_URL}/rest/v1/products?id=eq.{listing['product_id']}&select=id,name,image_urls",
+        headers=_supabase_headers(),
+        timeout=10,
+    )
+    if product_resp.status_code != 200 or not product_resp.json():
+        raise HTTPException(status_code=404, detail="Product not found")
+    return listing, seller, product_resp.json()[0]
+
+
+def _provider_purchase_order(order_id: int, auth_id: str):
+    response = requests.get(
+        f"{SUPABASE_URL}/rest/v1/provider_purchase_orders?id=eq.{order_id}&provider_auth_id=eq.{auth_id}&select=*",
+        headers=_supabase_headers(),
+        timeout=10,
+    )
+    if response.status_code != 200 or not response.json():
+        raise HTTPException(status_code=404, detail="Provider purchase order not found")
+    return response.json()[0]
+
+
+@api_router.post("/payments/paystack/provider-purchase/initialize")
+def initialize_paystack_provider_purchase(payload: ProviderPurchaseInitializeInput, authorization: Optional[str] = Header(None)):
+    if not PAYSTACK_SECRET_KEY:
+        raise HTTPException(status_code=500, detail="Paystack is not configured")
+    auth_id = _verify_supabase_user(authorization)
+    listing, seller, product = _provider_purchase_listing(payload.listing_id, payload.quantity)
+    unit_price = round(float(listing['provider_purchase_price']), 2)
+    total = round(unit_price * payload.quantity, 2)
+    reference = f"provider_purchase_{uuid.uuid4().hex[:16]}"
+
+    order_resp = requests.post(
+        f"{SUPABASE_URL}/rest/v1/provider_purchase_orders",
+        headers=_supabase_headers(),
+        json={
+            "provider_auth_id": auth_id,
+            "status": "pending",
+            "payment_status": "pending",
+            "payment_reference": reference,
+            "currency": payload.currency.upper(),
+            "subtotal": total,
+            "total_amount": total,
+        },
+        timeout=10,
+    )
+    if order_resp.status_code not in (200, 201) or not order_resp.json():
+        raise HTTPException(status_code=502, detail="Could not create provider purchase order")
+    order = order_resp.json()[0]
+    item_resp = requests.post(
+        f"{SUPABASE_URL}/rest/v1/provider_purchase_order_items",
+        headers=_supabase_headers(),
+        json={
+            "purchase_order_id": order['id'],
+            "product_id": listing['product_id'],
+            "listing_id": listing['id'],
+            "quantity": payload.quantity,
+            "unit_price": unit_price,
+            "total_price": total,
+        },
+        timeout=10,
+    )
+    if item_resp.status_code not in (200, 201):
+        raise HTTPException(status_code=502, detail="Could not create provider purchase item")
+
+    paystack_resp = requests.post(
+        f"{PAYSTACK_BASE_URL}/transaction/initialize",
+        headers=_paystack_headers(),
+        json={
+            "email": payload.email,
+            "amount": int(round(total * 100)),
+            "reference": reference,
+            "currency": payload.currency.upper(),
+            "callback_url": payload.redirect_url,
+            "metadata": {"purpose": "provider_purchase", "provider_purchase_order_id": order['id'], "listing_id": listing['id']},
+        },
+        timeout=20,
+    )
+    if paystack_resp.status_code != 200 or not paystack_resp.json().get('status'):
+        requests.patch(
+            f"{SUPABASE_URL}/rest/v1/provider_purchase_orders?id=eq.{order['id']}",
+            headers=_supabase_headers(),
+            json={"status": "failed", "payment_status": "failed"},
+            timeout=10,
+        )
+        raise HTTPException(status_code=502, detail="Paystack initialization failed")
+    transaction = paystack_resp.json().get('data', {})
+    return {
+        "status": True,
+        "authorization_url": transaction.get('authorization_url'),
+        "reference": transaction.get('reference', reference),
+        "order_id": order['id'],
+        "product": product,
+        "source_seller": seller.get('display_name') or seller.get('business_name') or seller.get('name') or 'iStylist Official',
+        "unit_price": unit_price,
+        "quantity": payload.quantity,
+        "total": total,
+    }
+
+
+@api_router.get("/payments/paystack/provider-purchase/verify")
+def verify_paystack_provider_purchase(reference: str, authorization: Optional[str] = Header(None)):
+    if not PAYSTACK_SECRET_KEY:
+        raise HTTPException(status_code=500, detail="Paystack is not configured")
+    auth_id = _verify_supabase_user(authorization)
+    order_resp = requests.get(
+        f"{SUPABASE_URL}/rest/v1/provider_purchase_orders?payment_reference=eq.{reference}&provider_auth_id=eq.{auth_id}&select=*",
+        headers=_supabase_headers(),
+        timeout=10,
+    )
+    if order_resp.status_code != 200 or not order_resp.json():
+        raise HTTPException(status_code=404, detail="Provider purchase order not found")
+    order = order_resp.json()[0]
+    if order.get('payment_status') == 'verified':
+        return {"status": "success", "order": order}
+
+    verify_resp = requests.get(f"{PAYSTACK_BASE_URL}/transaction/verify/{reference}", headers=_paystack_headers(), timeout=20)
+    if verify_resp.status_code != 200 or not verify_resp.json().get('status'):
+        raise HTTPException(status_code=502, detail="Could not verify Paystack payment")
+    transaction = verify_resp.json().get('data', {})
+    if transaction.get('status') != 'success':
+        requests.patch(
+            f"{SUPABASE_URL}/rest/v1/provider_purchase_orders?id=eq.{order['id']}",
+            headers=_supabase_headers(),
+            json={"status": "failed", "payment_status": "failed"},
+            timeout=10,
+        )
+        return {"status": "failed", "message": "Payment was not completed successfully"}
+    if transaction.get('reference') != reference or int(transaction.get('amount') or 0) != int(round(float(order['total_amount']) * 100)):
+        raise HTTPException(status_code=400, detail="Payment amount or reference mismatch")
+
+    item_resp = requests.get(
+        f"{SUPABASE_URL}/rest/v1/provider_purchase_order_items?purchase_order_id=eq.{order['id']}&select=*",
+        headers=_supabase_headers(),
+        timeout=10,
+    )
+    if item_resp.status_code != 200 or not item_resp.json():
+        raise HTTPException(status_code=502, detail="Provider purchase item not found")
+    item = item_resp.json()[0]
+    listing, _, _ = _provider_purchase_listing(item['listing_id'], item['quantity'])
+    stock_update = requests.patch(
+        f"{SUPABASE_URL}/rest/v1/product_listings?id=eq.{listing['id']}&stock=gte.{item['quantity']}",
+        headers=_supabase_headers(),
+        json={"stock": int(listing['stock']) - item['quantity']},
+        timeout=10,
+    )
+    if stock_update.status_code not in (200, 201) or not stock_update.json():
+        raise HTTPException(status_code=409, detail="Source listing stock changed; purchase needs review")
+
+    existing_inventory = requests.get(
+        f"{SUPABASE_URL}/rest/v1/provider_inventory?purchase_order_item_id=eq.{item['id']}&provider_auth_id=eq.{auth_id}&select=*",
+        headers=_supabase_headers(),
+        timeout=10,
+    )
+    if existing_inventory.status_code != 200 or not existing_inventory.json():
+        inventory_resp = requests.post(
+            f"{SUPABASE_URL}/rest/v1/provider_inventory",
+            headers=_supabase_headers(),
+            json={
+                "provider_auth_id": auth_id,
+                "product_id": item['product_id'],
+                "source_listing_id": item['listing_id'],
+                "quantity": item['quantity'],
+                "reserved_quantity": 0,
+                "purchase_order_item_id": item['id'],
+            },
+            timeout=10,
+        )
+        if inventory_resp.status_code not in (200, 201):
+            raise HTTPException(status_code=502, detail="Could not create provider inventory")
+
+    paid_resp = requests.patch(
+        f"{SUPABASE_URL}/rest/v1/provider_purchase_orders?id=eq.{order['id']}",
+        headers=_supabase_headers(),
+        json={"status": "completed", "payment_status": "verified"},
+        timeout=10,
+    )
+    if paid_resp.status_code not in (200, 201):
+        raise HTTPException(status_code=502, detail="Could not finalize provider purchase")
+    return {"status": "success", "order_id": order['id'], "inventory_created": True}
+
+
+@api_router.get("/provider/inventory")
+def get_provider_inventory(authorization: Optional[str] = Header(None)):
+    auth_id = _verify_supabase_user(authorization)
+    response = requests.get(
+        f"{SUPABASE_URL}/rest/v1/provider_inventory?provider_auth_id=eq.{auth_id}&select=*,products(name,image_urls)&order=created_at.desc",
+        headers=_supabase_headers(),
+        timeout=10,
+    )
+    if response.status_code != 200:
+        raise HTTPException(status_code=502, detail="Could not load provider inventory")
+    return response.json() or []
+
+
+@api_router.get("/provider/referral-earnings")
+def get_provider_referral_earnings(authorization: Optional[str] = Header(None)):
+    """Read-only provider view of actual platform referral ledger rows."""
+    auth_id = _verify_supabase_user(authorization)
+    response = requests.get(
+        f"{SUPABASE_URL}/rest/v1/platform_referral_earnings?recipient_auth_id=eq.{auth_id}&select=id,referral_type,product_id,order_id,order_item_id,sale_amount,earning_amount,reward_type,reward_value,status,available_at,created_at,currency&order=created_at.desc",
+        headers=_supabase_headers(),
+        timeout=10,
+    )
+    if response.status_code != 200:
+        raise HTTPException(status_code=502, detail="Could not load referral earnings")
+    return response.json() or []
+
+
+@api_router.post("/provider/inventory/list")
+def list_provider_inventory(payload: ProviderInventoryListingInput, authorization: Optional[str] = Header(None)):
+    auth_id = _verify_supabase_user(authorization)
+    inventory_resp = requests.get(
+        f"{SUPABASE_URL}/rest/v1/provider_inventory?id=eq.{payload.inventory_id}&provider_auth_id=eq.{auth_id}&select=*",
+        headers=_supabase_headers(),
+        timeout=10,
+    )
+    if inventory_resp.status_code != 200 or not inventory_resp.json():
+        raise HTTPException(status_code=404, detail="Provider inventory not found")
+    inventory = inventory_resp.json()[0]
+    available = int(inventory.get('quantity') or 0) - int(inventory.get('reserved_quantity') or 0) - int(inventory.get('quantity_allocated_to_listings') or 0)
+    if payload.quantity > available:
+        raise HTTPException(status_code=400, detail="Cannot list more inventory than you own")
+    seller_resp = requests.get(
+        f"{SUPABASE_URL}/rest/v1/shop_sellers?seller_type=eq.provider&provider_auth_id=eq.{auth_id}&select=id&limit=1",
+        headers=_supabase_headers(),
+        timeout=10,
+    )
+    seller = seller_resp.json()[0] if seller_resp.status_code == 200 and seller_resp.json() else None
+    if not seller:
+        raise HTTPException(status_code=400, detail="Provider shop seller account is not set up")
+    listing_resp = requests.get(
+        f"{SUPABASE_URL}/rest/v1/product_listings?seller_id=eq.{seller['id']}&product_id=eq.{inventory['product_id']}&select=*&limit=1",
+        headers=_supabase_headers(),
+        timeout=10,
+    )
+    listing = listing_resp.json()[0] if listing_resp.status_code == 200 and listing_resp.json() else None
+    if not listing:
+        price = payload.price if payload.price is not None else 0
+        if price <= 0:
+            raise HTTPException(status_code=400, detail="A valid resale price is required")
+        create_resp = requests.post(
+            f"{SUPABASE_URL}/rest/v1/product_listings",
+            headers=_supabase_headers(),
+            json={"product_id": inventory['product_id'], "seller_id": seller['id'], "price": price, "stock": 0, "status": "active"},
+            timeout=10,
+        )
+        if create_resp.status_code not in (200, 201) or not create_resp.json():
+            raise HTTPException(status_code=502, detail="Could not create provider shop listing")
+        listing = create_resp.json()[0]
+    link_resp = requests.post(
+        f"{SUPABASE_URL}/rest/v1/provider_inventory_listings",
+        headers=_supabase_headers(),
+        json={"provider_inventory_id": inventory['id'], "product_listing_id": listing['id'], "quantity": payload.quantity},
+        timeout=10,
+    )
+    if link_resp.status_code not in (200, 201):
+        raise HTTPException(status_code=502, detail="Could not allocate provider inventory")
+    requests.patch(
+        f"{SUPABASE_URL}/rest/v1/product_listings?id=eq.{listing['id']}",
+        headers=_supabase_headers(),
+        json={"stock": int(listing.get('stock') or 0) + payload.quantity},
+        timeout=10,
+    )
+    return {"status": "success", "listing": listing, "quantity": payload.quantity}
+
+
 @api_router.post("/payments/paystack/shop/initialize")
 async def initialize_paystack_shop_checkout(request: Request, payload: PaystackShopInitializeInput, authorization: Optional[str] = Header(None)):
     """Initialize a hosted Paystack checkout for shop purchases only."""
@@ -774,6 +1374,7 @@ async def initialize_paystack_shop_checkout(request: Request, payload: PaystackS
         reference=reference,
         items=checkout_items,
         products=validation["products"],
+        listings=validation["listings"],
         provider_auth_id=validation["provider_auth_id"],
         customer_name=payload.name or payload.email or auth_id,
         subtotal=validation["subtotal"],
@@ -862,7 +1463,7 @@ def verify_paystack_shop_checkout(
     auth_id = _verify_supabase_user(authorization)
 
     existing_resp = requests.get(
-        f"{SUPABASE_URL}/rest/v1/orders?payment_reference=eq.{reference}&select=id,customer_auth_id,payment_reference,payment_status",
+        f"{SUPABASE_URL}/rest/v1/orders?payment_reference=eq.{reference}&select=id,customer_auth_id,payment_reference,payment_status,currency",
         headers=_supabase_headers(),
         timeout=10,
     )
@@ -878,7 +1479,7 @@ def verify_paystack_shop_checkout(
             raise HTTPException(status_code=400, detail='Invalid checkout items') from exc
     if not parsed_items and existing_order:
         items_resp = requests.get(
-            f"{SUPABASE_URL}/rest/v1/order_items?order_id=eq.{existing_order['id']}&select=product_id,quantity",
+            f"{SUPABASE_URL}/rest/v1/order_items?order_id=eq.{existing_order['id']}&select=product_id,quantity,listing_id",
             headers=_supabase_headers(),
             timeout=10,
         )
@@ -887,11 +1488,20 @@ def verify_paystack_shop_checkout(
     if not parsed_items:
         raise HTTPException(status_code=400, detail='No checkout items provided')
 
-    normalized_items = [OrderItemInput(product_id=item['product_id'], quantity=item['quantity']) for item in parsed_items]
+    normalized_items = [
+        OrderItemInput(
+            product_id=item['product_id'],
+            quantity=item['quantity'],
+            listing_id=item.get('listing_id'),
+        )
+        for item in parsed_items
+    ]
     validation = _validate_shop_checkout_items(normalized_items, amount=amount)
 
     if existing_order:
         if existing_order.get("payment_status") == "verified":
+            _create_shop_commissions_for_order(existing_order["id"], existing_order.get("currency"))
+            _create_provider_shop_referrals_for_order(existing_order["id"], existing_order.get("currency"))
             return {"status": "success", "message": "Payment already verified", "order": existing_order}
 
     verify_resp = requests.get(
@@ -926,6 +1536,7 @@ def verify_paystack_shop_checkout(
             auth_id=auth_id,
             items=normalized_items,
             products=validation["products"],
+            listings=validation["listings"],
             provider_auth_id=provider_auth_id,
             customer_name=name or email or auth_id,
             subtotal=validation["subtotal"],
@@ -944,7 +1555,11 @@ def verify_paystack_shop_checkout(
         provider_auth_id=provider_auth_id,
         order_status='pending',
     )
-    return create_order(order_payload, authorization=authorization)
+    created_order = create_order(order_payload, authorization=authorization)
+    created_order_data = created_order.get("order") if isinstance(created_order, dict) else None
+    if created_order_data and created_order_data.get("id"):
+        _create_shop_commissions_for_order(created_order_data["id"], currency)
+    return created_order
 
 
 @api_router.post("/shop/orders")
@@ -1035,6 +1650,7 @@ def create_order(payload: CreateOrderInput, authorization: Optional[str] = Heade
             "product_id": item.product_id,
             "quantity": item.quantity,
             "price": products[item.product_id]["price"],
+            **({"listing_id": item.listing_id} if item.listing_id is not None else {}),
         }
         for item in payload.items
     ]

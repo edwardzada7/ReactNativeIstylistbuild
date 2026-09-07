@@ -144,6 +144,7 @@ export default function ProviderDashboard() {
     { icon: 'person-outline', label: 'Profile', onPress: () => router.push('/(provider)/profile') },
     { icon: 'settings-outline', label: 'Settings', onPress: () => router.push('/settings') },
     { icon: 'cash-outline', label: 'Earnings', onPress: () => router.push('/(provider)/wallet') },
+    { icon: 'trending-up-outline', label: 'Referral Earnings', onPress: () => router.push('/(provider)/referral-earnings' as any) },
   ];
 
   if (loading) {
