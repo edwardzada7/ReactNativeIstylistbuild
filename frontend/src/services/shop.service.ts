@@ -19,6 +19,21 @@ export interface Product {
   moderation_status?: 'pending' | 'approved' | 'rejected';
   status?: string;
   created_at: string;
+  seller_listing_id?: number;
+  isMarketplaceListing?: boolean;
+}
+
+interface ProviderSeller {
+  id: number;
+  seller_type: string;
+  provider_auth_id: string;
+}
+
+interface ProductListing {
+  id: number;
+  product_id: number;
+  price: number;
+  stock: number;
 }
 
 export interface OrderItemSummary {
@@ -106,6 +121,82 @@ export const shopService = {
       .order('created_at', { ascending: false });
     if (error) throw error;
     return (data || []).map((product) => normalizeProductCategoryMetadata(product as Product));
+  },
+
+  async getProviderSeller(providerAuthId: string): Promise<ProviderSeller | null> {
+    const { data, error } = await supabase
+      .from('shop_sellers')
+      .select('id, seller_type, provider_auth_id')
+      .eq('seller_type', 'provider')
+      .eq('provider_auth_id', providerAuthId)
+      .maybeSingle();
+    if (error) throw error;
+    return data as ProviderSeller | null;
+  },
+
+  async getProviderShopProducts(providerAuthId: string): Promise<Product[]> {
+    const seller = await this.getProviderSeller(providerAuthId);
+    const ownProducts = await this.getProviderProducts(providerAuthId);
+    if (!seller) return ownProducts;
+
+    const { data: listingRows, error: listingError } = await supabase
+      .from('product_listings')
+      .select('id, product_id, price, stock')
+      .eq('seller_id', seller.id);
+    if (listingError) throw listingError;
+
+    const listings = (listingRows || []) as ProductListing[];
+    if (listings.length === 0) return ownProducts;
+
+    const { data: products, error: productsError } = await supabase
+      .from('products')
+      .select('*')
+      .in('id', listings.map((listing) => listing.product_id));
+    if (productsError) throw productsError;
+
+    const productsById = new Map((products || []).map((product) => [Number(product.id), product as Product]));
+    const listedProducts = listings.flatMap((listing) => {
+      const product = productsById.get(Number(listing.product_id));
+      if (!product) return [];
+      return [normalizeProductCategoryMetadata({
+        ...product,
+        price: Number(listing.price),
+        stock: Number(listing.stock),
+        seller_listing_id: listing.id,
+        isMarketplaceListing: true,
+      })];
+    });
+
+    return [...listedProducts, ...ownProducts];
+  },
+
+  async addProductToProviderShop(product: Product): Promise<{ added: boolean }> {
+    const authId = await apiService.getAuthId();
+    if (!authId) throw new Error('Not authenticated');
+
+    const seller = await this.getProviderSeller(authId);
+    if (!seller) throw new Error('Your provider shop seller account is not set up yet. Please contact support.');
+
+    const { data: existing, error: existingError } = await supabase
+      .from('product_listings')
+      .select('id')
+      .eq('product_id', product.id)
+      .eq('seller_id', seller.id)
+      .maybeSingle();
+    if (existingError) throw existingError;
+    if (existing) return { added: false };
+
+    const { error } = await supabase.from('product_listings').insert({
+      product_id: product.id,
+      seller_id: seller.id,
+      price: product.price,
+      stock: product.stock,
+    });
+    if (error) {
+      if (error.code === '23505') return { added: false };
+      throw error;
+    }
+    return { added: true };
   },
 
   async createProduct(input: {
