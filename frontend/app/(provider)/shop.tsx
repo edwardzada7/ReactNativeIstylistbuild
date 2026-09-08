@@ -86,7 +86,10 @@ export default function ProviderShop() {
       const [mine, approved, ownedInventory] = await Promise.all([
         shopService.getProviderShopProducts(user.auth_id),
         shopService.getProducts(),
-        shopService.getProviderInventory(),
+        shopService.getProviderInventory().catch((error) => {
+          console.warn("[provider-shop] failed to load inventory", error);
+          return [];
+        }),
       ]);
       setMyProducts(mine);
       setMarketplace(approved);

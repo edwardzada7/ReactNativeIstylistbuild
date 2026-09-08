@@ -195,6 +195,7 @@ class BookingCreateInput(BaseModel):
 class PaystackShopInitializeInput(BaseModel):
     amount: float
     email: str
+    order_id: Optional[int] = Field(default=None, gt=0)
     items: List[OrderItemInput] = Field(default_factory=list)
     cartItems: Optional[List[PaystackCartItemInput]] = None
     totalAmount: Optional[float] = None
@@ -468,7 +469,7 @@ def _validate_shop_checkout_items(items: List[OrderItemInput], amount: Optional[
     listings = {}
     if listing_ids:
         listing_resp = requests.get(
-            f"{SUPABASE_URL}/rest/v1/product_listings?id=in.({','.join(str(value) for value in listing_ids)})&select=id,product_id,price,stock,status,seller_id",
+            f"{SUPABASE_URL}/rest/v1/product_listings?id=in.({','.join(str(value) for value in listing_ids)})&select=id,product_id,price,stock,status,seller_id,shop_sellers!inner(seller_type,provider_auth_id,is_active,status)",
             headers=_supabase_headers(),
             timeout=10,
         )
@@ -482,7 +483,18 @@ def _validate_shop_checkout_items(items: List[OrderItemInput], amount: Optional[
         if not product:
             raise HTTPException(status_code=404, detail=f"Product {item.product_id} not found")
         listing = listings.get(item.listing_id) if item.listing_id else None
-        if item.listing_id and (not listing or listing.get("product_id") != item.product_id or listing.get("status") != "active"):
+        seller = listing.get("shop_sellers") if listing else None
+        if isinstance(seller, list):
+            seller = seller[0] if seller else None
+        if item.listing_id and (
+            not listing
+            or listing.get("product_id") != item.product_id
+            or listing.get("status") != "active"
+            or not seller
+            or seller.get("is_active") is False
+            or str(seller.get("status") or "").lower() in {"inactive", "suspended"}
+            or products[item.product_id].get("approved") is not True
+        ):
             raise HTTPException(status_code=400, detail="Seller listing is not available")
         available_stock = listing.get("stock", 0) if listing else product.get("stock", 0)
         if available_stock < item.quantity:
@@ -493,7 +505,14 @@ def _validate_shop_checkout_items(items: List[OrderItemInput], amount: Optional[
     if amount is not None and round(float(amount), 2) != total:
         raise HTTPException(status_code=400, detail="Order total mismatch")
 
-    provider_auth_id = next((p.get("stylist_auth_id") for p in products.values() if p.get("stylist_auth_id")), None)
+    provider_auth_id = next(
+        (
+            (listings[item.listing_id].get("shop_sellers") or {}).get("provider_auth_id")
+            for item in items
+            if item.listing_id and isinstance(listings[item.listing_id].get("shop_sellers"), dict)
+        ),
+        next((p.get("stylist_auth_id") for p in products.values() if p.get("stylist_auth_id")), None),
+    )
     return {
         "products": products,
         "listings": listings,
@@ -1209,22 +1228,25 @@ def verify_paystack_provider_purchase(reference: str, authorization: Optional[st
     if item_resp.status_code != 200 or not item_resp.json():
         raise HTTPException(status_code=502, detail="Provider purchase item not found")
     item = item_resp.json()[0]
-    listing, _, _ = _provider_purchase_listing(item['listing_id'], item['quantity'])
-    stock_update = requests.patch(
-        f"{SUPABASE_URL}/rest/v1/product_listings?id=eq.{listing['id']}&stock=gte.{item['quantity']}",
-        headers=_supabase_headers(),
-        json={"stock": int(listing['stock']) - item['quantity']},
-        timeout=10,
-    )
-    if stock_update.status_code not in (200, 201) or not stock_update.json():
-        raise HTTPException(status_code=409, detail="Source listing stock changed; purchase needs review")
-
     existing_inventory = requests.get(
         f"{SUPABASE_URL}/rest/v1/provider_inventory?purchase_order_item_id=eq.{item['id']}&provider_auth_id=eq.{auth_id}&select=*",
         headers=_supabase_headers(),
         timeout=10,
     )
-    if existing_inventory.status_code != 200 or not existing_inventory.json():
+    if existing_inventory.status_code != 200:
+        raise HTTPException(status_code=502, detail="Could not verify provider inventory")
+
+    if not existing_inventory.json():
+        listing, _, _ = _provider_purchase_listing(item['listing_id'], item['quantity'])
+        stock_update = requests.patch(
+            f"{SUPABASE_URL}/rest/v1/product_listings?id=eq.{listing['id']}&stock=gte.{item['quantity']}",
+            headers=_supabase_headers(),
+            json={"stock": int(listing['stock']) - item['quantity']},
+            timeout=10,
+        )
+        if stock_update.status_code not in (200, 201) or not stock_update.json():
+            raise HTTPException(status_code=409, detail="Source listing stock changed; purchase needs review")
+
         inventory_resp = requests.post(
             f"{SUPABASE_URL}/rest/v1/provider_inventory",
             headers=_supabase_headers(),
