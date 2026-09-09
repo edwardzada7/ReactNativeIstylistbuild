@@ -163,10 +163,14 @@ export default function Cart() {
       const order = await shopService.createOrder({
         customer_auth_id: user.auth_id,
         items,
+        payment_status: "pending",
+        order_status: "pending",
+        subtotal: amount,
+        total_amount: amount,
         shipping_address: shippingAddressText || legacyDeliveryAddress,
         note: address.phone ? `Phone: ${address.phone}` : undefined,
       });
-      const orderId = order?.id ?? order?.order_id;
+      const orderId = order?.order?.id ?? order?.id ?? order?.order_id;
       if (!orderId) {
         throw new Error("Shop order was not returned by the server.");
       }
@@ -262,6 +266,7 @@ export default function Cart() {
       shopService
         .verifyPaystackCheckout({
           reference: reference || "",
+          order_id: pendingOrderId || undefined,
         })
         .then(async (res) => {
           if (res?.status === "success") {

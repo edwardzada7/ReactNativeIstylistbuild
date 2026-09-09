@@ -580,10 +580,12 @@ export const shopService = {
 
   async verifyPaystackCheckout(input: {
     reference: string;
+    order_id?: number;
   }): Promise<{ status: string; message?: string; order?: any }> {
     return apiService.get("/payments/paystack/shop/verify", {
       params: {
         reference: input.reference,
+        ...(input.order_id ? { order_id: input.order_id } : {}),
       },
     });
   },

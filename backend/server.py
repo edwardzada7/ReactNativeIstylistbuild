@@ -114,6 +114,14 @@ def _supabase_headers():
         "Prefer": "return=representation",
     }
 
+def _supabase_rpc(function_name: str, payload: dict):
+    return requests.post(
+        f"{SUPABASE_URL}/rest/v1/rpc/{function_name}",
+        headers=_supabase_headers(),
+        json=payload,
+        timeout=10,
+    )
+
 
 class OrderItemInput(BaseModel):
     product_id: int
@@ -856,9 +864,15 @@ def _create_provider_shop_referrals_for_order(order_id: int, order_currency: Opt
 
 
 def _finalize_verified_shop_order(order_id: int, auth_id: str, items: List[OrderItemInput], products: dict, listings: dict, provider_auth_id: Optional[str], customer_name: Optional[str], subtotal: float, total_amount: float, delivery_fee: float = 0.0, delivery_address: Optional[str] = None, currency: Optional[str] = None):
+    stock_resp = _supabase_rpc("finalize_shop_order_stock", {"p_order_id": order_id})
+    if stock_resp.status_code not in (200, 201):
+        if stock_resp.status_code in (400, 409):
+            raise HTTPException(status_code=409, detail="Shop stock changed; order needs review")
+        raise HTTPException(status_code=502, detail="Could not finalize shop stock")
+    if stock_resp.json() is False:
+        return False
+
     update_payload = {
-        "payment_status": "verified",
-        "status": "pending",
         "total_amount": round(total_amount, 2),
         "subtotal": round(subtotal, 2),
         "delivery_fee": round(delivery_fee, 2),
@@ -878,15 +892,6 @@ def _finalize_verified_shop_order(order_id: int, auth_id: str, items: List[Order
         json=update_payload,
         timeout=10,
     )
-
-    for item in items:
-        new_stock = products[item.product_id]["stock"] - item.quantity
-        requests.patch(
-            f"{SUPABASE_URL}/rest/v1/products?id=eq.{item.product_id}",
-            headers=_supabase_headers(),
-            json={"stock": new_stock},
-            timeout=10,
-        )
 
     provider_ids = sorted({p.get("stylist_auth_id") for p in products.values() if p.get("stylist_auth_id")})
     notification_payload = {
@@ -919,6 +924,7 @@ def _finalize_verified_shop_order(order_id: int, auth_id: str, items: List[Order
     )
     _create_shop_commissions_for_order(order_id, currency)
     _create_provider_shop_referrals_for_order(order_id, currency)
+    return True
 
 
 @api_router.get("/shop/products/{product_id}/reviews")
@@ -1228,50 +1234,21 @@ def verify_paystack_provider_purchase(reference: str, authorization: Optional[st
     if item_resp.status_code != 200 or not item_resp.json():
         raise HTTPException(status_code=502, detail="Provider purchase item not found")
     item = item_resp.json()[0]
-    existing_inventory = requests.get(
-        f"{SUPABASE_URL}/rest/v1/provider_inventory?purchase_order_item_id=eq.{item['id']}&provider_auth_id=eq.{auth_id}&select=*",
-        headers=_supabase_headers(),
-        timeout=10,
+    finalize_resp = _supabase_rpc(
+        "finalize_provider_purchase",
+        {"p_purchase_order_item_id": item["id"], "p_provider_auth_id": auth_id},
     )
-    if existing_inventory.status_code != 200:
-        raise HTTPException(status_code=502, detail="Could not verify provider inventory")
-
-    if not existing_inventory.json():
-        listing, _, _ = _provider_purchase_listing(item['listing_id'], item['quantity'])
-        stock_update = requests.patch(
-            f"{SUPABASE_URL}/rest/v1/product_listings?id=eq.{listing['id']}&stock=gte.{item['quantity']}",
-            headers=_supabase_headers(),
-            json={"stock": int(listing['stock']) - item['quantity']},
-            timeout=10,
-        )
-        if stock_update.status_code not in (200, 201) or not stock_update.json():
+    if finalize_resp.status_code not in (200, 201):
+        if finalize_resp.status_code in (400, 409):
             raise HTTPException(status_code=409, detail="Source listing stock changed; purchase needs review")
-
-        inventory_resp = requests.post(
-            f"{SUPABASE_URL}/rest/v1/provider_inventory",
-            headers=_supabase_headers(),
-            json={
-                "provider_auth_id": auth_id,
-                "product_id": item['product_id'],
-                "source_listing_id": item['listing_id'],
-                "quantity": item['quantity'],
-                "reserved_quantity": 0,
-                "purchase_order_item_id": item['id'],
-            },
-            timeout=10,
-        )
-        if inventory_resp.status_code not in (200, 201):
-            raise HTTPException(status_code=502, detail="Could not create provider inventory")
-
-    paid_resp = requests.patch(
-        f"{SUPABASE_URL}/rest/v1/provider_purchase_orders?id=eq.{order['id']}",
-        headers=_supabase_headers(),
-        json={"status": "completed", "payment_status": "verified"},
-        timeout=10,
-    )
-    if paid_resp.status_code not in (200, 201):
         raise HTTPException(status_code=502, detail="Could not finalize provider purchase")
-    return {"status": "success", "order_id": order['id'], "inventory_created": True}
+    result = finalize_resp.json() or {}
+    return {
+        "status": "success",
+        "order_id": order["id"],
+        "inventory_created": result.get("inventory_created", True),
+        "already_finalized": result.get("already_finalized", False),
+    }
 
 
 @api_router.get("/provider/inventory")
@@ -1385,25 +1362,55 @@ async def initialize_paystack_shop_checkout(request: Request, payload: PaystackS
     checkout_items = list(payload.items or [])
     if not checkout_items and payload.cartItems:
         checkout_items = [OrderItemInput(product_id=item.productId, quantity=item.quantity) for item in payload.cartItems]
+    if not payload.order_id:
+        raise HTTPException(status_code=400, detail="An existing shop order is required")
+    existing_order_resp = requests.get(
+        f"{SUPABASE_URL}/rest/v1/orders?id=eq.{payload.order_id}&customer_auth_id=eq.{auth_id}&select=*",
+        headers=_supabase_headers(),
+        timeout=10,
+    )
+    if existing_order_resp.status_code != 200 or not existing_order_resp.json():
+        raise HTTPException(status_code=404, detail="Shop order not found")
+    existing_items_resp = requests.get(
+        f"{SUPABASE_URL}/rest/v1/order_items?order_id=eq.{payload.order_id}&select=product_id,quantity,listing_id",
+        headers=_supabase_headers(),
+        timeout=10,
+    )
+    if existing_items_resp.status_code != 200 or not existing_items_resp.json():
+        raise HTTPException(status_code=409, detail="Shop order items are missing")
+    checkout_items = [
+        OrderItemInput(
+            product_id=item["product_id"],
+            quantity=item["quantity"],
+            listing_id=item.get("listing_id"),
+        )
+        for item in (existing_items_resp.json() or [])
+    ]
     validation = _validate_shop_checkout_items(checkout_items, payload.amount)
     amount_kobo = int(round(float(payload.amount) * 100))
     if amount_kobo <= 0:
         raise HTTPException(status_code=400, detail="Amount must be greater than zero")
 
     reference = payload.reference or payload.ref or f"shop_{uuid.uuid4().hex[:12]}"
-    _create_pending_shop_order(
-        auth_id=auth_id,
-        reference=reference,
-        items=checkout_items,
-        products=validation["products"],
-        listings=validation["listings"],
-        provider_auth_id=validation["provider_auth_id"],
-        customer_name=payload.name or payload.email or auth_id,
-        subtotal=validation["subtotal"],
-        total_amount=validation["total"],
-        delivery_address=_delivery_address_value(payload),
-        currency=payload.currency or 'NGN',
+    order_update = {
+        "payment_reference": reference,
+        "payment_status": "pending",
+        "status": "pending",
+        "currency": (payload.currency or "NGN").upper(),
+    }
+    if payload.name or payload.email:
+        order_update["customer_name"] = payload.name or payload.email
+    delivery_address = _delivery_address_value(payload)
+    if delivery_address:
+        order_update["delivery_address"] = delivery_address
+    update_resp = requests.patch(
+        f"{SUPABASE_URL}/rest/v1/orders?id=eq.{payload.order_id}&customer_auth_id=eq.{auth_id}",
+        headers=_supabase_headers(),
+        json=order_update,
+        timeout=10,
     )
+    if update_resp.status_code not in (200, 201):
+        raise HTTPException(status_code=502, detail="Could not prepare shop order for payment")
 
     paystack_payload = {
         "email": payload.email,
@@ -1452,12 +1459,14 @@ async def initialize_paystack_shop_checkout(request: Request, payload: PaystackS
         "reference": transaction_data.get('reference', reference),
         "message": 'Checkout initialized',
         "order_total": validation["total"],
+        "order_id": payload.order_id,
     }
 
 
 @api_router.get("/payments/paystack/shop/verify")
 def verify_paystack_shop_checkout(
     reference: Optional[str] = None,
+    order_id: Optional[int] = None,
     transaction_id: Optional[str] = None,
     amount: Optional[float] = None,
     currency: Optional[str] = None,
@@ -1484,14 +1493,17 @@ def verify_paystack_shop_checkout(
 
     auth_id = _verify_supabase_user(authorization)
 
+    order_filter = f"id=eq.{order_id}&payment_reference=eq.{reference}" if order_id else f"payment_reference=eq.{reference}"
     existing_resp = requests.get(
-        f"{SUPABASE_URL}/rest/v1/orders?payment_reference=eq.{reference}&select=id,customer_auth_id,payment_reference,payment_status,currency",
+        f"{SUPABASE_URL}/rest/v1/orders?{order_filter}&select=id,customer_auth_id,payment_reference,payment_status,currency",
         headers=_supabase_headers(),
         timeout=10,
     )
     existing_order = existing_resp.json()[0] if existing_resp.status_code == 200 and existing_resp.json() else None
     if existing_order and existing_order.get("customer_auth_id") != auth_id:
         raise HTTPException(status_code=403, detail="Payment reference does not belong to this user")
+    if not existing_order:
+        raise HTTPException(status_code=404, detail="Shop order not found for payment reference")
 
     parsed_items = []
     if items:
@@ -1566,22 +1578,7 @@ def verify_paystack_shop_checkout(
         )
         return {"status": "success", "message": "Payment verified", "order": {"id": existing_order["id"]}}
 
-    order_payload = CreateOrderInput(
-        items=normalized_items,
-        payment_reference=reference,
-        payment_status='verified',
-        subtotal=validation["subtotal"],
-        delivery_fee=0.0,
-        total_amount=validation["total"],
-        customer_name=name or email or auth_id,
-        provider_auth_id=provider_auth_id,
-        order_status='pending',
-    )
-    created_order = create_order(order_payload, authorization=authorization)
-    created_order_data = created_order.get("order") if isinstance(created_order, dict) else None
-    if created_order_data and created_order_data.get("id"):
-        _create_shop_commissions_for_order(created_order_data["id"], currency)
-    return created_order
+    raise HTTPException(status_code=404, detail="Shop order not found for payment reference")
 
 
 @api_router.post("/shop/orders")
@@ -1605,17 +1602,27 @@ def create_order(payload: CreateOrderInput, authorization: Optional[str] = Heade
         raise HTTPException(status_code=502, detail="Could not verify products")
     products = {p["id"]: p for p in resp.json()}
 
+    listing_rows = {}
+    if any(item.listing_id for item in payload.items):
+        listing_validation = _validate_shop_checkout_items(payload.items, payload.total_amount)
+        products = listing_validation["products"]
+        listing_rows = listing_validation["listings"]
+
     subtotal = 0.0
     for item in payload.items:
         product = products.get(item.product_id)
         if not product:
             raise HTTPException(status_code=404, detail=f"Product {item.product_id} not found")
-        if product.get("stock", 0) < item.quantity:
+        listing = listing_rows.get(item.listing_id) if item.listing_id else None
+        available_stock = listing.get("stock", 0) if listing else product.get("stock", 0)
+        if available_stock < item.quantity:
             raise HTTPException(status_code=400, detail=f"Not enough stock for {product['name']}")
-        subtotal += float(product["price"]) * item.quantity
+        subtotal += float(listing["price"] if listing else product["price"]) * item.quantity
 
     delivery_fee = float(payload.delivery_fee or 0.0)
     total = float(payload.total_amount if payload.total_amount is not None else subtotal + delivery_fee)
+    has_listing_items = bool(listing_rows)
+    is_pending_order = (payload.payment_status or "verified").lower() == "pending"
     provider_auth_id = payload.provider_auth_id or next(
         (p.get("stylist_auth_id") for p in products.values() if p.get("stylist_auth_id")),
         None,
@@ -1627,7 +1634,7 @@ def create_order(payload: CreateOrderInput, authorization: Optional[str] = Heade
         "total_amount": round(total, 2),
         "subtotal": round(subtotal, 2),
         "delivery_fee": round(delivery_fee, 2),
-        "payment_status": (payload.payment_status or "verified").lower(),
+        "payment_status": "pending" if has_listing_items and not is_pending_order else (payload.payment_status or "verified").lower(),
         "created_at": datetime.utcnow().isoformat(),
     }
     if provider_auth_id:
@@ -1648,21 +1655,6 @@ def create_order(payload: CreateOrderInput, authorization: Optional[str] = Heade
         timeout=10,
     )
     if order_resp.status_code not in (200, 201):
-        fallback_payload = {
-            "customer_auth_id": auth_id,
-            "status": "pending",
-            "total_amount": round(total, 2),
-            "subtotal": round(subtotal, 2),
-            "delivery_fee": round(delivery_fee, 2),
-            "created_at": datetime.utcnow().isoformat(),
-        }
-        order_resp = requests.post(
-            f"{SUPABASE_URL}/rest/v1/orders",
-            headers=_supabase_headers(),
-            json=fallback_payload,
-            timeout=10,
-        )
-    if order_resp.status_code not in (200, 201):
         raise HTTPException(status_code=502, detail="Could not create order")
     order = order_resp.json()[0]
 
@@ -1671,7 +1663,7 @@ def create_order(payload: CreateOrderInput, authorization: Optional[str] = Heade
             "order_id": order["id"],
             "product_id": item.product_id,
             "quantity": item.quantity,
-            "price": products[item.product_id]["price"],
+            "price": listing_rows[item.listing_id]["price"] if item.listing_id else products[item.product_id]["price"],
             **({"listing_id": item.listing_id} if item.listing_id is not None else {}),
         }
         for item in payload.items
@@ -1685,14 +1677,20 @@ def create_order(payload: CreateOrderInput, authorization: Optional[str] = Heade
     if items_resp.status_code not in (200, 201):
         raise HTTPException(status_code=502, detail="Order created but items failed to save")
 
-    for item in payload.items:
-        new_stock = products[item.product_id]["stock"] - item.quantity
-        requests.patch(
-            f"{SUPABASE_URL}/rest/v1/products?id=eq.{item.product_id}",
-            headers=_supabase_headers(),
-            json={"stock": new_stock},
-            timeout=10,
-        )
+    if has_listing_items and not is_pending_order:
+        stock_resp = _supabase_rpc("finalize_shop_order_stock", {"p_order_id": order["id"]})
+        if stock_resp.status_code not in (200, 201):
+            raise HTTPException(status_code=409, detail="Seller listing stock changed; order needs review")
+        order["payment_status"] = "verified"
+    elif not is_pending_order:
+        for item in payload.items:
+            new_stock = products[item.product_id]["stock"] - item.quantity
+            requests.patch(
+                f"{SUPABASE_URL}/rest/v1/products?id=eq.{item.product_id}",
+                headers=_supabase_headers(),
+                json={"stock": new_stock},
+                timeout=10,
+            )
 
     provider_ids = sorted({p.get("stylist_auth_id") for p in products.values() if p.get("stylist_auth_id")})
     notification_payload = {
