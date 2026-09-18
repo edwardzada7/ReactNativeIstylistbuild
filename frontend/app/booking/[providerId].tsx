@@ -1,0 +1,780 @@
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+  Alert,
+  TextInput,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
+import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
+import { Button, ProfileAvatar } from '../../src/components/common';
+import { providerService } from '../../src/services/provider.service';
+import { bookingService } from '../../src/services/booking.service';
+import { walletService } from '../../src/services/wallet.service';
+import { useAuth } from '../../src/contexts/AuthContext';
+import { useTheme } from '../../src/contexts/ThemeContext';
+import { formatCurrency } from '../../src/utils/currency';
+import { Provider, Service, StaffMember } from '../../src/types';
+
+const NEXT_DAYS = 14;
+
+function buildNextDays(count: number) {
+  const days = [];
+  for (let i = 0; i < count; i++) {
+    const d = new Date();
+    d.setDate(d.getDate() + i);
+    days.push(d);
+  }
+  return days;
+}
+
+export default function CreateBooking() {
+  const router = useRouter();
+  const { user } = useAuth();
+  const { colors } = useTheme();
+  const { providerId, serviceId } = useLocalSearchParams<{
+    providerId: string;
+    serviceId?: string;
+  }>();
+
+  const [provider, setProvider] = useState<Provider | null>(null);
+  const [staffOptions, setStaffOptions] = useState<StaffMember[]>([]);
+  const [selectedService, setSelectedService] = useState<Service | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+  const [slots, setSlots] = useState<string[]>([]);
+  const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
+  const [selectedStaffId, setSelectedStaffId] = useState<string | null>(null);
+  const [notes, setNotes] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [slotsLoading, setSlotsLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
+  const [paymentOutcome, setPaymentOutcome] = useState<'paid' | 'payment_failed' | null>(null);
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [walletChecked, setWalletChecked] = useState(false);
+  const [autoCompleting, setAutoCompleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [failedBookingId, setFailedBookingId] = useState<string | null>(null);
+
+  // Set right before navigating to Top Up so we know to auto-complete this
+  // exact booking attempt (no re-selecting service/date/time) once the
+  // customer returns with a sufficient balance - fulfills "without forcing
+  // the customer to restart the booking".
+  const awaitingTopUpRef = useRef(false);
+
+  const days = useMemo(() => buildNextDays(NEXT_DAYS), []);
+  const hasSufficientBalance = selectedService ? walletBalance >= selectedService.price : true;
+  const isOwnProvider = Boolean(user && provider && (user.id === provider.id || user.auth_id === provider.user_id));
+
+  useEffect(() => {
+    (async () => {
+      if (!providerId) return;
+      try {
+        const profile = await providerService.getProviderFullProfile(providerId);
+        setProvider(profile);
+        const preselected = profile.services.find((s) => s.id === serviceId);
+        setSelectedService(preselected || profile.services[0] || null);
+      } catch (err: any) {
+        setError(err?.friendlyMessage || 'Could not load this provider.');
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, [providerId, serviceId]);
+
+  useEffect(() => {
+    (async () => {
+      if (!providerId) return;
+      try {
+        const activeStaff = await providerService.getProviderStaff(providerId, true);
+        setStaffOptions(activeStaff);
+      } catch {
+        setStaffOptions([]);
+      }
+    })();
+  }, [providerId]);
+
+  useEffect(() => {
+    (async () => {
+      if (!providerId || !selectedService) return;
+      setSlotsLoading(true);
+      setSelectedSlot(null);
+      try {
+        const dateStr = selectedDate.toISOString().slice(0, 10);
+        const slotList = await providerService.getAvailableSlots(
+          providerId,
+          dateStr,
+          selectedService.duration || 30
+        );
+        setSlots(slotList);
+      } catch {
+        setSlots([]);
+      } finally {
+        setSlotsLoading(false);
+      }
+    })();
+  }, [providerId, selectedDate, selectedService]);
+
+  // Real contract: wallet balance comes from GET /api/wallets (see
+  // wallet.service.ts). Fetched up-front so the Booking Summary can show
+  // "Wallet Balance" / "Escrow Amount" and gate whether "Confirm Booking"
+  // or the insufficient-balance panel is shown - never a locally invented
+  // balance.
+  const refreshWallet = useCallback(async () => {
+    if (!user?.auth_id) return 0;
+    try {
+      const wallet = await walletService.getWallet(user.auth_id);
+      const balance = wallet?.balance ?? 0;
+      setWalletBalance(balance);
+      return balance;
+    } catch {
+      return walletBalance;
+    } finally {
+      setWalletChecked(true);
+    }
+  }, [user?.auth_id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleConfirm = async () => {
+    if (!provider || !selectedService || !selectedSlot) {
+      Alert.alert('Incomplete', 'Please select a service and time slot.');
+      return;
+    }
+    const providerIdText = String((provider as any).id || (provider as any)._id || '').trim();
+    const serviceIdText = String((selectedService as any).id || (selectedService as any)._id || '').trim();
+    const providerIdValue = Number(providerIdText);
+    const serviceIdValue = Number(serviceIdText);
+    const selectedDateValue = selectedDate.toISOString().slice(0, 10);
+    const selectedTimeSlot = String(selectedSlot).trim();
+    const servicePrice = Number(selectedService.price);
+    if (!Number.isFinite(providerIdValue) || !Number.isFinite(serviceIdValue) || !selectedDateValue || !selectedTimeSlot || !Number.isFinite(servicePrice) || servicePrice <= 0) {
+      Alert.alert('Incomplete', 'Please select a valid provider, service, date, and time slot.');
+      return;
+    }
+    if (!user?.auth_id) {
+      Alert.alert('Sign in required', 'Please sign in again before confirming this booking.');
+      return;
+    }
+    setSubmitting(true);
+    setAutoCompleting(false);
+    try {
+      const bookingDate = selectedDateValue;
+      const scheduledAt = new Date(`${bookingDate}T${selectedTimeSlot}:00`).toISOString();
+      const selectedStaff = staffOptions.find((staff) => String(staff.id) === String(selectedStaffId));
+      const bookingPayload = {
+        providerId: providerIdText,
+        serviceId: serviceIdText,
+        bookingDate,
+        timeSlot: selectedTimeSlot,
+        amount: servicePrice,
+        staffId: selectedStaff?.id || null,
+        scheduledAt,
+        totalAmount: Number(selectedService.price),
+        notes: notes.trim() || '',
+        paymentMethod: 'WALLET',
+        provider_id: providerIdValue,
+        customer_id: user?.id,
+        customer_auth_id: user?.auth_id,
+        booking_date: bookingDate,
+        booking_time: selectedTimeSlot,
+        service_ids: [serviceIdValue],
+        service_duration_minutes: selectedService.duration || 30,
+        status: 'pending_payment',
+        ...(selectedStaffId ? { staff_id: selectedStaffId } : {}),
+      };
+      console.log('[booking] create payload', bookingPayload);
+      const booking = await bookingService.createBooking(bookingPayload);
+
+      // Bug 3 guard: only attempt wallet payment if the booking response
+      // actually parsed a valid booking id - otherwise fail loudly instead
+      // of calling pay-with-wallet with an empty/invalid id.
+      if (!booking?.id) {
+        throw new Error('Booking was created but no booking id was returned by the server.');
+      }
+
+      // Booking Payment Flow: pay from the wallet immediately, moving the
+      // funds into escrow (see POST /api/bookings/{id}/pay-with-wallet -
+      // there is no separate per-booking Flutterwave checkout endpoint on
+      // the production API; Top Up Wallet is the only place Flutterwave is
+      // used, per product spec).
+      try {
+        await bookingService.payWithWallet(booking.id, user?.auth_id || '');
+        setPaymentOutcome('paid');
+      } catch (payErr: any) {
+        console.error('[booking] pay-with-wallet failed', payErr);
+        setPaymentOutcome('payment_failed');
+        setFailedBookingId(booking.id);
+      }
+      setConfirmed(true);
+    } catch (err: any) {
+      console.error('[booking] create failed', {
+        status: err?.response?.status,
+        data: err?.response?.data,
+        message: err?.message,
+        friendlyMessage: err?.friendlyMessage,
+      });
+      Alert.alert('Booking Failed', err?.friendlyMessage || err?.message || 'Could not create this booking.');
+    } finally {
+      setSubmitting(false);
+      awaitingTopUpRef.current = false;
+    }
+  };
+
+  // Refresh the wallet balance every time this screen regains focus -
+  // covers the customer returning from Top Up Wallet. If they had tapped
+  // "Top Up Wallet" from here (awaitingTopUpRef) and the balance is now
+  // sufficient, automatically complete the exact same booking attempt.
+  useFocusEffect(
+    useCallback(() => {
+      let active = true;
+      (async () => {
+        const balance = await refreshWallet();
+        if (!active) return;
+        if (
+          awaitingTopUpRef.current &&
+          !confirmed &&
+          selectedService &&
+          balance >= selectedService.price
+        ) {
+          awaitingTopUpRef.current = false;
+          setAutoCompleting(true);
+          await handleConfirm();
+          if (active) setAutoCompleting(false);
+        }
+      })();
+      return () => {
+        active = false;
+      };
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [refreshWallet, selectedService, confirmed])
+  );
+
+  const handlePrimaryPress = () => {
+    if (isOwnProvider) return;
+    if (!selectedService || !selectedSlot) {
+      Alert.alert('Incomplete', 'Please select a service and time slot.');
+      return;
+    }
+    if (walletBalance >= selectedService.price) {
+      handleConfirm();
+    } else {
+      awaitingTopUpRef.current = true;
+      router.push('/wallet/topup');
+    }
+  };
+
+  const handleRetryPayment = async () => {
+    if (!failedBookingId) return;
+    setSubmitting(true);
+    try {
+      await bookingService.payWithWallet(failedBookingId, user?.auth_id || '');
+      setPaymentOutcome('paid');
+    } catch (err: any) {
+      Alert.alert('Payment Failed', err?.friendlyMessage || 'Could not process payment.');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+        <View style={styles.centerState}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (confirmed) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+        <View style={styles.centerState}>
+          <View
+            style={[
+              styles.successIcon,
+              { backgroundColor: paymentOutcome === 'payment_failed' ? Colors.error : Colors.success },
+            ]}
+          >
+            <Ionicons
+              name={paymentOutcome === 'paid' ? 'checkmark' : 'alert'}
+              size={48}
+              color={colors.text}
+            />
+          </View>
+          <Text style={[styles.successTitle, { color: colors.text }]}>
+            {paymentOutcome === 'paid' ? 'Booking Confirmed - Paid (Escrow)' : 'Payment Could Not Be Completed'}
+          </Text>
+          <Text style={[styles.successSubtitle, { color: colors.textSecondary }]}>
+            {paymentOutcome === 'paid' &&
+              `Your booking with ${provider?.business_name} is paid and securely held in escrow until the service is completed. ${provider?.business_name} has been notified.`}
+            {paymentOutcome === 'payment_failed' &&
+              `Your booking with ${provider?.business_name} was created, but payment from your wallet failed. Please retry or top up your wallet.`}
+          </Text>
+          {paymentOutcome === 'payment_failed' && (
+            <>
+              <Button
+                title="Retry Payment"
+                onPress={handleRetryPayment}
+                loading={submitting}
+                fullWidth
+                size="large"
+              />
+              <View style={{ height: Spacing.sm }} />
+              <Button
+                title="Top Up Wallet"
+                variant="outline"
+                onPress={() => router.push('/wallet/topup')}
+                fullWidth
+                size="large"
+              />
+            </>
+          )}
+          <TouchableOpacity
+            style={{ marginTop: Spacing.md }}
+            onPress={() => router.replace('/(tabs)/bookings')}
+            accessibilityRole="button"
+            accessibilityLabel="View my bookings"
+          >
+            <Text style={[styles.linkText, { color: Colors.primary }]}>View My Bookings</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (error || !provider) {
+    return (
+      <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+        <View style={styles.centerState}>
+          <Text style={[styles.emptyText, { color: colors.textSecondary }]}>{error || 'Provider not found.'}</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+      <View style={styles.header}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+        >
+          <Ionicons name="arrow-back" size={24} color={colors.text} />
+        </TouchableOpacity>
+        <Text style={[styles.title, { color: colors.text }]}>Book Appointment</Text>
+      </View>
+
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        <Text style={[styles.providerName, { color: colors.textSecondary }]}>{provider.business_name}</Text>
+        {isOwnProvider ? (
+          <View style={[styles.infoBanner, { backgroundColor: `${Colors.info}15` }]}>
+            <Ionicons name="information-circle-outline" size={18} color={Colors.info} />
+            <Text style={[styles.infoBannerText, { color: colors.text }]}>Providers cannot book their own services or purchase their own products.</Text>
+          </View>
+        ) : null}
+
+        {/* Service selection */}
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Select Service</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: Spacing.lg }}>
+          {provider.services.map((service) => (
+            <TouchableOpacity
+              key={service.id}
+              style={[
+                styles.serviceChip,
+                { backgroundColor: colors.surface, borderColor: colors.border },
+                selectedService?.id === service.id && styles.serviceChipActive,
+              ]}
+              onPress={() => setSelectedService(service)}
+              accessibilityRole="button"
+              accessibilityLabel={service.name}
+            >
+              <Text
+                style={[
+                  styles.serviceChipText,
+                  { color: colors.text },
+                  selectedService?.id === service.id && styles.serviceChipTextActive,
+                ]}
+              >
+                {service.name}
+              </Text>
+              <Text
+                style={[
+                  styles.serviceChipPrice,
+                  { color: colors.textSecondary },
+                  selectedService?.id === service.id && styles.serviceChipTextActive,
+                ]}
+              >
+                {formatCurrency(service.price)}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        {/* Date selection */}
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Select Date</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: Spacing.lg }}>
+          {days.map((d) => {
+            const isSelected = d.toDateString() === selectedDate.toDateString();
+            return (
+              <TouchableOpacity
+                key={d.toISOString()}
+                style={[styles.dateChip, { backgroundColor: colors.surface }, isSelected && styles.dateChipActive]}
+                onPress={() => setSelectedDate(d)}
+                accessibilityRole="button"
+                accessibilityLabel={d.toDateString()}
+              >
+                <Text style={[styles.dateChipDay, { color: colors.textSecondary }, isSelected && styles.serviceChipTextActive]}>
+                  {d.toLocaleDateString('en-US', { weekday: 'short' })}
+                </Text>
+                <Text style={[styles.dateChipDate, { color: colors.text }, isSelected && styles.serviceChipTextActive]}>
+                  {d.getDate()}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+
+        {/* Time slots */}
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Select Time</Text>
+        {slotsLoading ? (
+          <ActivityIndicator color={Colors.primary} style={{ marginBottom: Spacing.lg }} />
+        ) : slots.length === 0 ? (
+          <Text style={[styles.emptyInline, { color: colors.textSecondary }]}>No available slots on this date. Try another day.</Text>
+        ) : (
+          <View style={styles.slotsWrap}>
+            {slots.map((slot) => (
+              <TouchableOpacity
+                key={slot}
+                style={[
+                  styles.slotChip,
+                  { backgroundColor: colors.surface, borderColor: colors.border },
+                  selectedSlot === slot && styles.slotChipActive,
+                ]}
+                onPress={() => setSelectedSlot(slot)}
+                accessibilityRole="button"
+                accessibilityLabel={slot}
+              >
+                <Text
+                  style={[styles.slotChipText, { color: colors.text }, selectedSlot === slot && styles.serviceChipTextActive]}
+                >
+                  {slot}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
+        {staffOptions.length > 0 && (
+          <>
+            <Text style={[styles.sectionTitle, { color: colors.text, marginTop: Spacing.lg }]}>Choose Staff (optional)</Text>
+            <View style={[styles.staffPicker, { backgroundColor: colors.surface, borderColor: colors.border }]}> 
+              <TouchableOpacity
+                style={[
+                  styles.staffOption,
+                  { borderColor: colors.border },
+                  selectedStaffId === null && styles.staffOptionSelected,
+                ]}
+                onPress={() => setSelectedStaffId(null)}
+                accessibilityRole="button"
+                accessibilityLabel="No staff preference"
+              >
+                <Text style={[styles.staffOptionText, { color: colors.text }, selectedStaffId === null && styles.staffOptionTextSelected]}>
+                  Any staff / No preference
+                </Text>
+              </TouchableOpacity>
+
+              {staffOptions.map((member) => (
+                <TouchableOpacity
+                  key={member.id}
+                  style={[
+                    styles.staffOption,
+                    { borderColor: colors.border },
+                    selectedStaffId === member.id && styles.staffOptionSelected,
+                  ]}
+                  onPress={() => setSelectedStaffId(member.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={member.name}
+                >
+                  <View style={styles.staffOptionRow}>
+                    <ProfileAvatar 
+                      uri={member.photo_url} 
+                      name={member.name} 
+                      size={36}
+                      type="customer"
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.staffOptionText, { color: colors.text }, selectedStaffId === member.id && styles.staffOptionTextSelected]}>{member.name}</Text>
+                      {member.role ? <Text style={[styles.staffOptionMeta, { color: colors.textSecondary }]}>{member.role}</Text> : null}
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </>
+        )}
+
+        {/* Notes */}
+        <Text style={[styles.sectionTitle, { color: colors.text, marginTop: Spacing.lg }]}>Notes (optional)</Text>
+        <TextInput
+          style={[styles.notesInput, { backgroundColor: colors.surface, color: colors.text }]}
+          placeholder="Any special requests..."
+          placeholderTextColor={colors.textSecondary}
+          value={notes}
+          onChangeText={setNotes}
+          multiline
+        />
+
+        {/* Summary */}
+        {selectedService && (
+          <View style={[styles.summaryCard, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.summaryTitle, { color: colors.text }]}>Booking Summary</Text>
+            <View style={styles.summaryRow}>
+              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Service</Text>
+              <Text style={[styles.summaryValue, { color: colors.text }]}>{selectedService.name}</Text>
+            </View>
+            <View style={styles.summaryRow}>
+              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Provider</Text>
+              <Text style={[styles.summaryValue, { color: colors.text }]}>{provider.business_name}</Text>
+            </View>
+            <View style={styles.summaryRow}>
+              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Date</Text>
+              <Text style={[styles.summaryValue, { color: colors.text }]}>{selectedDate.toDateString()}</Text>
+            </View>
+            <View style={styles.summaryRow}>
+              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Time</Text>
+              <Text style={[styles.summaryValue, { color: colors.text }]}>{selectedSlot || '-'}</Text>
+            </View>
+            <View style={[styles.summaryRow, { marginTop: Spacing.sm }]}>
+              <Text style={[styles.summaryTotalLabel, { color: colors.text }]}>Price</Text>
+              <Text style={[styles.summaryTotalValue, { color: Colors.primary }]}>{formatCurrency(selectedService.price)}</Text>
+            </View>
+
+            <View style={[styles.summaryDivider, { backgroundColor: colors.border }]} />
+
+            <View style={styles.summaryRow}>
+              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Wallet Balance</Text>
+              <Text style={[styles.summaryValue, { color: colors.text }, !hasSufficientBalance && { color: Colors.error }]}>
+                {walletChecked ? formatCurrency(walletBalance) : '...'}
+              </Text>
+            </View>
+            <View style={styles.summaryRow}>
+              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Escrow Amount</Text>
+              <Text style={[styles.summaryValue, { color: colors.text }]}>{formatCurrency(selectedService.price)}</Text>
+            </View>
+
+            <View style={[styles.protectionNote, { backgroundColor: `${Colors.success}15` }]}>
+              <Ionicons name="shield-checkmark" size={16} color={Colors.success} />
+              <Text style={[styles.protectionNoteText, { color: colors.textSecondary }]}>
+                Your payment is securely held in escrow until the service has been completed.
+              </Text>
+            </View>
+          </View>
+        )}
+
+        <View style={{ height: Spacing.xl }} />
+
+        {autoCompleting && (
+          <View style={[styles.autoCompletingBanner, { backgroundColor: `${Colors.primary}15` }]}>
+            <ActivityIndicator size="small" color={Colors.primary} />
+            <Text style={[styles.autoCompletingText, { color: colors.text }]}>Wallet topped up - completing your booking...</Text>
+          </View>
+        )}
+
+        {isOwnProvider ? null : hasSufficientBalance ? (
+          <Button
+            title="Confirm Booking"
+            onPress={handlePrimaryPress}
+            loading={submitting || autoCompleting}
+            disabled={!selectedSlot}
+            fullWidth
+            size="large"
+          />
+        ) : (
+          <View style={[styles.insufficientPanel, { backgroundColor: `${Colors.warning}12`, borderColor: `${Colors.warning}40` }]}>
+            <View style={styles.insufficientHeader}>
+              <Ionicons name="alert-circle" size={20} color={Colors.warning} />
+              <Text style={[styles.insufficientTitle, { color: colors.text }]}>Your wallet balance is insufficient.</Text>
+            </View>
+            <View style={styles.summaryRow}>
+              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Current Wallet Balance</Text>
+              <Text style={[styles.summaryValue, { color: colors.text }]}>{formatCurrency(walletBalance)}</Text>
+            </View>
+            <View style={styles.summaryRow}>
+              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Required Amount</Text>
+              <Text style={[styles.summaryValue, { color: colors.text }]}>{formatCurrency(selectedService?.price || 0)}</Text>
+            </View>
+            <View style={styles.summaryRow}>
+              <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Shortfall</Text>
+              <Text style={[styles.summaryValue, { color: colors.text }, { color: Colors.error }]}>
+                {formatCurrency(Math.max(0, (selectedService?.price || 0) - walletBalance))}
+              </Text>
+            </View>
+            <Button
+              title="Top Up Wallet"
+              onPress={handlePrimaryPress}
+              disabled={!selectedSlot}
+              fullWidth
+              size="large"
+              style={styles.topUpFromSummaryButton}
+            />
+          </View>
+        )}
+        <Text style={[styles.paymentNote, { color: colors.textSecondary }]}>
+          Booking payment is made from your iStylist wallet only - Top Up Wallet uses Flutterwave.
+        </Text>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  centerState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.xl,
+    gap: Spacing.md,
+  },
+  emptyText: { fontSize: FontSizes.sm, textAlign: 'center' },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.md,
+  },
+  title: { fontSize: FontSizes.lg, fontWeight: 'bold' },
+  content: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xl },
+  providerName: { fontSize: FontSizes.md, marginBottom: Spacing.lg },
+  infoBanner: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, padding: Spacing.sm, borderRadius: BorderRadius.md, marginBottom: Spacing.lg },
+  infoBannerText: { flex: 1, fontSize: FontSizes.sm, lineHeight: 19 },
+  sectionTitle: { fontSize: FontSizes.md, fontWeight: '700', marginBottom: Spacing.sm },
+  serviceChip: {
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginRight: Spacing.sm,
+    minWidth: 130,
+    borderWidth: 1,
+  },
+  serviceChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  serviceChipText: { fontSize: FontSizes.sm, fontWeight: '600' },
+  serviceChipPrice: { fontSize: FontSizes.xs, marginTop: 4 },
+  serviceChipTextActive: { color: Colors.text },
+  dateChip: {
+    width: 56,
+    alignItems: 'center',
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    marginRight: Spacing.sm,
+  },
+  dateChipActive: { backgroundColor: Colors.primary },
+  dateChipDay: { fontSize: FontSizes.xs },
+  dateChipDate: { fontSize: FontSizes.md, fontWeight: '700', marginTop: 2 },
+  emptyInline: { fontSize: FontSizes.sm, marginBottom: Spacing.lg },
+  slotsWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginBottom: Spacing.lg },
+  slotChip: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+  },
+  slotChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  slotChipText: { fontSize: FontSizes.sm, fontWeight: '600' },
+  staffPicker: {
+    borderWidth: 1,
+    borderRadius: BorderRadius.md,
+    overflow: 'hidden',
+    marginBottom: Spacing.lg,
+  },
+  staffOption: {
+    borderBottomWidth: 1,
+    paddingVertical: Spacing.sm,
+    paddingHorizontal: Spacing.md,
+  },
+  staffOptionSelected: {
+    backgroundColor: `${Colors.primary}12`,
+  },
+  staffOptionText: { fontSize: FontSizes.sm, fontWeight: '600' },
+  staffOptionTextSelected: { color: Colors.primary },
+  staffOptionMeta: { fontSize: FontSizes.xs, marginTop: 2 },
+  staffOptionRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  notesInput: {
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    fontSize: FontSizes.sm,
+    minHeight: 70,
+    textAlignVertical: 'top',
+    marginBottom: Spacing.lg,
+  },
+  summaryCard: {
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+  },
+  summaryTitle: { fontSize: FontSizes.md, fontWeight: '700', marginBottom: Spacing.sm },
+  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
+  summaryLabel: { fontSize: FontSizes.sm },
+  summaryValue: { fontSize: FontSizes.sm, fontWeight: '600' },
+  summaryTotalLabel: { fontSize: FontSizes.md, fontWeight: '700' },
+  summaryTotalValue: { fontSize: FontSizes.md, fontWeight: '700' },
+  summaryDivider: { height: 1, marginVertical: Spacing.sm },
+  protectionNote: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.sm,
+    marginTop: Spacing.sm,
+  },
+  protectionNoteText: { flex: 1, fontSize: FontSizes.xs, lineHeight: 16 },
+  autoCompletingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: Spacing.sm,
+    borderRadius: BorderRadius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  autoCompletingText: { fontSize: FontSizes.sm, fontWeight: '600' },
+  insufficientPanel: {
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    borderWidth: 1,
+  },
+  insufficientHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    marginBottom: Spacing.sm,
+  },
+  insufficientTitle: { flex: 1, fontSize: FontSizes.sm, fontWeight: '700' },
+  topUpFromSummaryButton: { marginTop: Spacing.md },
+  paymentNote: {
+    fontSize: FontSizes.xs,
+    textAlign: 'center',
+    marginTop: Spacing.sm,
+  },
+  successIcon: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Spacing.lg,
+  },
+  successTitle: { fontSize: FontSizes.xl, fontWeight: 'bold', marginBottom: Spacing.sm },
+  successSubtitle: {
+    fontSize: FontSizes.sm,
+    textAlign: 'center',
+    marginBottom: Spacing.xl,
+  },
+  linkText: { fontSize: FontSizes.sm, fontWeight: '600' },
+});

@@ -1,70 +1,248 @@
-# Getting Started with Create React App
+# iStylist Mobile App
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+## 🎨 Overview
 
-## Available Scripts
+iStylist is a premium mobile marketplace connecting customers with verified beauty and style professionals. Built with React Native and Expo, this app provides a seamless experience for booking services, managing payments, and building a community around beauty and wellness.
 
-In the project directory, you can run:
+## ✅ What's Built (Foundation Complete)
 
-### `npm start`
+### 🏗️ Architecture & Infrastructure
+- ✅ **Expo Router** file-based navigation
+- ✅ **React Query** for server state management  
+- ✅ **Zustand** ready for client state (if needed)
+- ✅ **Axios** with interceptors for API calls
+- ✅ **JWT Authentication** with token refresh
+- ✅ **TypeScript** full type safety
+- ✅ **Secure Storage** for tokens (iOS/Android/Web compatible)
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+### 🎨 Design System
+- ✅ Premium color palette (Purple/Pink gradient theme)
+- ✅ Dark mode ready
+- ✅ Consistent spacing (8pt grid)
+- ✅ Reusable components (Button, Input, Card, Loading)
+- ✅ Typography system
+- ✅ Shadow styles
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+### 🔐 Authentication Flow
+- ✅ Splash screen with animations
+- ✅ Onboarding carousel (4 slides)
+- ✅ Login screen
+- ✅ Signup screen (Customer/Provider role selection)
+- ✅ OTP verification
+- ✅ Forgot password flow
+- ✅ Auth context with persistent sessions
 
-### `npm test`
+### 📱 Main Screens (Bottom Tabs)
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+#### 1. Home Tab
+- ✅ Personalized greeting
+- ✅ Search bar
+- ✅ Promotional banner
+- ✅ Categories grid (6 categories)
+- ✅ Featured providers list
+- ✅ Notification badge
 
-### `npm run build`
+#### 2. Search Tab
+- ✅ Search input with filters
+- ✅ Category filter chips
+- ✅ Provider results list
+- ✅ Rating, distance, price display
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+#### 3. Feed Tab
+- ✅ Social feed with posts
+- ✅ Like/comment/share actions
+- ✅ User avatars and timestamps
+- ✅ Create post button
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+#### 4. Bookings Tab
+- ✅ Tab navigation (Upcoming/Past/Cancelled)
+- ✅ Booking cards with status badges
+- ✅ Booking details (date, time, price)
+- ✅ Action buttons (Reschedule, View Details)
+- ✅ Review button for completed bookings
+- ✅ Empty state handling
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+#### 5. Profile Tab
+- ✅ User profile header with avatar
+- ✅ Stats display (Bookings, Reviews, Rating)
+- ✅ Menu sections:
+  - Account (Edit Profile, Wallet, Saved, Reviews)
+  - Provider (Become a Provider)
+  - Support (Help, Safety, Legal)
+  - Settings (Notifications, App Settings)
+- ✅ Logout functionality
+- ✅ Version display
 
-### `npm run eject`
+### 🔌 API Services Layer
+All services are ready to connect to your production backend:
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+- ✅ **Auth Service** - login, signup, OTP, password reset
+- ✅ **Provider Service** - search, get providers, save providers
+- ✅ **Booking Service** - create, update, cancel bookings
+- ✅ **Wallet Service** - balance, transactions, withdrawals
+- ✅ **Feed Service** - posts, comments, likes
+- ✅ **Review Service** - create reviews, get provider reviews
+- ✅ **Message Service** - conversations, send messages
+- ✅ **Notification Service** - push notifications, read status
+- ✅ **Support Service** - tickets, reports, KYC
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+### 📦 Configuration
+- ✅ **app.json** configured with:
+  - iOS bundle identifier
+  - Android package name
+  - Required permissions (Camera, Location, etc.)
+  - Push notification setup
+  - App icons and splash screen
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+- ✅ **Environment Variables**:
+  - `EXPO_PUBLIC_API_BASE_URL` - Your backend API URL
+  - Easily configurable for different environments
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+## 🚀 What's Next
 
-## Learn More
+The foundation is complete! Here's what can be added:
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+### Priority Features
+1. **Wallet Screen** - Display balance, transactions, withdrawal
+2. **Provider Profile Screen** - Detailed view with services, reviews, gallery
+3. **Booking Flow** - Service selection, date/time picker, payment
+4. **Payment Integration** - Flutterwave integration
+5. **Messaging Screen** - Real-time chat with providers
+6. **Notifications Center** - In-app notifications list
+7. **Provider Onboarding** - Multi-step form for becoming a provider
+8. **KYC Flow** - Document upload and verification
+9. **Admin Dashboard** - Platform management screens
+10. **Push Notifications** - Expo Notifications implementation
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+### Enhancement Features
+- Image upload and gallery
+- Real-time updates (WebSockets)
+- Map view for providers
+- Calendar availability
+- Filters and sorting
+- Reviews and ratings UI
+- In-app browser for legal pages
+- Deep linking
+- Analytics
 
-### Code Splitting
+## 🔗 Backend Integration
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+### Current Status
+- All API service interfaces are defined
+- Centralized API client with Axios
+- JWT token management implemented
+- Request/response interceptors ready
 
-### Analyzing the Bundle Size
+### Next Steps
+1. Set your production backend URL in `.env`:
+   ```bash
+   EXPO_PUBLIC_API_BASE_URL=https://your-backend.com/api
+   ```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+2. Your backend should expose these endpoints:
+   - POST `/auth/login`
+   - POST `/auth/signup`
+   - POST `/auth/verify-otp`
+   - GET `/auth/me`
+   - GET `/providers`
+   - POST `/bookings`
+   - GET `/wallet`
+   - GET `/feed`
+   - ... (see services for full list)
 
-### Making a Progressive Web App
+3. All screens will automatically consume your APIs
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+## 🎯 Tech Stack
 
-### Advanced Configuration
+- **Framework**: React Native (Expo SDK 54)
+- **Language**: TypeScript
+- **Navigation**: Expo Router (file-based)
+- **State Management**: React Query + Context API
+- **Styling**: StyleSheet API with theme system
+- **HTTP Client**: Axios with interceptors
+- **Storage**: Expo SecureStore
+- **Animations**: React Native Reanimated
+- **Notifications**: Expo Notifications
+- **Icons**: @expo/vector-icons (Ionicons)
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+## 📱 Device Support
 
-### Deployment
+- ✅ iOS (iPhone & iPad)
+- ✅ Android (Phone & Tablet)
+- ✅ Web (Progressive Web App)
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+## 🎨 Design Highlights
 
-### `npm run build` fails to minify
+- **Touch Targets**: Minimum 44x44 points
+- **Keyboard Handling**: Proper KeyboardAvoidingView
+- **Safe Areas**: SafeAreaView on all screens
+- **Loading States**: Skeleton screens and spinners
+- **Error Handling**: User-friendly error messages
+- **Accessibility**: Semantic naming and proper contrast
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+## 📝 Project Structure
+
+```
+frontend/
+├── app/                      # Expo Router screens
+│   ├── (auth)/              # Authentication screens
+│   ├── (onboarding)/        # Onboarding flow
+│   ├── (tabs)/              # Main tab navigation
+│   ├── _layout.tsx          # Root layout
+│   └── index.tsx            # Splash screen
+├── src/
+│   ├── components/          # Reusable components
+│   │   └── common/         # Button, Input, Card, etc.
+│   ├── constants/          # Theme, colors, spacing
+│   ├── contexts/           # React contexts (Auth)
+│   ├── services/           # API service layer
+│   ├── types/              # TypeScript types
+│   └── utils/              # Utility functions
+├── assets/                 # Images, fonts, icons
+├── app.json               # Expo configuration
+├── package.json           # Dependencies
+└── tsconfig.json          # TypeScript config
+```
+
+## 🚀 Getting Started
+
+### Prerequisites
+- Node.js 18+
+- Yarn or npm
+- Expo Go app (for testing on device)
+
+### Installation
+```bash
+cd /app/frontend
+yarn install
+```
+
+### Development
+```bash
+yarn start
+```
+
+Scan the QR code with:
+- **iOS**: Camera app
+- **Android**: Expo Go app
+
+### Building for Production
+Use the Expo publish workflow to build:
+- Android APK/AAB
+- iOS IPA
+
+## 🔐 Security
+
+- ✅ Secure token storage (Keychain/Keystore)
+- ✅ HTTPS-only API calls
+- ✅ Input validation on all forms
+- ✅ JWT token refresh handling
+- ✅ Proper error handling (no sensitive data exposure)
+
+## 📄 License
+
+Private - iStylist Mobile App
+
+---
+
+**Built with ❤️ for iStylist**

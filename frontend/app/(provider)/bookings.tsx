@@ -1,0 +1,374 @@
+import React, { useCallback, useMemo, useState } from 'react';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  ActivityIndicator,
+  RefreshControl,
+  Alert,
+} from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
+import { bookingService } from '../../src/services/booking.service';
+import { walletService } from '../../src/services/wallet.service';
+import { useAuth } from '../../src/contexts/AuthContext';
+import { useTheme } from '../../src/contexts/ThemeContext';
+import { formatCurrency } from '../../src/utils/currency';
+import { derivePaymentStatus, getPaymentStatusMeta, formatStatusLabel } from '../../src/utils/walletHelpers';
+import { Booking, Transaction } from '../../src/types';
+import { ProfileAvatar } from '../../src/components/common';
+
+const FILTERS = ['Pending', 'Upcoming', 'Completed', 'Cancelled'] as const;
+
+const STATUS_COLOR: Record<string, string> = {
+  pending_payment: Colors.warning,
+  pending: Colors.info,
+  confirmed: Colors.info,
+  completed: Colors.success,
+  canceled: Colors.error,
+  declined: Colors.error,
+  no_show_pending: Colors.warning,
+  user_no_show: Colors.error,
+  provider_no_show: Colors.error,
+  disputed: Colors.warning,
+};
+
+const PAYMENT_TONE_COLOR: Record<string, string> = {
+  success: Colors.success,
+  error: Colors.error,
+  warning: Colors.warning,
+  info: Colors.info,
+  neutral: Colors.textMuted,
+};
+
+// GROUND TRUTH (Phase 6.1 - verified against production web app source,
+// frontend/src/screens/BookingDetailsScreen.jsx canProviderConfirm/
+// canProviderCancel + STATUS_CONFIG): the provider confirms/declines a
+// booking while status is "pending" (already paid, awaiting provider) -
+// NOT "confirmed"->"declined". Real target status values are exactly
+// "confirmed", "declined", "canceled", "completed" (single L on canceled,
+// not "cancelled"/"rejected"/"arrived").
+const ACTIONS_FOR_STATUS: Record<string, { label: string; next: string; destructive?: boolean }[]> = {
+  pending: [
+    { label: 'Accept', next: 'confirmed' },
+    { label: 'Decline', next: 'declined', destructive: true },
+  ],
+  confirmed: [
+    { label: 'Mark Completed', next: 'completed' },
+    { label: 'Mark No-Show', next: 'provider_no_show', destructive: true },
+    { label: 'Cancel', next: 'canceled', destructive: true },
+  ],
+};
+
+export default function ProviderBookings() {
+  const router = useRouter();
+  const { user } = useAuth();
+  const { colors } = useTheme();
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [filter, setFilter] = useState<typeof FILTERS[number]>('Pending');
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadData = useCallback(async () => {
+    try {
+      setError(null);
+      const [list, txnData] = await Promise.all([
+        bookingService.getBookings({ role: 'provider' }),
+        user?.auth_id ? walletService.getTransactions(user.auth_id).catch(() => []) : Promise.resolve([]),
+      ]);
+      setBookings(list);
+      setTransactions(txnData);
+    } catch (err: any) {
+      console.error('[provider-bookings] failed to load', err);
+      setError(err?.friendlyMessage || 'Could not load bookings.');
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [user?.auth_id]);
+
+  // Refresh bookings + wallet-derived payment status every time this
+  // screen regains focus - covers a customer paying/topping-up, or a
+  // backend-side escrow release/refund, while this screen wasn't visible.
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [loadData])
+  );
+
+  const handleRefresh = () => {
+    setRefreshing(true);
+    loadData();
+  };
+
+  const filtered = useMemo(() => {
+    switch (filter) {
+      case 'Pending':
+        return bookings.filter((b) => ['pending_payment', 'pending'].includes(b.status));
+      case 'Upcoming':
+        return bookings.filter((b) => b.status === 'confirmed');
+      case 'Completed':
+        return bookings.filter((b) => b.status === 'completed');
+      case 'Cancelled':
+        return bookings.filter((b) =>
+          ['canceled', 'declined', 'no_show_pending', 'user_no_show', 'provider_no_show', 'disputed'].includes(
+            b.status
+          )
+        );
+      default:
+        return bookings;
+    }
+  }, [bookings, filter]);
+
+  const handleAction = async (booking: Booking, next: string, destructive?: boolean) => {
+    const proceed = async () => {
+      const authId = String(user?.auth_id ?? '').trim();
+      const status = String(next ?? '').trim();
+
+      if (!status) {
+        Alert.alert('Missing status', 'A valid booking status is required.');
+        return;
+      }
+      if (!authId) {
+        Alert.alert('Missing profile', 'Your account is not available for this action.');
+        return;
+      }
+
+      setUpdatingId(booking.id);
+      try {
+        const updated = await bookingService.updateBookingStatus(booking.id, status, 'provider', authId);
+        setBookings((prev) => prev.map((b) => (b.id === booking.id ? updated : b)));
+      } catch (err: any) {
+        Alert.alert('Error', err?.friendlyMessage || 'Could not update this booking.');
+      } finally {
+        setUpdatingId(null);
+      }
+    };
+
+    if (destructive) {
+      Alert.alert('Are you sure?', `This will mark the booking as "${next}".`, [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Confirm', style: 'destructive', onPress: proceed },
+      ]);
+    } else {
+      proceed();
+    }
+  };
+
+  return (
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+      <View style={styles.header}>
+        <Text style={[styles.title, { color: colors.text }]}>Bookings</Text>
+      </View>
+
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.filtersRow}
+      >
+        {FILTERS.map((f) => (
+          <TouchableOpacity
+            key={f}
+            style={[styles.filterChip, { backgroundColor: colors.surface, borderColor: colors.border }, filter === f && { backgroundColor: Colors.primary, borderColor: Colors.primary }]}
+            onPress={() => setFilter(f)}
+            accessibilityRole="button"
+            accessibilityLabel={f}
+          >
+            <Text style={[styles.filterText, { color: colors.text }, filter === f && { color: '#fff' }]}>{f}</Text>
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+
+      {loading ? (
+        <View style={styles.centerState}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+        </View>
+      ) : error ? (
+        <View style={styles.centerState}>
+          <Text style={[styles.emptyText, { color: colors.text }]}>{error}</Text>
+        </View>
+      ) : (
+        <ScrollView
+          contentContainerStyle={styles.list}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={Colors.primary} />
+          }
+        >
+          {filtered.length === 0 ? (
+            <View style={styles.centerState}>
+              <Ionicons name="calendar-outline" size={32} color={colors.textSecondary} />
+              <Text style={[styles.emptyText, { color: colors.text }]}>No {filter.toLowerCase()} bookings.</Text>
+            </View>
+          ) : (
+            filtered.map((booking) => {
+              const actions = ACTIONS_FOR_STATUS[booking.status] || [];
+              return (
+                <TouchableOpacity
+                  key={booking.id}
+                  style={[styles.card, { backgroundColor: colors.surface }]}
+                  onPress={() => router.push(`/bookings/${booking.id}`)}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel="View booking details"
+                >
+                  <View style={styles.cardHeader}>
+                    <Text style={[styles.serviceName, { color: colors.text }]}>{booking.service_name}</Text>
+                    <View
+                      style={[
+                        styles.statusPill,
+                        { backgroundColor: (STATUS_COLOR[booking.status] || colors.textSecondary) + '22' },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.statusText,
+                          { color: STATUS_COLOR[booking.status] || colors.textSecondary },
+                        ]}
+                      >
+                        {formatStatusLabel(booking.status)}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={[styles.meta, { color: colors.textSecondary }]}>
+                    {booking.date} {booking.time ? `· ${booking.time}` : ''}
+                  </Text>
+                  <View style={styles.customerRow}>
+                    <ProfileAvatar uri={booking.customer_profile_image_url} name={booking.customer_name || 'Customer'} size={34} type="customer" />
+                    <View style={styles.customerInfo}>
+                      <Text style={[styles.customerName, { color: colors.text }]} numberOfLines={1}>{booking.customer_name || 'Customer'}</Text>
+                      <Text style={[styles.customerAddress, { color: colors.textSecondary }]} numberOfLines={1}>{booking.customer_address || booking.location || 'Location not provided'}</Text>
+                    </View>
+                  </View>
+                  {!!booking.notes && <Text style={[styles.notes, { color: colors.textSecondary }]}>{`"${booking.notes}"`}</Text>}
+                  <Text style={[styles.amount, { color: Colors.primary }]}>{formatCurrency(booking.total_amount)}</Text>
+
+                  {(() => {
+                    const paymentMeta = getPaymentStatusMeta(derivePaymentStatus(booking, transactions));
+                    return (
+                      <View
+                        style={[
+                          styles.paymentPill,
+                          { backgroundColor: `${PAYMENT_TONE_COLOR[paymentMeta.tone]}18` },
+                        ]}
+                      >
+                        <Ionicons
+                          name="shield-checkmark-outline"
+                          size={12}
+                          color={PAYMENT_TONE_COLOR[paymentMeta.tone]}
+                        />
+                        <Text style={[styles.paymentPillText, { color: PAYMENT_TONE_COLOR[paymentMeta.tone] }]}>
+                          {paymentMeta.label}
+                        </Text>
+                      </View>
+                    );
+                  })()}
+
+                  {actions.length > 0 && (
+                    <View style={styles.actionsRow}>
+                      {actions.map((action) => (
+                        <TouchableOpacity
+                          key={action.label}
+                          style={[
+                            styles.actionBtn,
+                            { backgroundColor: Colors.primary },
+                            action.destructive && [styles.actionBtnDestructive, { backgroundColor: colors.surfaceLight, borderColor: Colors.error }],
+                          ]}
+                          onPress={() => handleAction(booking, action.next, action.destructive)}
+                          disabled={updatingId === booking.id}
+                          accessibilityRole="button"
+                          accessibilityLabel={action.label}
+                        >
+                          {updatingId === booking.id ? (
+                            <ActivityIndicator size="small" color={colors.text} />
+                          ) : (
+                            <Text
+                              style={[
+                                styles.actionBtnText,
+                                { color: colors.text },
+                                action.destructive && [styles.actionBtnTextDestructive, { color: Colors.error }],
+                              ]}
+                            >
+                              {action.label}
+                            </Text>
+                          )}
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })
+          )}
+        </ScrollView>
+      )}
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  header: { paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md },
+  title: { fontSize: FontSizes.xxl, fontWeight: 'bold' },
+  filtersRow: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.md, gap: Spacing.sm },
+  filterChip: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+    borderRadius: BorderRadius.full,
+    borderWidth: 1,
+  },
+  filterChipActive: {},
+  filterText: { fontSize: FontSizes.sm, fontWeight: '600' },
+  filterTextActive: {},
+  centerState: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: Spacing.sm, paddingTop: Spacing.xxl },
+  emptyText: { fontSize: FontSizes.sm },
+  list: { paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xl },
+  card: {
+    borderRadius: BorderRadius.lg,
+    padding: Spacing.md,
+    marginBottom: Spacing.md,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  serviceName: { fontSize: FontSizes.md, fontWeight: '700' },
+  statusPill: { paddingHorizontal: Spacing.sm, paddingVertical: 2, borderRadius: BorderRadius.full },
+  statusText: { fontSize: FontSizes.xs, fontWeight: '700', textTransform: 'capitalize' },
+  meta: { fontSize: FontSizes.sm, marginBottom: 4 },
+  customerRow: { flexDirection: 'row', alignItems: 'center', marginVertical: Spacing.sm },
+  customerInfo: { flex: 1, marginLeft: Spacing.sm },
+  customerName: { fontSize: FontSizes.sm, fontWeight: '700' },
+  customerAddress: { fontSize: FontSizes.xs, marginTop: 2 },
+  notes: { fontSize: FontSizes.xs, marginBottom: 4, fontStyle: 'italic' },
+  amount: { fontSize: FontSizes.md, fontWeight: '700', marginBottom: Spacing.sm },
+  paymentPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    alignSelf: 'flex-start',
+    paddingHorizontal: Spacing.sm,
+    paddingVertical: 4,
+    borderRadius: BorderRadius.sm,
+    marginBottom: Spacing.sm,
+  },
+  paymentPillText: { fontSize: FontSizes.xs, fontWeight: '600' },
+  actionsRow: { flexDirection: 'row', gap: Spacing.sm },
+  actionBtn: {
+    flex: 1,
+    borderRadius: BorderRadius.sm,
+    paddingVertical: Spacing.sm,
+    alignItems: 'center',
+  },
+  actionBtnDestructive: { borderWidth: 1 },
+  actionBtnText: { fontSize: FontSizes.sm, fontWeight: '700' },
+  actionBtnTextDestructive: {},
+});

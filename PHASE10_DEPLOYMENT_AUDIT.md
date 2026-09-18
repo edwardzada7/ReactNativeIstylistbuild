@@ -105,7 +105,7 @@ All routes verified and working:
 
 #### ✅ Frontend (.env)
 ```bash
-REACT_APP_BACKEND_URL=https://975a8e04-461c-4a72-b124-d8c24c42a97d.preview.emergentagent.com
+REACT_APP_BACKEND_URL=https://beauty-app-setup.preview.emergentagent.com
 REACT_APP_FLW_PUBLIC_KEY=FLWPUBK-d41cdd72dafe974d3410ef0383881b22-X
 ```
 **Status:** ✅ CONFIGURED

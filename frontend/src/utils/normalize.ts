@@ -1,0 +1,232 @@
+// Defensive normalizers for the production API.
+// Different endpoints occasionally use slightly different field names for the
+// same concept (e.g. business_name vs name vs stylist_name). These helpers
+// pick the first available value so the UI never crashes on a missing/renamed
+// field and always renders a sane fallback instead of blank/undefined text.
+import { Provider, Service, Review, Category, Booking } from '../types';
+
+const pick = (obj: any, keys: string[], fallback: any = undefined) => {
+  if (!obj) return fallback;
+  for (const key of keys) {
+    if (obj[key] !== undefined && obj[key] !== null && obj[key] !== '') return obj[key];
+  }
+  return fallback;
+};
+
+export function normalizeService(raw: any): Service {
+  return {
+    id: String(pick(raw, ['id', 'sub_service_id', 'service_id'], '')),
+    provider_id: String(pick(raw, ['provider_id', 'stylist_id'], '')),
+    // Real production shape uses `sub_service_name` on provider-service rows
+    // (e.g. { sub_service_id: "haircut", sub_service_name: "Haircut", ... })
+    // and plain `name` on catalog rows (e.g. /catalog/sub-services). Both are
+    // covered here so a real name is always shown instead of the "Service"
+    // placeholder that silently rendered everywhere before this fix.
+    name: pick(raw, ['name', 'sub_service_name', 'service_name', 'title'], 'Service'),
+    description: pick(raw, ['description', 'details'], ''),
+    price: Number(pick(raw, ['price', 'default_price', 'amount', 'cost'], 0)),
+    duration: Number(
+      pick(raw, ['duration_minutes', 'default_duration', 'duration', 'minutes'], 30)
+    ),
+    category: pick(raw, ['category', 'category_name', 'category_id', 'service_category']),
+    is_active: pick(raw, ['is_active', 'active'], true),
+    in_store: pick(raw, ['in_store'], undefined),
+    home_service: pick(raw, ['home_service'], undefined),
+  } as Service;
+}
+
+export function normalizeProvider(raw: any): Provider {
+  const servicesRaw =
+    pick(raw, ['services', 'provider_services', 'catalog_services'], []) || [];
+  const images = pick(raw, ['portfolio_images', 'images', 'gallery', 'photos'], []) || [];
+  const profileImageUrl = pick(raw, [
+    'avatarUrl',
+    'profileImage',
+    'profile_image_url',
+    'avatar_url',
+    'avatar',
+    'photo_url',
+    'photo',
+    'image',
+    'profile_photo',
+  ]);
+  const city = pick(raw, ['city']);
+  const country = pick(raw, ['country']);
+  const locationAddress = pick(raw, ['location_address', 'address', 'location']);
+  const location = locationAddress || [city, country].filter(Boolean).join(', ');
+  const firstName = pick(raw, ['firstName', 'first_name']);
+  const lastName = pick(raw, ['lastName', 'last_name']);
+  const businessName = pick(
+    raw,
+    ['businessName', 'business_name', 'name', 'full_name', 'stylist_name'],
+    'Stylist'
+  );
+  const ratingSource = pick(raw, ['rating', 'average_rating', 'avg_rating'], 0);
+  const ratingValue = typeof ratingSource === 'object'
+    ? pick(ratingSource, ['average', 'average_rating', 'avg_rating', 'value'], 0)
+    : ratingSource;
+  const reviewCountSource = pick(raw, ['review_count', 'ratingCount', 'rating_count', 'reviews_count', 'total_reviews'], 0);
+  const reviewCountValue = typeof reviewCountSource === 'object'
+    ? pick(reviewCountSource, ['count', 'review_count', 'rating_count', 'total'], 0)
+    : reviewCountSource;
+
+  const verificationSource = raw?.user || raw?.profile || raw?.stylist || raw;
+  const verificationStatus = String(pick(verificationSource, ['kyc_status', 'verification_status'], '')).toLowerCase();
+  const verificationFlag = pick(verificationSource, ['isKycVerified', 'is_kyc_verified', 'kyc_verified', 'is_verified', 'verified'], undefined);
+  const isKycVerified = verificationStatus === 'verified' || (Boolean(verificationFlag) && !['pending', 'rejected', 'unverified', 'false'].includes(verificationStatus));
+
+  return {
+    id: String(pick(raw, ['id', 'provider_id'], '')),
+    user_id: String(pick(raw, ['auth_id', 'user_id'], '')),
+    business_name: businessName,
+    bio: pick(raw, ['bio', 'about', 'description'], ''),
+    category_id: String(pick(raw, ['category_id', 'category'], '')),
+    category: pick(raw, ['category', 'category_name', 'specialty']),
+    rating: Number(ratingValue) || 0,
+    review_count: Number(reviewCountValue) || 0,
+    price_range: pick(raw, ['price_range', 'price_level'], '\u20A6\u20A6'),
+    location: location || 'Location not set',
+    location_address: locationAddress || location || null,
+    latitude: pick(raw, ['latitude', 'lat']),
+    longitude: pick(raw, ['longitude', 'lng']),
+    images: Array.isArray(images) ? images : [],
+    services: Array.isArray(servicesRaw) ? servicesRaw.map(normalizeService) : [],
+    is_verified: isKycVerified,
+    is_available: pick(raw, ['is_available', 'available'], true) !== false,
+    response_time: pick(raw, ['response_time']),
+    completion_rate: pick(raw, ['completion_rate']),
+    created_at: pick(raw, ['created_at'], ''),
+    avatar: profileImageUrl,
+    profile_image_url: profileImageUrl,
+    avatarUrl: pick(raw, ['avatarUrl', 'avatar_url'], profileImageUrl),
+    profileImage: pick(raw, ['profileImage', 'profile_image'], profileImageUrl),
+    businessName,
+    ratingCount: Number(reviewCountValue) || 0,
+    isKycVerified,
+    firstName,
+    lastName,
+  } as Provider;
+}
+
+export function normalizeReview(raw: any): Review {
+  return {
+    id: String(pick(raw, ['id', 'review_id'], '')),
+    booking_id: String(pick(raw, ['booking_id'], '')),
+    provider_id: String(pick(raw, ['provider_id'], '')),
+    customer_id: String(pick(raw, ['customer_id', 'user_id'], '')),
+    customer_name: pick(raw, ['customer_name', 'reviewer_name', 'name'], 'Customer'),
+    rating: Number(pick(raw, ['rating', 'stars'], 0)),
+    comment: pick(raw, ['comment', 'review', 'text', 'feedback'], ''),
+    images: pick(raw, ['images'], []),
+    created_at: pick(raw, ['created_at'], ''),
+  } as Review;
+}
+
+function deriveDateTime(scheduledAt: string): { date: string; time: string } {
+  if (!scheduledAt) return { date: '', time: '' };
+  const d = new Date(scheduledAt);
+  if (isNaN(d.getTime())) return { date: scheduledAt, time: '' };
+  const date = d.toISOString().slice(0, 10);
+  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  return { date, time };
+}
+
+export function normalizeBooking(raw: any): Booking {
+  // GROUND TRUTH (Phase 6): the production booking object uses SEPARATE
+  // `booking_date` ("YYYY-MM-DD") + `booking_time` (raw slot string, e.g.
+  // "10:00") fields - NOT a single combined `scheduled_at` ISO datetime.
+  // Prioritize those exact fields; only fall back to a combined
+  // scheduled_at/date_time shape for older/other endpoints that might
+  // still use it.
+  const bookingDate = pick(raw, ['booking_date'], '');
+  const bookingTime = pick(raw, ['booking_time'], '');
+  let date = bookingDate;
+  let time = bookingTime;
+  let scheduledAt = pick(raw, ['scheduled_at', 'date_time'], '');
+  if ((!bookingDate || !bookingTime) && scheduledAt) {
+    const derived = deriveDateTime(scheduledAt);
+    date = date || derived.date;
+    time = time || derived.time;
+  }
+  if (!scheduledAt && bookingDate) {
+    scheduledAt = bookingTime ? `${bookingDate}T${bookingTime}` : bookingDate;
+  }
+  // `services` is the real (plural) field on the booking object - a
+  // single-service booking still has one entry in that array.
+  const servicesList = Array.isArray(raw?.services) ? raw.services : [];
+  const firstService = servicesList[0] || {};
+
+  return {
+    id: String(pick(raw, ['id', 'booking_id'], '')),
+    customer_id: String(pick(raw, ['customer_id', 'user_id'], '')),
+    customer_auth_id: pick(raw, ['customer_auth_id']),
+    provider_id: String(pick(raw, ['provider_id', 'stylist_id'], '')),
+    provider_auth_id: pick(raw, ['provider_auth_id']),
+    service_id: String(pick(raw, ['service_id'], firstService.service_id ?? firstService.id ?? firstService.sub_service_id ?? '')),
+    service_name: pick(raw, ['service_name', 'service_title'], firstService.service_name || firstService.sub_service_name || firstService.name || 'Service'),
+    provider_name: pick(raw, ['provider_name', 'stylist_name', 'business_name', 'provider_display_name'], 'Provider'),
+    customer_name: pick(raw, ['customer_name', 'customer_display_name']),
+    customer_profile_image_url: pick(raw.customer || raw.customer_profile || raw.user, ['profile_image_url', 'avatarUrl', 'avatar_url', 'avatar', 'photo_url']),
+    customer_address: pick(raw.customer || raw.customer_profile || raw.user, ['location_address', 'address', 'location']),
+    provider_avatar: pick(raw, ['provider_avatar', 'provider_image', 'avatar']),
+    scheduled_at: scheduledAt,
+    date: pick(raw, ['date'], date),
+    time: pick(raw, ['time'], time),
+    status: pick(raw, ['status'], 'pending'),
+    total_amount: Number(pick(raw, ['total_amount', 'amount', 'price', 'total'], 0)),
+    total_duration: raw?.total_duration != null ? Number(raw.total_duration) : undefined,
+    services: servicesList.map((s: any) => ({
+      service_id: s.service_id ?? s.id,
+      service_name: s.service_name || s.sub_service_name || s.name || 'Service',
+      duration_minutes: s.duration_minutes != null ? Number(s.duration_minutes) : undefined,
+      price: s.price != null ? Number(s.price) : undefined,
+    })),
+    platform_fee_amount: pick(raw, ['platform_fee_amount']) != null ? Number(pick(raw, ['platform_fee_amount'])) : undefined,
+    payment_status: pick(raw, ['payment_status']),
+    location: pick(raw, ['location', 'location_address', 'address']),
+    notes: pick(raw, ['notes'], ''),
+    created_at: pick(raw, ['created_at'], ''),
+    updated_at: pick(raw, ['updated_at']),
+  } as Booking;
+}
+
+const CATEGORY_ICONS: Record<string, string> = {
+  hair: 'cut',
+  makeup: 'color-palette',
+  nail: 'hand-left',
+  spa: 'water',
+  massage: 'fitness',
+  skin: 'sparkles',
+  brow: 'eye',
+  lash: 'eye-outline',
+  barber: 'cut-outline',
+  wax: 'flame',
+};
+
+export function iconForCategory(name: string): string {
+  const lower = (name || '').toLowerCase();
+  for (const key of Object.keys(CATEGORY_ICONS)) {
+    if (lower.includes(key)) return CATEGORY_ICONS[key];
+  }
+  return 'sparkles';
+}
+
+/**
+ * The production API has no dedicated /categories endpoint, so categories
+ * are derived client-side from the services catalog (grouped by whichever
+ * category-like field is present on each service).
+ */
+export function deriveCategories(services: any[]): Category[] {
+  const map = new Map<string, number>();
+  (services || []).forEach((s) => {
+    const name = pick(s, ['category', 'category_name', 'service_category']);
+    if (!name) return;
+    map.set(name, (map.get(name) || 0) + 1);
+  });
+  return Array.from(map.entries()).map(([name, count]) => ({
+    id: name,
+    name,
+    icon: iconForCategory(name),
+    provider_count: count,
+  }));
+}
