@@ -23,7 +23,6 @@ import { supabase } from '../../src/lib/supabase';
 import { Booking } from '../../src/types';
 import { withCacheBuster } from '../../src/utils/display';
 import { queryClient } from '../_layout';
-import apiService from '../../src/services/api';
 import { ProfileAvatar } from '../../src/components/common';
 
 const comingSoon = (feature: string) =>
@@ -185,7 +184,6 @@ export default function Profile() {
 
       const { error: updateError } = await supabase.from('users').update({ profile_image_url: publicUrl }).eq('auth_id', user.auth_id);
       if (updateError) throw updateError;
-      await apiService.put(`/users/${user.id}`, { profile_image_url: publicUrl });
 
       const refreshedUrl = withCacheBuster(publicUrl) as string;
       setAvatarUrl(refreshedUrl);

@@ -167,7 +167,6 @@ export default function ProviderProfile() {
 
       const { error: updateError } = await supabase.from('stylists').update({ profile_image_url: publicUrl }).eq('auth_id', user.auth_id);
       if (updateError) throw updateError;
-      await apiService.put(`/users/${user.id}`, { profile_image_url: publicUrl });
 
       const refreshedUrl = withCacheBuster(publicUrl) as string;
       setAvatarUrl(refreshedUrl);
