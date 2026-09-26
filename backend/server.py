@@ -9,7 +9,7 @@ import logging
 import hmac
 import requests
 from pathlib import Path as PathlibPath
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from typing import List, Optional
 import uuid
 import json
@@ -19,6 +19,21 @@ from utils.message_sanitizer import MessageType, sanitizeMessagePayload
 
 ROOT_DIR = PathlibPath(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
+
+# The app sends lowercase shorthand `message_type` values (see
+# `normalizeSharedMessageType` in the frontend's chat.service.ts) that don't
+# match this enum's uppercase member names 1:1 (e.g. 'invoice' -> CUSTOM_INVOICE,
+# 'system' -> SYSTEM_ALERT). Used by `SendMessageInput`'s validator below.
+_MESSAGE_TYPE_ALIASES = {
+    "text": MessageType.TEXT,
+    "image": MessageType.IMAGE,
+    "location": MessageType.LOCATION,
+    "invoice": MessageType.CUSTOM_INVOICE,
+    "custom_invoice": MessageType.CUSTOM_INVOICE,
+    "system": MessageType.SYSTEM_ALERT,
+    "system_alert": MessageType.SYSTEM_ALERT,
+    "provider_recommendation": MessageType.PROVIDER_RECOMMENDATION,
+}
 
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
@@ -1759,11 +1774,76 @@ class SendMessageInput(BaseModel):
     invoice_data: Optional[dict] = None
     recommendation_data: Optional[dict] = None
 
+    @field_validator("message_type", mode="before")
+    @classmethod
+    def _accept_frontend_message_type_aliases(cls, value):
+        """The app sends lowercase shorthand types (e.g. 'invoice', 'system')
+        that don't match this enum's member names 1:1. Translate them here so
+        both the shorthand and the enum's own values are accepted."""
+        if isinstance(value, str):
+            alias = _MESSAGE_TYPE_ALIASES.get(value.strip().lower())
+            if alias is not None:
+                return alias
+            return value.upper()
+        return value
+
 
 class InquiryInput(BaseModel):
     provider_auth_id: str
     product_id: Optional[int] = None
     product_name: Optional[str] = None
+
+
+# The `chats` table's real schema uses `read` (not `is_read`) and a single
+# `metadata` jsonb column (there are no separate `is_masked`, `original_content`,
+# `location_data`, `invoice_data`, `recommendation_data` columns). It also has a
+# CHECK constraint on `message_type` that only accepts lowercase values, while
+# the app's `MessageType` enum is uppercase. These helpers translate between the
+# app-facing shape (unchanged, matches the frontend contract) and the real
+# database shape, without requiring any schema change.
+_CHAT_MESSAGE_TYPE_DB = {
+    MessageType.TEXT.value: "text",
+    MessageType.IMAGE.value: "image",
+    MessageType.LOCATION.value: "location",
+    MessageType.CUSTOM_INVOICE.value: "invoice",
+    MessageType.SYSTEM_ALERT.value: "system",
+    MessageType.PROVIDER_RECOMMENDATION.value: "provider_recommendation",
+}
+_CHAT_MESSAGE_TYPE_APP = {v: k for k, v in _CHAT_MESSAGE_TYPE_DB.items()}
+
+
+def _to_db_message_type(value: str) -> str:
+    return _CHAT_MESSAGE_TYPE_DB.get(value, value.lower())
+
+
+def _chat_metadata_payload(is_masked: bool = False, original_content: Optional[str] = None,
+                            location_data: Optional[dict] = None, invoice_data: Optional[dict] = None,
+                            recommendation_data: Optional[dict] = None) -> dict:
+    metadata: dict = {}
+    if is_masked:
+        metadata["is_masked"] = True
+        metadata["original_content"] = original_content
+    if location_data:
+        metadata["location_data"] = location_data
+    if invoice_data:
+        metadata["invoice_data"] = invoice_data
+    if recommendation_data:
+        metadata["recommendation_data"] = recommendation_data
+    return metadata
+
+
+def _normalize_chat_row(row: dict) -> dict:
+    """Map a raw `chats` row (real DB shape) back to the shape the app expects."""
+    if not isinstance(row, dict):
+        return row
+    metadata = row.get("metadata") or {}
+    normalized = dict(row)
+    normalized["is_read"] = row.get("read", False)
+    normalized["message_type"] = _CHAT_MESSAGE_TYPE_APP.get(row.get("message_type"), row.get("message_type"))
+    for key in ("is_masked", "original_content", "location_data", "invoice_data", "recommendation_data"):
+        if row.get(key) is None and key in metadata:
+            normalized[key] = metadata[key]
+    return normalized
 
 
 class ProviderRecommendationInput(BaseModel):
@@ -1849,12 +1929,19 @@ def _conversation_for_invoice(conversation_id: int, auth_id: str):
 
 
 def _mark_invoice_chat(invoice_id: int, status: str, payment_reference: Optional[str] = None):
-    rows = _supabase_request("GET", "chats", params={"invoice_data->>invoice_id": f"eq.{invoice_id}", "select": "id,invoice_data"})
+    rows = _supabase_request(
+        "GET", "chats",
+        params={"metadata->invoice_data->>invoice_id": f"eq.{invoice_id}", "select": "id,metadata"},
+    )
     for row in rows:
-        data = {**(row.get("invoice_data") or {}), "status": status}
+        metadata = row.get("metadata") or {}
+        invoice_data = {**(metadata.get("invoice_data") or {}), "status": status}
         if payment_reference:
-            data["paymentReference"] = payment_reference
-        _supabase_request("PATCH", "chats", params={"id": f"eq.{row['id']}"}, json={"invoice_data": data})
+            invoice_data["paymentReference"] = payment_reference
+        _supabase_request(
+            "PATCH", "chats", params={"id": f"eq.{row['id']}"},
+            json={"metadata": {**metadata, "invoice_data": invoice_data}},
+        )
 
 
 @api_router.post("/invoices")
@@ -1973,7 +2060,7 @@ def get_consultation_eligibility(provider_auth_id: str, authorization: Optional[
         "GET", "provider_certifications",
         params={
             "provider_auth_id": f"eq.{provider_auth_id}",
-            "status": "eq.approved",
+            "verification_status": "eq.approved",
             "is_active": "eq.true",
             "select": "*",
         },
@@ -2312,7 +2399,7 @@ def _create_conversation(customer_auth_id: str, provider_auth_id: str, conversat
         params={
             "customer_auth_id": f"eq.{customer_auth_id}",
             "provider_auth_id": f"eq.{provider_auth_id}",
-            "type": f"eq.{conversation_type}",
+            "conversation_type": f"eq.{conversation_type}",
             "select": "*",
             "limit": "1",
         },
@@ -2324,7 +2411,7 @@ def _create_conversation(customer_auth_id: str, provider_auth_id: str, conversat
         json={
             "customer_auth_id": customer_auth_id,
             "provider_auth_id": provider_auth_id,
-            "type": conversation_type,
+            "conversation_type": conversation_type,
         },
     )
     return created[0]
@@ -2358,7 +2445,7 @@ def create_inquiry(payload: InquiryInput, authorization: Optional[str] = Header(
         params={
             "customer_auth_id": f"eq.{customer_auth_id}",
             "provider_auth_id": f"eq.{payload.provider_auth_id}",
-            "type": "eq.inquiry",
+            "conversation_type": "eq.inquiry",
             "select": "*",
             "limit": "1",
         },
@@ -2384,8 +2471,8 @@ def create_inquiry(payload: InquiryInput, authorization: Optional[str] = Header(
                         "sender_auth_id": customer_auth_id,
                         "receiver_auth_id": payload.provider_auth_id,
                         "message": f"Product inquiry: {product_label} (product ID {payload.product_id})",
-                        "message_type": MessageType.TEXT.value,
-                        "is_read": False,
+                        "message_type": _to_db_message_type(MessageType.TEXT.value),
+                        "read": False,
                     },
                 )
         return existing[0]
@@ -2400,8 +2487,8 @@ def create_inquiry(payload: InquiryInput, authorization: Optional[str] = Header(
                 "sender_auth_id": customer_auth_id,
                 "receiver_auth_id": payload.provider_auth_id,
                 "message": f"Product inquiry: {product_label} (product ID {payload.product_id})",
-                "message_type": MessageType.TEXT.value,
-                "is_read": False,
+                "message_type": _to_db_message_type(MessageType.TEXT.value),
+                "read": False,
             },
         )
     return conversation
@@ -2424,7 +2511,7 @@ def list_conversations(authorization: Optional[str] = Header(None)):
             "GET", "chats",
             params={"conversation_id": f"eq.{row['id']}", "select": "*", "order": "created_at.desc", "limit": "1"},
         )
-        result.append({**row, "last_message": messages[0] if messages else None, "unread_count": 0})
+        result.append({**row, "last_message": _normalize_chat_row(messages[0]) if messages else None, "unread_count": 0})
     return result
 
 
@@ -2491,7 +2578,7 @@ def get_conversation_messages(conversation_id: int, authorization: Optional[str]
     if not conversation or auth_id not in (conversation[0].get("customer_auth_id"), conversation[0].get("provider_auth_id")):
         raise HTTPException(status_code=403, detail="You are not a participant in this conversation")
     messages = _supabase_request("GET", "chats", params={"conversation_id": f"eq.{conversation_id}", "select": "*", "order": "created_at.asc"})
-    return {"conversation": conversation[0], "messages": messages}
+    return {"conversation": conversation[0], "messages": [_normalize_chat_row(m) for m in messages]}
 
 
 @api_router.post("/conversations/{conversation_id}/messages")
@@ -2503,7 +2590,7 @@ def send_conversation_message(conversation_id: int, payload: SendMessageInput, a
     row = conversation[0]
     if auth_id not in (row.get("customer_auth_id"), row.get("provider_auth_id")):
         raise HTTPException(status_code=403, detail="You are not a participant in this conversation")
-    if row.get("type") == "consultation":
+    if row.get("conversation_type") == "consultation":
         consultation = _supabase_request("GET", "consultations", params={"conversation_id": f"eq.{conversation_id}", "status": "eq.active", "select": "id", "limit": "1"})
         if not consultation:
             raise HTTPException(status_code=403, detail="Consultation payment is required before chatting")
@@ -2536,33 +2623,47 @@ def send_conversation_message(conversation_id: int, payload: SendMessageInput, a
         message, is_masked, original_content = payload.message, False, None
     else:
         is_masked, original_content = False, None
-    return _supabase_request(
+    metadata = _chat_metadata_payload(
+        is_masked=is_masked,
+        original_content=original_content,
+        location_data=payload.location_data,
+        invoice_data=payload.invoice_data,
+        recommendation_data=recommendation if payload.message_type == MessageType.PROVIDER_RECOMMENDATION else payload.recommendation_data,
+    )
+    created = _supabase_request(
         "POST", "chats",
         json={
             "conversation_id": conversation_id,
             "sender_auth_id": auth_id,
             "receiver_auth_id": receiver,
             "message": message,
-            "message_type": payload.message_type.value,
-            "is_masked": is_masked,
-            "original_content": original_content,
-            "is_read": False,
+            "message_type": _to_db_message_type(payload.message_type.value),
+            "read": False,
+            **({"metadata": metadata} if metadata else {}),
         },
-    )[0]
+    )
+    return _normalize_chat_row(created[0])
 
 
 def _chat_row(sender_auth_id: str, payload: SendMessageInput, message: str, is_masked: bool = False, original_content: Optional[str] = None):
-    return {
+    metadata = _chat_metadata_payload(
+        is_masked=is_masked,
+        original_content=original_content,
+        location_data=payload.location_data,
+        invoice_data=payload.invoice_data,
+        recommendation_data=payload.recommendation_data,
+    )
+    row = {
         "sender_auth_id": sender_auth_id,
         "receiver_auth_id": payload.receiver_auth_id,
         "message": message,
         "booking_id": payload.booking_id,
-        "is_masked": is_masked,
-        "original_content": original_content,
-        "message_type": payload.message_type.value,
-        "location_data": payload.location_data,
-        "invoice_data": payload.invoice_data,
+        "message_type": _to_db_message_type(payload.message_type.value),
+        "read": False,
     }
+    if metadata:
+        row["metadata"] = metadata
+    return row
 
 
 @api_router.post("/chat/messages")
@@ -2599,20 +2700,22 @@ def send_chat_message(payload: SendMessageInput, authorization: Optional[str] = 
     result = resp.json()[0]
 
     if is_masked:
+        alert_payload = _chat_row(
+            auth_id,
+            payload,
+            "Protection notice: contact and payment details were masked. Keep payments in-app for protection.",
+        )
+        alert_payload["message_type"] = _to_db_message_type(MessageType.SYSTEM_ALERT.value)
         alert = requests.post(
             f"{SUPABASE_URL}/rest/v1/chats",
             headers=_supabase_headers(),
-            json=_chat_row(
-                auth_id,
-                payload,
-                "Protection notice: contact and payment details were masked. Keep payments in-app for protection.",
-            ) | {"message_type": MessageType.SYSTEM_ALERT.value},
+            json=alert_payload,
             timeout=10,
         )
         if alert.status_code not in (200, 201):
             logger.warning("failed to append chat protection alert: %s", alert.status_code)
 
-    return result
+    return _normalize_chat_row(result)
 
 
 @api_router.get("/conversations/unread-count")
@@ -2620,7 +2723,7 @@ def get_conversations_unread_count(authorization: Optional[str] = Header(None)):
     """Return the caller's unread chat count using the indexed receiver/read fields."""
     auth_id = _verify_supabase_user(authorization)
     resp = requests.get(
-        f"{SUPABASE_URL}/rest/v1/chats?receiver_auth_id=eq.{auth_id}&is_read=eq.false&select=id",
+        f"{SUPABASE_URL}/rest/v1/chats?receiver_auth_id=eq.{auth_id}&read=eq.false&select=id",
         headers={**_supabase_headers(), "Prefer": "count=exact"},
         timeout=10,
     )
@@ -2646,9 +2749,9 @@ def mark_conversation_read(conversation_id: int, conversation_type: Optional[str
     else:
         raise HTTPException(status_code=400, detail="conversation_type is required")
     resp = requests.patch(
-        f"{SUPABASE_URL}/rest/v1/chats?{key}=eq.{conversation_id}&receiver_auth_id=eq.{auth_id}&is_read=eq.false",
+        f"{SUPABASE_URL}/rest/v1/chats?{key}=eq.{conversation_id}&receiver_auth_id=eq.{auth_id}&read=eq.false",
         headers=_supabase_headers(),
-        json={"is_read": True, "read": True, "read_at": now},
+        json={"read": True, "read_at": now},
         timeout=10,
     )
     if resp.status_code not in (200, 204):
