@@ -182,7 +182,7 @@ export default function Feed() {
           />
           <View>
             <Text style={[styles.userName, { color: colors.text }]}>
-              {item.provider?.businessName || item.user?.displayName || 'Stylist'}
+              {item.provider?.display_name || item.provider?.business_name || item.provider?.name || item.provider?.full_name || item.user?.full_name || item.user?.name || 'Stylist'}
             </Text>
             <Text style={[styles.timestamp, { color: colors.textSecondary }]}>{item.created_at ? new Date(item.created_at).toLocaleDateString() : ''}</Text>
           </View>

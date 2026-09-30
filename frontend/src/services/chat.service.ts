@@ -173,6 +173,20 @@ export const chatService = {
     });
   },
 
+  async sendLocationMessage(
+    conversationId: number,
+    receiverAuthId: string,
+    content: string,
+    locationData: { latitude: number; longitude: number; addressName?: string }
+  ) {
+    return apiService.post('/conversations/' + conversationId + '/messages', {
+      receiver_auth_id: receiverAuthId,
+      message: content,
+      message_type: 'location',
+      location_data: locationData,
+    });
+  },
+
   async sendProviderRecommendation(conversationId: number, receiverAuthId: string, recommendation: Record<string, any>) {
     return apiService.post('/conversations/' + conversationId + '/messages', {
       receiver_auth_id: receiverAuthId,

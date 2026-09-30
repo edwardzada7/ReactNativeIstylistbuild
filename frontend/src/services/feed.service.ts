@@ -92,8 +92,8 @@ export const feedService = {
   async addComment(postId: string, content: string): Promise<Comment> {
     const authorAuthId = await apiService.getAuthId();
     if (!authorAuthId) throw new Error('Not authenticated');
-    const response = await apiService.post<any>(`/feed/posts/${postId}/comments`, {
-      author_auth_id: authorAuthId,
+    // Backend expects the author id as a query param (?auth_id=...), not in the body.
+    const response = await apiService.post<any>(`/feed/posts/${postId}/comments?auth_id=${authorAuthId}`, {
       content,
     });
     return response?.comment || response?.data || response;

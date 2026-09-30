@@ -31,6 +31,7 @@ import { ProviderRecommendationCard } from '../../src/components/chat/ProviderRe
 import { ReadReceipt } from '../../src/components/chat/ReadReceipt';
 import { providerService } from '../../src/services/provider.service';
 import { useCartStore } from '../../src/store/cartStore';
+import { supabase } from '../../src/lib/supabase';
 
 const PHONE_REGEX = /(?:\+?234|0)[789][01]\d{8}/g;
 const EMAIL_REGEX = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
@@ -63,7 +64,7 @@ export default function ChatThread() {
   const isBookingConversation = conversationType === 'booking';
   const isSharedConversation = conversationType === 'inquiry' || conversationType === 'consultation';
   const activeChatId = isBookingConversation ? legacyBookingId : isSharedConversation ? conversationId : undefined;
-  const { user } = useAuth();
+  const { user, isProvider } = useAuth();
   const addItem = useCartStore((state) => state.addItem);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -214,14 +215,32 @@ export default function ChatThread() {
   };
 
   const handleSharePhoto = async () => {
-    if (!isSharedConversation || !conversationId) return;
+    if (!isSharedConversation || !conversationId || !user?.auth_id) return;
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (permission.status !== 'granted') return;
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.6, base64: true });
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.6, base64: false });
     const asset = result.assets?.[0];
-    if (result.canceled || !asset?.base64) return;
+    if (result.canceled || !asset?.uri) return;
     try {
-      const sent = await chatService.sendConversationMessage(Number(conversationId), counterpartAuthId, `data:image/jpeg;base64,${asset.base64}`, 'image');
+      // Chat messages have a server-side length limit far too small for a
+      // base64-encoded photo, so upload to Storage (reusing the same
+      // profile-images bucket/RLS policy: <role>/<auth_id>/<file>) and send
+      // only the short public URL as the message content.
+      const response = await fetch(asset.uri);
+      const arrayBuffer = await response.arrayBuffer();
+      if (arrayBuffer.byteLength > 2 * 1024 * 1024) {
+        Alert.alert('Image too large', 'Please choose an image smaller than 2 MB.');
+        return;
+      }
+      const path = `${isProvider ? 'providers' : 'customers'}/${user.auth_id}/chat-${Date.now()}.jpg`;
+      const { error: uploadError } = await supabase.storage.from('profile-images').upload(path, arrayBuffer, {
+        contentType: 'image/jpeg',
+        upsert: true,
+      });
+      if (uploadError) throw uploadError;
+      const { data: publicUrlData } = supabase.storage.from('profile-images').getPublicUrl(path);
+
+      const sent = await chatService.sendConversationMessage(Number(conversationId), counterpartAuthId, publicUrlData.publicUrl, 'image');
       setMessages((prev) => [...prev, sent]);
     } catch (err: any) {
       console.error('[chat] failed to send photo', err);
@@ -249,10 +268,15 @@ export default function ChatThread() {
 
       const sent = isBookingConversation
         ? await chatService.sendMessage(messagePayload)
-        : await chatService.sendConversationMessage(Number(conversationId), counterpartAuthId, messagePayload.content);
+        : await chatService.sendLocationMessage(Number(conversationId), counterpartAuthId, messagePayload.content, {
+            latitude: messagePayload.latitude,
+            longitude: messagePayload.longitude,
+            addressName: messagePayload.addressName,
+          });
       setMessages((prev) => [...prev, sent]);
-    } catch (err) {
+    } catch (err: any) {
       console.error('[chat] failed to share location', err);
+      Alert.alert('Could not share location', err?.friendlyMessage || err?.message || 'Please try again.');
     } finally {
       setLocationLoading(false);
     }
@@ -324,7 +348,7 @@ export default function ChatThread() {
                         addressName={item.location_data?.addressName}
                         mapUrl={messageContent}
                       />
-                    ) : messageType === 'image' && messageContent.startsWith('data:image') ? (
+                    ) : messageType === 'image' && (messageContent.startsWith('data:image') || messageContent.startsWith('http')) ? (
                       <Image source={{ uri: messageContent }} style={styles.messageImage} />
                     ) : (messageType === 'invoice' || messageType === 'custom_invoice') && item.invoice_data ? (
                       <InvoiceCard {...item.invoice_data} onPay={item.sender_auth_id !== user?.auth_id && item.invoice_data.status !== 'paid' ? () => handlePayInvoice(item.invoice_data!) : undefined} />
