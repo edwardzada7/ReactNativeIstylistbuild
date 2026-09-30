@@ -22,7 +22,12 @@ export const staffService = {
       formData.append('service_ids', JSON.stringify(payload.service_ids));
       const raw = await apiService.post<any>('/staff', formData, {
         params: { auth_id: authId },
-        headers: { 'Content-Type': 'multipart/form-data' },
+        // Force axios/React Native to auto-generate the multipart
+        // "Content-Type: multipart/form-data; boundary=..." header for this
+        // FormData body instead of inheriting the client's default
+        // "application/json" (which the backend's multipart parser cannot
+        // read, silently dropping the uploaded file).
+        headers: { 'Content-Type': undefined },
       });
       return { ...raw, id: String(raw.id), is_active: !!raw.is_active, service_ids: Array.isArray(raw.service_ids) ? raw.service_ids.map(Number) : [], weekly: Array.isArray(raw.weekly) ? raw.weekly : [] };
     },
@@ -42,7 +47,7 @@ export const staffService = {
       formData.append('service_ids', JSON.stringify(payload.service_ids));
       const raw = await apiService.put<any>(`/staff/${staffId}`, formData, {
         params: { auth_id: authId },
-        headers: { 'Content-Type': 'multipart/form-data' },
+        headers: { 'Content-Type': undefined },
       });
       return { ...raw, id: String(raw.id), is_active: !!raw.is_active, service_ids: Array.isArray(raw.service_ids) ? raw.service_ids.map(Number) : [], weekly: Array.isArray(raw.weekly) ? raw.weekly : [] };
     },

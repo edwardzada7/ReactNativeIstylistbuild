@@ -89,6 +89,28 @@ This workspace only has push/edit access to `ReactNativeIstylistbuild`
 `UpdatedistylistBeauty-Marketplace`, a separate repo — user declined to
 share a push token, so those 2 fixes are documented but not yet applied.
 
+## Session 3 (Feb 2026) — Shop/Provider fixes (Railway offline, mobile repo only)
+Full report: `/app/SHOP_PROVIDER_FIX_REPORT.md`. Summary:
+- FIXED: Shop checkout callback_url/redirect_url field mismatch blocking
+  order finalization (backend/server.py).
+- FIXED: `provider_inventory_listings.provider_inventory_id` → real column
+  `inventory_id` (×3 call sites) — this was silently skipping ALL Provider
+  Shop Referral creation for every order item (backend/server.py).
+- FIXED: Provider order retrieval only found orders where this provider was
+  the *first* seller; added `GET /provider/shop-orders` for correct
+  multi-seller attribution (backend/server.py + shop.service.ts).
+- FIXED: Staff avatar upload multipart Content-Type override breaking the
+  FormData boundary (staff.service.ts).
+- NOT FOUND: Product reviews — schema + logic verified correct; no bug
+  found in this repo's code (likely just Railway being offline).
+- NOT FIXED (unconfirmed column name, did not want to guess):
+  `provider_inventory_listings.quantity` / `provider_inventory.
+  quantity_allocated_to_listings` used by "Buy for My Shop" resale listing
+  endpoint.
+- Everything above except the referral column-name fix requires Railway
+  back online (or wherever EXPO_PUBLIC_API_BASE_URL actually points) to
+  verify live end-to-end.
+
 ## Prioritized backlog / next steps
 - P0: User runs the SQL migration in Supabase (see below) — fixes booking.
 - P0: User (or a future session with push access) applies the

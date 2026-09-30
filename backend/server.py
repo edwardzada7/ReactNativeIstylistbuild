@@ -228,6 +228,7 @@ class PaystackShopInitializeInput(BaseModel):
     name: Optional[str] = None
     phone: Optional[str] = None
     redirect_url: Optional[str] = None
+    callback_url: Optional[str] = None
     currency: Optional[str] = 'NGN'
     delivery_address: Optional[str] = None
     payment_method: Optional[str] = None
@@ -676,14 +677,14 @@ def _create_shop_commissions_for_order(order_id: int, order_currency: Optional[s
                 continue
 
             inventory_listing_resp = requests.get(
-                f"{SUPABASE_URL}/rest/v1/provider_inventory_listings?product_listing_id=eq.{listing_id}&select=provider_inventory_id",
+                f"{SUPABASE_URL}/rest/v1/provider_inventory_listings?product_listing_id=eq.{listing_id}&select=inventory_id",
                 headers=_supabase_headers(),
                 timeout=10,
             )
             if inventory_listing_resp.status_code != 200:
                 logger.error("Could not resolve provider-owned inventory for listing %s in order %s", listing_id, order_id)
                 continue
-            inventory_ids = [row.get("provider_inventory_id") for row in inventory_listing_resp.json() or [] if row.get("provider_inventory_id")]
+            inventory_ids = [row.get("inventory_id") for row in inventory_listing_resp.json() or [] if row.get("inventory_id")]
             if inventory_ids:
                 inventory_resp = requests.get(
                     f"{SUPABASE_URL}/rest/v1/provider_inventory?id=in.({','.join(str(value) for value in inventory_ids)})&provider_auth_id=eq.{provider_auth_id}&select=id",
@@ -811,14 +812,14 @@ def _create_provider_shop_referrals_for_order(order_id: int, order_currency: Opt
 
             # A provider-owned resale listing is linked to purchased inventory.
             inventory_listing_resp = requests.get(
-                f"{SUPABASE_URL}/rest/v1/provider_inventory_listings?product_listing_id=eq.{listing_id}&select=provider_inventory_id",
+                f"{SUPABASE_URL}/rest/v1/provider_inventory_listings?product_listing_id=eq.{listing_id}&select=inventory_id",
                 headers=_supabase_headers(),
                 timeout=10,
             )
             if inventory_listing_resp.status_code != 200:
                 logger.error("Could not verify referral ownership for listing %s", listing_id)
                 continue
-            inventory_ids = [row.get("provider_inventory_id") for row in inventory_listing_resp.json() or [] if row.get("provider_inventory_id")]
+            inventory_ids = [row.get("inventory_id") for row in inventory_listing_resp.json() or [] if row.get("inventory_id")]
             if inventory_ids:
                 inventory_resp = requests.get(
                     f"{SUPABASE_URL}/rest/v1/provider_inventory?id=in.({','.join(str(value) for value in inventory_ids)})&provider_auth_id=eq.{provider_auth_id}&select=id",
@@ -1293,6 +1294,85 @@ def get_provider_referral_earnings(authorization: Optional[str] = Header(None)):
     return response.json() or []
 
 
+@api_router.get("/provider/shop-orders")
+def get_provider_shop_orders(authorization: Optional[str] = Header(None)):
+    """Marketplace orders containing at least one item sold by this provider.
+
+    A single order can contain items from multiple sellers, and
+    `orders.provider_auth_id` is only ever set to the first seller resolved at
+    checkout, so it is not sufficient on its own for seller attribution.
+    Attribution is instead resolved via order_items -> product_listings ->
+    shop_sellers (for "Add to My Shop" / "Buy for My Shop" listings) and via
+    order_items.product_id -> products.stylist_auth_id (for a provider's own
+    directly-sold products).
+    """
+    auth_id = _verify_supabase_user(authorization)
+
+    seller_resp = requests.get(
+        f"{SUPABASE_URL}/rest/v1/shop_sellers?provider_auth_id=eq.{auth_id}&select=id",
+        headers=_supabase_headers(),
+        timeout=10,
+    )
+    if seller_resp.status_code != 200:
+        raise HTTPException(status_code=502, detail="Could not resolve seller identity")
+    seller_ids = [row["id"] for row in seller_resp.json() or []]
+
+    listing_ids = []
+    if seller_ids:
+        listing_resp = requests.get(
+            f"{SUPABASE_URL}/rest/v1/product_listings?seller_id=in.({','.join(str(v) for v in seller_ids)})&select=id",
+            headers=_supabase_headers(),
+            timeout=10,
+        )
+        if listing_resp.status_code != 200:
+            raise HTTPException(status_code=502, detail="Could not resolve provider listings")
+        listing_ids = [row["id"] for row in listing_resp.json() or []]
+
+    product_resp = requests.get(
+        f"{SUPABASE_URL}/rest/v1/products?stylist_auth_id=eq.{auth_id}&select=id",
+        headers=_supabase_headers(),
+        timeout=10,
+    )
+    if product_resp.status_code != 200:
+        raise HTTPException(status_code=502, detail="Could not resolve provider products")
+    product_ids = [row["id"] for row in product_resp.json() or []]
+
+    if not listing_ids and not product_ids:
+        return []
+
+    filters = []
+    if listing_ids:
+        filters.append(f"listing_id.in.({','.join(str(v) for v in listing_ids)})")
+    if product_ids:
+        filters.append(f"product_id.in.({','.join(str(v) for v in product_ids)})")
+    item_resp = requests.get(
+        f"{SUPABASE_URL}/rest/v1/order_items?or=({','.join(filters)})&select=order_id,product_id,listing_id,quantity,price",
+        headers=_supabase_headers(),
+        timeout=10,
+    )
+    if item_resp.status_code != 200:
+        raise HTTPException(status_code=502, detail="Could not resolve provider order items")
+    items = item_resp.json() or []
+    order_ids = sorted({item["order_id"] for item in items if item.get("order_id")})
+    if not order_ids:
+        return []
+
+    orders_resp = requests.get(
+        f"{SUPABASE_URL}/rest/v1/orders?id=in.({','.join(str(v) for v in order_ids)})&select=*&order=created_at.desc",
+        headers=_supabase_headers(),
+        timeout=10,
+    )
+    if orders_resp.status_code != 200:
+        raise HTTPException(status_code=502, detail="Could not load provider orders")
+    orders = orders_resp.json() or []
+    items_by_order = {}
+    for item in items:
+        items_by_order.setdefault(item["order_id"], []).append(item)
+    for order in orders:
+        order["items"] = items_by_order.get(order["id"], [])
+    return orders
+
+
 @api_router.post("/provider/inventory/list")
 def list_provider_inventory(payload: ProviderInventoryListingInput, authorization: Optional[str] = Header(None)):
     auth_id = _verify_supabase_user(authorization)
@@ -1337,7 +1417,7 @@ def list_provider_inventory(payload: ProviderInventoryListingInput, authorizatio
     link_resp = requests.post(
         f"{SUPABASE_URL}/rest/v1/provider_inventory_listings",
         headers=_supabase_headers(),
-        json={"provider_inventory_id": inventory['id'], "product_listing_id": listing['id'], "quantity": payload.quantity},
+        json={"inventory_id": inventory['id'], "product_listing_id": listing['id'], "quantity": payload.quantity},
         timeout=10,
     )
     if link_resp.status_code not in (200, 201):
@@ -1433,7 +1513,7 @@ async def initialize_paystack_shop_checkout(request: Request, payload: PaystackS
         "reference": reference,
         "currency": (payload.currency or 'NGN').upper(),
         "channels": ["card", "bank", "ussd", "bank_transfer"],
-        "callback_url": payload.redirect_url,
+        "callback_url": payload.redirect_url or payload.callback_url,
         "metadata": {
             "name": payload.name or '',
             "phone": payload.phone or '',

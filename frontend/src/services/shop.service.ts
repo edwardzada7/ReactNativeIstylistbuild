@@ -621,14 +621,13 @@ export const shopService = {
   },
 
   async getProviderOrders(providerAuthId: string): Promise<Order[]> {
-    const { data, error } = await supabase
-      .from("orders")
-      .select("*")
-      .eq("provider_auth_id", providerAuthId)
-      .order("created_at", { ascending: false });
-    if (error) throw error;
-
-    const orders = (data || []) as Order[];
+    // A single order can contain items from multiple sellers, and
+    // `orders.provider_auth_id` only ever reflects the first seller resolved
+    // at checkout - so a direct client-side filter on that column alone
+    // misses orders where this provider's item wasn't first. The backend
+    // resolves correct attribution via order_items -> product_listings ->
+    // shop_sellers / products.
+    const orders = (await apiService.get<any[]>('/provider/shop-orders')) || [];
     return await Promise.all(
       orders.map(async (order) => {
         const items = await this.getOrderItems(order.id);
