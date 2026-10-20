@@ -19,6 +19,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { Button, withAuthGate, ProfileAvatar } from '../../src/components/common';
 import { peopleService } from '../../src/services/people.service';
+import { screenCache } from '../../src/utils/screenCache';
 import { bookingService } from '../../src/services/booking.service';
 import { reviewService } from '../../src/services/review.service';
 import { walletService } from '../../src/services/wallet.service';
@@ -62,11 +63,11 @@ function Bookings() {
   const { user } = useAuth();
   const { colors } = useTheme();
   const [selectedTab, setSelectedTab] = useState('Upcoming');
-  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [bookings, setBookings] = useState<Booking[]>(() => screenCache.get<Booking[]>('customer-bookings') || []);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [reviewedBookingIds, setReviewedBookingIds] = useState<Set<string>>(new Set());
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !screenCache.get('customer-bookings'));
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -85,8 +86,8 @@ function Bookings() {
         user?.auth_id ? walletService.getWallet(user.auth_id).catch(() => null) : Promise.resolve(null),
         user?.auth_id ? walletService.getTransactions(user.auth_id).catch(() => []) : Promise.resolve([]),
       ]);
-      setBookings(bookingList);
-      peopleService.enrichBookingProviders(bookingList).then(setBookings).catch(() => undefined);
+      setBookings(screenCache.set('customer-bookings', bookingList));
+      peopleService.enrichBookingProviders(bookingList).then((list) => setBookings(screenCache.set('customer-bookings', list))).catch(() => undefined);
       setReviewedBookingIds(new Set(myReviews.map((r) => r.booking_id)));
       setWallet(walletData);
       setTransactions(txnData);

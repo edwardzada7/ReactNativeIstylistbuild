@@ -25,6 +25,7 @@ import { shopService, Order } from '../../src/services/shop.service';
 import { formatCurrency } from '../../src/utils/currency';
 import { Booking, Provider } from '../../src/types';
 import { formatRating } from '../../src/utils/display';
+import { screenCache } from '../../src/utils/screenCache';
 
 const isSameDay = (isoDate: string) => {
   if (!isoDate) return false;
@@ -43,10 +44,11 @@ export default function ProviderDashboard() {
   const { colors } = useTheme();
   const providerId = user?.id;
 
-  const [bookings, setBookings] = useState<Booking[]>([]);
-  const [shopOrders, setShopOrders] = useState<Order[]>([]);
-  const [profile, setProfile] = useState<Provider | null>(null);
-  const [loading, setLoading] = useState(true);
+  const cachedDash = screenCache.get<{ bookingList: Booking[]; providerProfile: Provider | null; providerOrders: Order[] }>('provider-dashboard');
+  const [bookings, setBookings] = useState<Booking[]>(cachedDash?.bookingList || []);
+  const [shopOrders, setShopOrders] = useState<Order[]>(cachedDash?.providerOrders || []);
+  const [profile, setProfile] = useState<Provider | null>(cachedDash?.providerProfile || null);
+  const [loading, setLoading] = useState(!cachedDash);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -64,19 +66,17 @@ export default function ProviderDashboard() {
     if (!providerId) return;
     try {
       setError(null);
-      const [bookingList, providerProfile] = await Promise.all([
+      const [bookingList, providerProfile, providerOrders] = await Promise.all([
         bookingService.getBookings({ role: 'provider' }),
         providerService.getProviderFullProfile(providerId).catch(() => null),
+        user?.auth_id ? shopService.getProviderOrders(user.auth_id).catch(() => [] as Order[]) : Promise.resolve([] as Order[]),
       ]);
-      let providerOrders: Order[] = [];
-      if (user?.auth_id) {
-        providerOrders = await shopService.getProviderOrders(user.auth_id).catch(() => []);
-      }
       setBookings(bookingList);
       peopleService.enrichBookingCustomers(bookingList).then(setBookings).catch(() => undefined);
       setShopOrders(providerOrders);
       setProfile(providerProfile);
-      await refreshUnreadCount();
+      screenCache.set('provider-dashboard', { bookingList, providerProfile, providerOrders });
+      refreshUnreadCount();
     } catch (err: any) {
       console.error('[provider-dashboard] failed to load', err);
       setError(err?.friendlyMessage || 'Could not load your dashboard.');
@@ -94,8 +94,7 @@ export default function ProviderDashboard() {
   useFocusEffect(
     useCallback(() => {
       loadData();
-      refreshUnreadCount();
-    }, [loadData, refreshUnreadCount])
+    }, [loadData])
   );
 
   const handleRefresh = () => {

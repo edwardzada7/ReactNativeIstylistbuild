@@ -16,7 +16,8 @@ import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/th
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { chatService } from '../../src/services/chat.service';
 import { Conversation } from '../../src/types';
-import { withAuthGate } from '../../src/components/common';
+import { withAuthGate, ProfileAvatar } from '../../src/components/common';
+import { screenCache } from '../../src/utils/screenCache';
 
 export default withAuthGate(ChatList, {
   icon: 'chatbubbles-outline',
@@ -27,15 +28,15 @@ export default withAuthGate(ChatList, {
 function ChatList() {
   const router = useRouter();
   const { colors } = useTheme();
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [conversations, setConversations] = useState<Conversation[]>(() => screenCache.get<Conversation[]>('chat-list') || []);
+  const [loading, setLoading] = useState(() => !screenCache.get('chat-list'));
   const [refreshing, setRefreshing] = useState(false);
 
   const loadConversations = useCallback(async (isPullToRefresh = false) => {
     if (isPullToRefresh) setRefreshing(true);
     try {
       const list = await chatService.getConversations();
-      setConversations(list);
+      setConversations(screenCache.set('chat-list', list));
     } catch (err) {
       console.error('[chat-list] failed to load', err);
     } finally {
@@ -92,19 +93,11 @@ function ChatList() {
               accessibilityRole="button"
             >
               <View style={[styles.avatar, { backgroundColor: colors.surfaceLight }]}>
-                {(
-                  <Image
-                    source={{
-                      uri:
-                        item.provider?.avatarUrl ||
-                        item.provider?.profileImage ||
-                        item.user?.avatarUrl ||
-                        item.counterpart_profile_image_url ||
-                        'https://via.placeholder.com/150',
-                    }}
-                    style={styles.avatarImage}
-                  />
-                )}
+                <ProfileAvatar
+                  uri={item.provider?.avatarUrl || item.provider?.profileImage || item.user?.avatarUrl || item.counterpart_profile_image_url || null}
+                  name={item.provider?.businessName || item.counterpart_name || 'S'}
+                  size={56}
+                />
               </View>
               <View style={styles.conversationContent}>
                 <Text style={[styles.conversationName, { color: colors.text }]}>

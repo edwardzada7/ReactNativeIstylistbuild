@@ -16,6 +16,7 @@ import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/th
 import { bookingService } from '../../src/services/booking.service';
 import { walletService } from '../../src/services/wallet.service';
 import { peopleService } from '../../src/services/people.service';
+import { screenCache } from '../../src/utils/screenCache';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { formatCurrency } from '../../src/utils/currency';
@@ -69,10 +70,13 @@ export default function ProviderBookings() {
   const router = useRouter();
   const { user } = useAuth();
   const { colors } = useTheme();
-  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [bookings, setBookingsState] = useState<Booking[]>(() => screenCache.get<Booking[]>('provider-bookings') || []);
+  const setBookings = useCallback((next: Booking[] | ((prev: Booking[]) => Booking[])) => {
+    setBookingsState((prev) => screenCache.set('provider-bookings', typeof next === 'function' ? (next as any)(prev) : next));
+  }, []);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [filter, setFilter] = useState<typeof FILTERS[number]>('Pending');
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !screenCache.get('provider-bookings'));
   const [refreshing, setRefreshing] = useState(false);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -86,8 +90,8 @@ export default function ProviderBookings() {
       ]);
       setBookings(list);
       setTransactions(txnData);
-      // Backend falls back to the literal "Customer"; resolve real names.
-      setBookings(await peopleService.enrichBookingCustomers(list));
+      // Backend falls back to the literal "Customer"; resolve real names in the background.
+      peopleService.enrichBookingCustomers(list).then(setBookings).catch(() => undefined);
     } catch (err: any) {
       console.error('[provider-bookings] failed to load', err);
       setError(err?.friendlyMessage || 'Could not load bookings.');
@@ -95,9 +99,7 @@ export default function ProviderBookings() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [user?.auth_id]);
-
-  // Refresh bookings + wallet-derived payment status every time this
+  }, [user?.auth_id, setBookings]);
   // screen regains focus - covers a customer paying/topping-up, or a
   // backend-side escrow release/refund, while this screen wasn't visible.
   useFocusEffect(
@@ -371,11 +373,14 @@ const styles = StyleSheet.create({
   actionsRow: { flexDirection: 'row', gap: Spacing.sm },
   actionBtn: {
     flex: 1,
+    minHeight: 44,
     borderRadius: BorderRadius.sm,
     paddingVertical: Spacing.sm,
+    paddingHorizontal: 4,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   actionBtnDestructive: { borderWidth: 1 },
-  actionBtnText: { fontSize: FontSizes.sm, fontWeight: '700' },
+  actionBtnText: { fontSize: FontSizes.xs, fontWeight: '700', textAlign: 'center' },
   actionBtnTextDestructive: {},
 });

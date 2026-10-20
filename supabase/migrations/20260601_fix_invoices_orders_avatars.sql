@@ -53,7 +53,7 @@ ALTER TABLE public.order_items ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "orders_select_own" ON public.orders;
 CREATE POLICY "orders_select_own" ON public.orders
   FOR SELECT TO authenticated
-  USING (customer_auth_id = auth.uid()::text OR provider_auth_id = auth.uid()::text);
+  USING (customer_auth_id::text = auth.uid()::text OR provider_auth_id::text = auth.uid()::text);
 
 DROP POLICY IF EXISTS "order_items_select_own" ON public.order_items;
 CREATE POLICY "order_items_select_own" ON public.order_items
@@ -61,7 +61,7 @@ CREATE POLICY "order_items_select_own" ON public.order_items
   USING (EXISTS (
     SELECT 1 FROM public.orders o
     WHERE o.id = order_items.order_id
-      AND (o.customer_auth_id = auth.uid()::text OR o.provider_auth_id = auth.uid()::text)
+      AND (o.customer_auth_id::text = auth.uid()::text OR o.provider_auth_id::text = auth.uid()::text)
   ));
 
 -- 4) AVATARS / NAMES --------------------------------------------------------------
@@ -75,20 +75,37 @@ CREATE POLICY "stylists_public_read" ON public.stylists FOR SELECT USING (true);
 DROP POLICY IF EXISTS "users_update_own" ON public.users;
 CREATE POLICY "users_update_own" ON public.users
   FOR UPDATE TO authenticated
-  USING (auth_id = auth.uid()::text) WITH CHECK (auth_id = auth.uid()::text);
+  USING (auth_id::text = auth.uid()::text) WITH CHECK (auth_id::text = auth.uid()::text);
 
 -- Providers may update their own stylist row (provider profile photo).
 DROP POLICY IF EXISTS "stylists_update_own" ON public.stylists;
 CREATE POLICY "stylists_update_own" ON public.stylists
   FOR UPDATE TO authenticated
-  USING (auth_id = auth.uid()::text) WITH CHECK (auth_id = auth.uid()::text);
+  USING (auth_id::text = auth.uid()::text) WITH CHECK (auth_id::text = auth.uid()::text);
 
 -- Public, read-only view of names + photos (no email/phone exposed).
 CREATE OR REPLACE VIEW public.public_profiles AS
   SELECT u.auth_id, u.name, u.profile_image_url,
          s.business_name, s.profile_image_url AS provider_image_url
   FROM public.users u
-  LEFT JOIN public.stylists s ON s.auth_id = u.auth_id;
+  LEFT JOIN public.stylists s ON s.auth_id::text = u.auth_id::text;
 GRANT SELECT ON public.public_profiles TO anon, authenticated;
+
+-- 5) STAFF PHOTOS ------------------------------------------------------------------
+-- The app uploads staff photos to the existing "profile-images" bucket under
+-- staff/<owner auth id>/..., then saves the public URL via PUT/POST /api/staff.
+DROP POLICY IF EXISTS "staff_photos_insert_own" ON storage.objects;
+CREATE POLICY "staff_photos_insert_own" ON storage.objects
+  FOR INSERT TO authenticated
+  WITH CHECK (bucket_id = 'profile-images'
+              AND (storage.foldername(name))[1] = 'staff'
+              AND (storage.foldername(name))[2] = auth.uid()::text);
+
+DROP POLICY IF EXISTS "staff_photos_update_own" ON storage.objects;
+CREATE POLICY "staff_photos_update_own" ON storage.objects
+  FOR UPDATE TO authenticated
+  USING (bucket_id = 'profile-images'
+         AND (storage.foldername(name))[1] = 'staff'
+         AND (storage.foldername(name))[2] = auth.uid()::text);
 
 COMMIT;

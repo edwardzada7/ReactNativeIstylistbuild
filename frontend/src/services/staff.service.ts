@@ -1,4 +1,5 @@
 import apiService from './api';
+import { supabase } from '../lib/supabase';
 import { StaffMember, StaffAvailabilityDay } from '../types';
 
 const asList = (raw: any): any[] => {
@@ -6,50 +7,52 @@ const asList = (raw: any): any[] => {
   return raw?.staff || raw?.data || raw?.results || [];
 };
 
+const toStaff = (raw: any): StaffMember => ({
+  ...raw,
+  id: String(raw.id),
+  is_active: !!raw.is_active,
+  service_ids: Array.isArray(raw.service_ids) ? raw.service_ids.map(Number) : [],
+  weekly: Array.isArray(raw.weekly) ? raw.weekly : [],
+});
+
+// The backend /staff endpoints only accept JSON (StaffCreate / StaffUpdate with
+// photo_url). Photos are uploaded to Supabase storage first, same bucket as
+// profile photos, and the public URL is sent as photo_url.
+async function uploadStaffPhoto(authId: string, uri?: string): Promise<string | undefined> {
+  if (!uri || /^https?:\/\//.test(uri)) return uri || undefined;
+  const response = await fetch(uri);
+  const arrayBuffer = await response.arrayBuffer();
+  if (arrayBuffer.byteLength > 5 * 1024 * 1024) {
+    throw Object.assign(new Error('Image too large'), { friendlyMessage: 'Please choose an image smaller than 5 MB.' });
+  }
+  const path = `staff/${authId}/staff-${Date.now()}.jpg`;
+  const { error } = await supabase.storage.from('profile-images').upload(path, arrayBuffer, { contentType: 'image/jpeg', upsert: true });
+  if (error) throw Object.assign(error, { friendlyMessage: 'Could not upload the photo. Please try again.' });
+  return supabase.storage.from('profile-images').getPublicUrl(path).data.publicUrl;
+}
+
 export const staffService = {
     async createMultipart(authId: string, payload: { name: string; role: string; bio: string; service_ids: number[]; photoUri?: string }): Promise<StaffMember> {
-      const formData = new FormData();
-      if (payload.photoUri) {
-        formData.append('file', {
-          uri: payload.photoUri.startsWith('file://') ? payload.photoUri : `file://${payload.photoUri}`,
-          name: `staff_${Date.now()}.jpg`,
-          type: 'image/jpeg',
-        } as any);
-      }
-      formData.append('name', payload.name);
-      formData.append('role', payload.role);
-      formData.append('bio', payload.bio);
-      formData.append('service_ids', JSON.stringify(payload.service_ids));
-      const raw = await apiService.post<any>('/staff', formData, {
-        params: { auth_id: authId },
-        // Force axios/React Native to auto-generate the multipart
-        // "Content-Type: multipart/form-data; boundary=..." header for this
-        // FormData body instead of inheriting the client's default
-        // "application/json" (which the backend's multipart parser cannot
-        // read, silently dropping the uploaded file).
-        headers: { 'Content-Type': undefined },
-      });
-      return { ...raw, id: String(raw.id), is_active: !!raw.is_active, service_ids: Array.isArray(raw.service_ids) ? raw.service_ids.map(Number) : [], weekly: Array.isArray(raw.weekly) ? raw.weekly : [] };
+      const photo_url = await uploadStaffPhoto(authId, payload.photoUri);
+      const raw = await apiService.post<any>('/staff', {
+        name: payload.name,
+        role: payload.role || null,
+        bio: payload.bio || null,
+        service_ids: payload.service_ids || [],
+        ...(photo_url ? { photo_url } : {}),
+      }, { params: { auth_id: authId } });
+      return toStaff(raw);
     },
 
     async updateMultipart(staffId: string, authId: string, payload: { name: string; role: string; bio: string; service_ids: number[]; photoUri?: string }): Promise<StaffMember> {
-      const formData = new FormData();
-      if (payload.photoUri) {
-        formData.append('file', {
-          uri: payload.photoUri.startsWith('file://') ? payload.photoUri : `file://${payload.photoUri}`,
-          name: `staff_${Date.now()}.jpg`,
-          type: 'image/jpeg',
-        } as any);
-      }
-      formData.append('name', payload.name);
-      formData.append('role', payload.role);
-      formData.append('bio', payload.bio);
-      formData.append('service_ids', JSON.stringify(payload.service_ids));
-      const raw = await apiService.put<any>(`/staff/${staffId}`, formData, {
-        params: { auth_id: authId },
-        headers: { 'Content-Type': undefined },
-      });
-      return { ...raw, id: String(raw.id), is_active: !!raw.is_active, service_ids: Array.isArray(raw.service_ids) ? raw.service_ids.map(Number) : [], weekly: Array.isArray(raw.weekly) ? raw.weekly : [] };
+      const photo_url = await uploadStaffPhoto(authId, payload.photoUri);
+      const raw = await apiService.put<any>(`/staff/${staffId}`, {
+        name: payload.name,
+        role: payload.role || null,
+        bio: payload.bio || null,
+        ...(photo_url ? { photo_url } : {}),
+      }, { params: { auth_id: authId } });
+      return toStaff(raw);
     },
   async listMine(authId: string, includeInactive = true): Promise<StaffMember[]> {
     const raw = await apiService.get<any>('/staff/me', {

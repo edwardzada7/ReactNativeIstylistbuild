@@ -150,3 +150,10 @@ Full report: `/app/SHOP_PROVIDER_FIX_REPORT.md`. Summary:
 - Avatars/names: people.service stylist directory (stylists.profile_image_url via Supabase) applied to home/search providers, provider profile, feed posts, chat list, customer bookings; invalidated on profile photo upload.
 - Product review: auth_id query param (create/update/delete). Report post: reporter_auth_id + backend reason enum + lowercase target_type.
 - Home: duplicate star & lone ₦ removed (home/search); Rebook reminder card (src/components/booking/RebookReminder.tsx, 21+ days, dismissible).
+
+## Session — Jun 2026 (5) (no automated tests per user)
+- Speed: chat list loads booking chats in parallel (was sequential); people lookups use one cached stylist directory (5 min) with fast path; enrichment runs in background; in-memory stale-while-revalidate cache (src/utils/screenCache.ts) for Home, Shop, customer Bookings, provider Dashboard/Bookings, Messages; dashboard requests parallelized.
+- Staff save 500: backend /staff is JSON-only → photo uploaded to Supabase storage profile-images/staff/<auth>/..., then JSON with photo_url.
+- Chat list avatars use ProfileAvatar (no via.placeholder "150x150").
+- Android text clipping: global Text patch (src/utils/androidTextFix.ts: fontFamily sans-serif + textBreakStrategy simple), provider booking action buttons centered.
+- SQL migration updated (::text casts, staff photo storage policies).

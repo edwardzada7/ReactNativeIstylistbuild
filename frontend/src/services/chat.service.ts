@@ -229,94 +229,39 @@ export const chatService = {
         (booking: any) => booking.status !== 'canceled' && booking.status !== 'declined'
       );
 
-      // For each booking, check if there are chat messages and get conversation details
-      const conversations: Conversation[] = [];
-      
-      for (const booking of activeBookings) {
+      // Fetch each booking's latest message in parallel (was sequential: N round trips).
+      const bookingResults = await Promise.all(activeBookings.map(async (booking: any): Promise<Conversation | null> => {
         try {
           const chatData: BookingChatResponse = await apiService.get(
             `/bookings/${booking.id}/chat?auth_id=${authId}&limit=1`
           );
-
-          if (chatData.messages && chatData.messages.length > 0) {
-            const rawProviderId = booking.provider_id != null && !/^\d+$/.test(String(booking.provider_id)) ? String(booking.provider_id) : undefined;
-            const providerAuthId = booking.provider_auth_id || booking.stylist_auth_id || rawProviderId;
-            const customerAuthId = booking.customer_auth_id;
-            
-            // Determine counterpart
-            const counterpartAuthId = authId === customerAuthId ? providerAuthId : customerAuthId;
-            if (!counterpartAuthId) continue;
-            
-            // Get unread count for this booking
-            const unreadCount = chatData.messages.filter(
-              (msg: ChatMessage) => msg.receiver_auth_id === authId && !msg.read
-            ).length;
-
-            // Fetch counterpart's actual name and profile image from the database
-            let counterpartName: string | undefined;
-            let counterpartProfileImageUrl: string | null = null;
-            let stylistProfile: any = null;
-            try {
-              // First try to get as provider (stylist)
-              stylistProfile = await apiService.get(`/stylists/by-auth/${counterpartAuthId}`).catch(() => null);
-              const directoryPerson = await peopleService.getByAuthId(counterpartAuthId).catch(() => null);
-              if (directoryPerson?.avatar) counterpartProfileImageUrl = directoryPerson.avatar;
-              if (stylistProfile) {
-                // Provider: prioritize business_name, then salon_name, then user name
-                counterpartName = profileDisplayName(stylistProfile) || directoryPerson?.name;
-                counterpartProfileImageUrl =
-                  counterpartProfileImageUrl ||
-                  stylistProfile?.avatarUrl ||
-                  stylistProfile?.avatar_url ||
-                  stylistProfile?.profileImage ||
-                  stylistProfile?.profile_image ||
-                  stylistProfile?.profile_image_url ||
-                  null;
-              } else {
-                // Fallback to user table for customers
-                const userProfile = await apiService.get(`/users/by-auth/${counterpartAuthId}`);
-                counterpartName = profileDisplayName(userProfile) || directoryPerson?.name;
-                counterpartProfileImageUrl =
-                  counterpartProfileImageUrl ||
-                  userProfile?.avatarUrl ||
-                  userProfile?.avatar_url ||
-                  userProfile?.profileImage ||
-                  userProfile?.profile_image ||
-                  userProfile?.profile_image_url ||
-                  null;
-              }
-            } catch (profileErr) {
-              console.warn(`[chat] failed to load profile for ${counterpartAuthId}`, profileErr);
-            }
-
-            conversations.push({
-              id: booking.id,
-              booking_id: booking.id,
-              conversation_type: 'booking',
-              counterpart_auth_id: counterpartAuthId,
-              counterpart_name: counterpartName,
-              counterpart_profile_image_url: counterpartProfileImageUrl,
-              provider: stylistProfile
-                ? {
-                    avatarUrl: stylistProfile.avatarUrl || stylistProfile.avatar_url || stylistProfile.profile_image_url,
-                    profileImage: stylistProfile.profileImage || stylistProfile.profile_image,
-                    businessName: stylistProfile.businessName || stylistProfile.business_name,
-                    firstName: stylistProfile.firstName || stylistProfile.first_name,
-                    lastName: stylistProfile.lastName || stylistProfile.last_name,
-                  }
-                : undefined,
-              user: stylistProfile
-                ? undefined
-                : { avatarUrl: counterpartProfileImageUrl },
-              last_message: chatData.messages[0],
-              unread_count: unreadCount,
-            });
-          }
+          if (!chatData.messages || chatData.messages.length === 0) return null;
+          const rawProviderId = booking.provider_id != null && !/^\d+$/.test(String(booking.provider_id)) ? String(booking.provider_id) : undefined;
+          const providerAuthId = booking.provider_auth_id || booking.stylist_auth_id || rawProviderId;
+          const counterpartAuthId = authId === booking.customer_auth_id ? providerAuthId : booking.customer_auth_id;
+          if (!counterpartAuthId) return null;
+          const unreadCount = chatData.messages.filter(
+            (msg: ChatMessage) => msg.receiver_auth_id === authId && !msg.read
+          ).length;
+          // Cached per person, so repeated counterparts cost nothing.
+          const person = await peopleService.getByAuthId(counterpartAuthId).catch(() => null);
+          return {
+            id: booking.id,
+            booking_id: booking.id,
+            conversation_type: 'booking',
+            counterpart_auth_id: counterpartAuthId,
+            counterpart_name: person?.name,
+            counterpart_profile_image_url: person?.avatar || null,
+            user: { avatarUrl: person?.avatar || undefined } as any,
+            last_message: chatData.messages[0],
+            unread_count: unreadCount,
+          };
         } catch (err) {
-          // Skip bookings without chat or with errors
           console.warn(`[chat] failed to load chat for booking ${booking.id}`, err);
+          return null;
         }
-      }
+      }));
+      const conversations = bookingResults.filter(Boolean) as Conversation[];
 
       // Sort by latest message
       const shared = await apiService.get<any[]>('/conversations').catch(() => []);

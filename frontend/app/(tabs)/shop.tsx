@@ -20,6 +20,7 @@ import { SHOP_CATEGORIES, ShopMainCategorySlug } from '../../src/constants/shopC
 import { getShopCategoryBySlug } from '../../src/constants/shopCategories';
 import { shopService, Product } from '../../src/services/shop.service';
 import { providerService } from '../../src/services/provider.service';
+import { screenCache } from '../../src/utils/screenCache';
 import { useCartStore } from '../../src/store/cartStore';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { formatCurrency } from '../../src/utils/currency';
@@ -34,9 +35,9 @@ export function SharedShopScreen({ showManageButton = false }: SharedShopScreenP
   const router = useRouter();
   const { isProvider } = useAuth();
   const { colors } = useTheme();
-  const [products, setProducts] = useState<Product[]>([]);
-  const [providerNames, setProviderNames] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(true);
+  const [products, setProducts] = useState<Product[]>(() => screenCache.get<Product[]>('shop-products') || []);
+  const [providerNames, setProviderNames] = useState<Record<string, string>>(() => screenCache.get<Record<string, string>>('shop-provider-names') || {});
+  const [loading, setLoading] = useState(() => !screenCache.get('shop-products'));
   const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<ShopMainCategorySlug | null>('beauty');
@@ -51,14 +52,14 @@ export function SharedShopScreen({ showManageButton = false }: SharedShopScreenP
         shopService.getProducts(),
         providerService.getProvidersWithServices().catch(() => []),
       ]);
-      setProducts(list);
+      setProducts(screenCache.set('shop-products', list));
       setProviderNames(
-        Object.fromEntries(
+        screenCache.set('shop-provider-names', Object.fromEntries(
           providerList.flatMap((provider) => {
             const name = provider.business_name || provider.businessName;
             return name ? [[provider.user_id, name], [provider.id, name]] : [];
           })
-        )
+        ))
       );
     } catch (err) {
       console.error('[shop] failed to load products', err);

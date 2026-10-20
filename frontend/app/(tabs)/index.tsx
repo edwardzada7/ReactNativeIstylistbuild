@@ -28,15 +28,17 @@ import { bookingService } from '../../src/services/booking.service';
 import { peopleService } from '../../src/services/people.service';
 import { RebookReminder } from '../../src/components/booking/RebookReminder';
 
+import { screenCache } from '../../src/utils/screenCache';
+
 export default function Home() {
   const router = useRouter();
   const { user, isAuthenticated } = useAuth();
   const { colors } = useTheme();
 
-  const [categories, setCategories] = useState<Category[]>([]);
-  const [providers, setProviders] = useState<Provider[]>([]);
+  const [categories, setCategories] = useState<Category[]>(() => screenCache.get<Category[]>('home-categories') || []);
+  const [providers, setProviders] = useState<Provider[]>(() => screenCache.get<Provider[]>('home-providers') || []);
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !screenCache.get('home-providers'));
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -67,8 +69,8 @@ export default function Home() {
         providerService.getCategories(),
         isAuthenticated ? bookingService.getBookings({ role: 'customer' }).catch(() => []) : Promise.resolve([]),
       ]);
-      setProviders(providerList);
-      setCategories(categoryList);
+      setProviders(screenCache.set('home-providers', providerList));
+      setCategories(screenCache.set('home-categories', categoryList));
       setBookings(bookingList);
       if (bookingList.length) peopleService.enrichBookingProviders(bookingList).then(setBookings).catch(() => undefined);
       if (isAuthenticated) await refreshUnreadCount();

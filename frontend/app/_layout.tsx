@@ -8,6 +8,7 @@ import { AuthProvider, useAuth } from '@/src/contexts/AuthContext';
 import { ThemeProvider } from '@/src/contexts/ThemeContext';
 import { useIconFonts } from '@/src/hooks/use-icon-fonts';
 import { UnreadMessagesProvider } from '@/src/contexts/UnreadMessagesContext';
+import '@/src/utils/androidTextFix';
 
 // Disable logbox errors etc so that users can see the app
 // and agent works as expected.

@@ -25,7 +25,7 @@ const isPlaceholderName = (name?: string | null) =>
 type StylistRow = { user_id: number; auth_id: string; profile_image_url: string | null; business_name: string | null };
 let directory: Promise<Map<string, StylistRow>> | null = null;
 let directoryAt = 0;
-const DIRECTORY_TTL = 60_000;
+const DIRECTORY_TTL = 5 * 60_000;
 
 function getStylistDirectory(): Promise<Map<string, StylistRow>> {
   if (!directory || Date.now() - directoryAt > DIRECTORY_TTL) {
@@ -73,17 +73,20 @@ function getByAuthId(authId?: string | null): Promise<PersonSummary | null> {
     cache.set(
       key,
       (async () => {
-        const [dir, publicProfile, stylist, user] = await Promise.all([
-          getStylistDirectory(),
+        const dir = await getStylistDirectory();
+        const row = dir.get(key);
+        // Fast path: stylist directory (one cached query) already has name + photo.
+        if (row?.business_name && row?.profile_image_url) {
+          return { name: row.business_name, avatar: row.profile_image_url };
+        }
+        const [publicProfile, user] = await Promise.all([
           supabase.from('public_profiles').select('*').eq('auth_id', key).maybeSingle().then((r) => r.data, () => null),
-          apiService.get<any>(`/stylists/by-auth/${key}`).catch(() => null),
           apiService.get<any>(`/users/by-auth/${key}`).catch(() => null),
         ]);
-        const row = dir.get(key);
-        if (!row && !stylist && !user && !publicProfile) return null;
+        if (!row && !user && !publicProfile) return null;
         return {
-          name: row?.business_name || displayName(stylist) || publicProfile?.business_name || displayName(user) || publicProfile?.name,
-          avatar: row?.profile_image_url || avatarOf(publicProfile) || avatarOf(stylist) || avatarOf(user),
+          name: row?.business_name || publicProfile?.business_name || displayName(user) || publicProfile?.name,
+          avatar: row?.profile_image_url || avatarOf(publicProfile) || avatarOf(user),
         };
       })()
     );
