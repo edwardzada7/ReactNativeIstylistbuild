@@ -121,3 +121,9 @@ Full report: `/app/SHOP_PROVIDER_FIX_REPORT.md`. Summary:
 - P2: Consider moving feed post images (`create-post.tsx`) to Supabase
   Storage too instead of base64 in `image_url`, for consistency/performance
   (not reported broken, but same anti-pattern as the chat photo bug).
+
+## Session — Jun 2026: repo reconnect / build health
+- Recreated missing /app/frontend/.env (API base URL, Supabase URL/anon key, Paystack public key, packager vars for this preview).
+- Added app/(admin)/_layout.tsx (fixes "No route named (admin)" warning).
+- Verified: Metro bundles web/iOS/Android; login, signup, forgot-password screens and validation work (iteration_2).
+- Open: Railway CORS blocks web-preview origin (native Expo Go unaffected); guest -> /(tabs) redirected to /login (decide guest browsing); minor RN warnings (shadow*, pointerEvents, stray text node in a View).

@@ -1,0 +1,50 @@
+{
+  "summary": "Frontend-only post-import smoke test for iStylist Expo SDK 54 app passed on all 6 requested criteria. App boots in mobile web preview (390x844) with no red error screen; root URL redirects guest to /login (expected because (tabs) is treated as protected in AppShell). Login screen renders correctly (BrandLogo, 'Welcome Back', 'Sign in to continue', Email + Password inputs with icons, Forgot Password?, Sign In button, 'Don't have an account? Sign Up'). Empty-field Sign In click triggers client-side validation ('Email is required', 'Password is required') with no crash and no login attempt. Sign Up link navigates to /signup (Create Account screen with Customer/Service Provider toggle). Forgot Password navigates to /forgot-password (shows Email input + Send Instructions). No '(admin)' / 'No route named' warnings observed. No missing-env-var warnings (EXPO_PUBLIC_API_BASE_URL / SUPABASE both resolved). Metro bundled web/iOS/Android successfully. Some non-blocking issues observed and reported to main agent: Railway production API blocks the preview origin via CORS (home tab prefetch errors in console - does not affect auth screens), two React Native deprecation warnings (shadow* -> boxShadow, props.pointerEvents -> style.pointerEvents), and 'Unexpected text node' warnings in some screen (likely stray whitespace between JSX siblings inside a View).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [
+      {
+        "flow": "Home tab (guest) prefetch of Railway /providers/with-services, /categories, /bookings?role=customer",
+        "issue": "CORS blocked in web preview: 'No Access-Control-Allow-Origin header' from https://updatedistylistbeauty-marketplace-production.up.railway.app. Preview origin https://ea1fa44a-85bc-4a0a-bb9c-2557e98923c7.preview.emergentagent.com must be allowlisted on Railway (or allow *). Does NOT affect the current auth-flow test requirements (login/signup/forgot-password render fine), but any tab/home browsing in web preview will show empty state. On native Expo Go CORS is not enforced so may work there.",
+        "affected_testIDs": []
+      }
+    ],
+    "design_issues": [],
+    "react_native_issues": [
+      {
+        "component": "StyleSheet shadow* props (multiple components)",
+        "issue": "Console warning: '\"shadow*\" style props are deprecated. Use \"boxShadow\".' Appears repeatedly during initial render. Reference: search for shadowColor/shadowOffset/shadowOpacity/shadowRadius under /app/frontend/src/components and screens."
+      },
+      {
+        "component": "props.pointerEvents (some component)",
+        "issue": "Console warning: 'props.pointerEvents is deprecated. Use style.pointerEvents'. Reference: grep for pointerEvents= in /app/frontend to find the offending View/component."
+      },
+      {
+        "component": "Unknown screen rendering 'Unexpected text node'",
+        "issue": "Console error: 'Unexpected text node: . A text node cannot be a child of a <View>.' (fires twice during the test session). Usually caused by a stray space/newline between JSX children inside <View> or by rendering a bare string outside <Text>. Needs grep for suspect patterns (e.g. '{\" \"}' or raw text between tags) in auth/tabs screens."
+      }
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Add the preview origin (https://ea1fa44a-85bc-4a0a-bb9c-2557e98923c7.preview.emergentagent.com) to the Railway backend's CORS allowlist (or set Access-Control-Allow-Origin: *). Without this, the home/tabs data cannot load in the web preview even though the auth flow works. Native Expo Go likely unaffected.",
+    "Fix deprecation warnings: migrate shadow* StyleSheet props to boxShadow and move props.pointerEvents to style.pointerEvents. Low priority but will cleanup console noise and future-proof against RN removals.",
+    "Investigate 'Unexpected text node' error - grep for stray spaces / unwrapped strings inside <View> components, especially on screens visited during this test (index, login, signup, forgot-password, (tabs)/index home).",
+    "Optional: run `npx expo install --check` to bump expo 57.0.29 -> 57.0.30 as reported by Metro."
+  ],
+  "critical_code_review_comments": [
+    "app/_layout.tsx AppShell treats '(tabs)' as a protected group, which means the review request's claim that '(tabs) is public/guest-browsable' is inconsistent with current code (guests are kicked to /login). app/index.tsx tries to router.replace('/(tabs)') for guests, but AppShell immediately bounces them back to /(auth)/login. If guest tab browsing is desired, remove '(tabs)' from the protectedGroup check in app/_layout.tsx:47 and gate individual actions (booking/payment/review) with their own auth checks as the comment in index.tsx already states.",
+    "app/_layout.tsx uses LogBox.ignoreAllLogs(true) which hides on-device yellow boxes but web console still shows them (that's why we can see the shadow*/pointerEvents warnings). Fine for prod, but keep in mind during debugging."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "N/A - frontend-only pass per review request", "frontend": "100% (6/6 required criteria PASS)"},
+  "seed_data_creation": "None.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "This was a boot-health + auth-navigation smoke test only. All 6 review requirements PASS. Open items left for main agent are CORS allowlisting on the remote Railway backend (not fixable from this repo), three React Native deprecation/warning cleanups, and a design decision about whether (tabs) should be guest-browsable (currently it is NOT because of app/_layout.tsx line 47). For future auth-end-to-end testing, main agent must provide/create a non-production test account because the review explicitly forbids creating real accounts on the production Supabase project; current credentials file /app/memory/test_credentials.md does not exist. Previous iteration_1.json has deep Railway-side bug reproductions still relevant (BUG3/4/5/6) if main agent gets access to the actual Railway source code.",
+  "rca_of_issue": "N/A - no bugs to RCA; all requested criteria passed."
+}
