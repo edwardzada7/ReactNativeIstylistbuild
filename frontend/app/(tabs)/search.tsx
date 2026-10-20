@@ -136,7 +136,7 @@ export default function Search() {
         <View style={styles.resultMeta}>
           <View style={styles.metaItem}>
             <Ionicons name="star" size={14} color={colors.warning} />
-            <Text style={[styles.metaText, { color: colors.textSecondary }]}>★ {Number(item.rating || 0).toFixed(1)} ({item.ratingCount ?? item.review_count ?? 0})</Text>
+            <Text style={[styles.metaText, { color: colors.textSecondary }]}>{Number(item.rating || 0).toFixed(1)} ({item.ratingCount ?? item.review_count ?? 0})</Text>
           </View>
           <View style={styles.metaItem}>
             <Ionicons name="location" size={14} color={colors.textSecondary} />
@@ -144,7 +144,9 @@ export default function Search() {
               {item.location}
             </Text>
           </View>
-          <Text style={[styles.priceText, { color: colors.primary }]}>{formatPriceRange(item.price_range)}</Text>
+          {!!String(item.price_range ?? '').replace(/[₦$\s]/g, '') && (
+            <Text style={[styles.priceText, { color: colors.primary }]}>{formatPriceRange(item.price_range)}</Text>
+          )}
         </View>
       </View>
     </TouchableOpacity>

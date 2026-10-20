@@ -706,8 +706,10 @@ export const shopService = {
       throw new Error("Please write a review before submitting.");
     }
 
+    // Backend contract: POST /shop/products/{id}/reviews?auth_id=<uuid>
+    // body { rating, comment } (ShopReviewCreate) - auth_id is a required query param.
     return await apiService.post<ProductReview>(
-      `/shop/products/${productId}/reviews`,
+      `/shop/products/${productId}/reviews?auth_id=${encodeURIComponent(authId)}`,
       normalizedPayload,
     );
   },
@@ -754,8 +756,8 @@ export const shopService = {
     }
 
     return await apiService.patch<ProductReview>(
-      `/shop/products/${productId}/reviews/${reviewId}`,
-      normalizedPayload,
+      `/shop/products/${productId}/reviews/${reviewId}?auth_id=${encodeURIComponent(authId)}`,
+      { rating: normalizedPayload.rating, comment: normalizedPayload.comment },
     );
   },
 
@@ -765,6 +767,6 @@ export const shopService = {
   ): Promise<void> {
     const authId = await apiService.getAuthId();
     if (!authId) throw new Error("Not authenticated");
-    await apiService.delete(`/shop/products/${productId}/reviews/${reviewId}`);
+    await apiService.delete(`/shop/products/${productId}/reviews/${reviewId}?auth_id=${encodeURIComponent(authId)}`);
   },
 };

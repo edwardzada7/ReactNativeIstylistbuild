@@ -189,7 +189,7 @@ export default function Feed() {
             <Text style={[styles.userName, { color: colors.text }]}>
               {item.provider?.display_name || item.provider?.business_name || item.provider?.name || item.provider?.full_name || item.user?.full_name || item.user?.name || 'Stylist'}
             </Text>
-            <Text style={[styles.timestamp, { color: colors.textSecondary }]}>{item.created_at ? new Date(item.created_at).toLocaleDateString() : ''}</Text>
+            <Text style={[styles.timestamp, { color: colors.textSecondary, paddingRight: 4 }]} textBreakStrategy="simple">{item.created_at ? new Date(item.created_at).toLocaleDateString() : ''}</Text>
           </View>
         </TouchableOpacity>
         {(item.provider_auth_id === user?.auth_id || item.user_id === user?.auth_id || item.provider?.auth_id === user?.auth_id) && (

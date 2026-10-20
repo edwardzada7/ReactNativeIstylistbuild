@@ -16,7 +16,14 @@ interface ReportModalProps {
   onSubmitted?: () => void;
 }
 
-const REASONS = ['Spam', 'Harassment', 'Inappropriate', 'Scam', 'Other'];
+// label -> backend REPORT_REASONS value
+const REASONS: { label: string; value: string }[] = [
+  { label: 'Spam', value: 'spam' },
+  { label: 'Harassment', value: 'harassment' },
+  { label: 'Inappropriate content', value: 'inappropriate_content' },
+  { label: 'Scam or fraud', value: 'scam_fraud' },
+  { label: 'Other', value: 'other' },
+];
 
 export function ReportModal({ visible, targetId, targetType, onClose, onSubmitted }: ReportModalProps) {
   const { colors } = useTheme();
@@ -47,12 +54,12 @@ export function ReportModal({ visible, targetId, targetType, onClose, onSubmitte
     setSubmitting(true);
     try {
       if (targetType === 'FEED_POST') {
-        await feedService.reportPost(String(targetId), reason);
+        await feedService.reportPost(String(targetId), reason, description);
       } else {
         await supportService.createReport({
           target_id: String(targetId),
           target_type: targetType,
-          reason,
+          reason: REASONS.find((r) => r.value === reason)?.label || reason,
           description: description.trim(),
         });
       }
@@ -79,16 +86,17 @@ export function ReportModal({ visible, targetId, targetType, onClose, onSubmitte
           </View>
           <Text style={[styles.label, { color: colors.textSecondary }]}>Why are you reporting this?</Text>
           <View style={styles.reasonList}>
-            {REASONS.map((option) => (
+            {REASONS.map(({ label, value }) => (
               <TouchableOpacity
-                key={option}
-                style={[styles.reason, { borderColor: colors.border }, reason === option && { backgroundColor: `${colors.primary}18`, borderColor: colors.primary }]}
-                onPress={() => setReason(option)}
+                key={value}
+                testID={`report-reason-${value}`}
+                style={[styles.reason, { borderColor: colors.border }, reason === value && { backgroundColor: `${colors.primary}18`, borderColor: colors.primary }]}
+                onPress={() => setReason(value)}
                 accessibilityRole="radio"
-                accessibilityState={{ selected: reason === option }}
+                accessibilityState={{ selected: reason === value }}
               >
-                <Ionicons name={reason === option ? 'radio-button-on' : 'radio-button-off'} size={20} color={reason === option ? colors.primary : colors.textMuted} />
-                <Text style={[styles.reasonText, { color: colors.text }]}>{option}</Text>
+                <Ionicons name={reason === value ? 'radio-button-on' : 'radio-button-off'} size={20} color={reason === value ? colors.primary : colors.textMuted} />
+                <Text style={[styles.reasonText, { color: colors.text }]} textBreakStrategy="simple">{label}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -123,7 +131,7 @@ const styles = StyleSheet.create({
   label: { fontSize: FontSizes.sm, marginBottom: Spacing.sm },
   reasonList: { gap: Spacing.sm },
   reason: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, borderWidth: 1, borderRadius: BorderRadius.md, padding: Spacing.sm },
-  reasonText: { fontSize: FontSizes.sm },
+  reasonText: { fontSize: FontSizes.sm, flex: 1, paddingRight: 4 },
   input: { minHeight: 72, marginTop: Spacing.md, borderWidth: 1, borderRadius: BorderRadius.md, padding: Spacing.sm, textAlignVertical: 'top' },
   validationMessage: { fontSize: FontSizes.xs, marginTop: Spacing.xs },
   actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: Spacing.sm, marginTop: Spacing.lg },

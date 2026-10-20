@@ -25,6 +25,8 @@ import { ChatIconWithBadge } from '../../src/components/chat/ChatIconWithBadge';
 import { formatPriceRange } from '../../src/utils/currency';
 import { Booking, Category, Provider } from '../../src/types';
 import { bookingService } from '../../src/services/booking.service';
+import { peopleService } from '../../src/services/people.service';
+import { RebookReminder } from '../../src/components/booking/RebookReminder';
 
 export default function Home() {
   const router = useRouter();
@@ -68,6 +70,7 @@ export default function Home() {
       setProviders(providerList);
       setCategories(categoryList);
       setBookings(bookingList);
+      if (bookingList.length) peopleService.enrichBookingProviders(bookingList).then(setBookings).catch(() => undefined);
       if (isAuthenticated) await refreshUnreadCount();
     } catch (err: any) {
       console.error('[home] failed to load data', err);
@@ -173,9 +176,11 @@ export default function Home() {
         <View style={styles.providerMeta}>
           <View style={styles.rating}>
             <Ionicons name="star" size={14} color={colors.warning} />
-            <Text style={[styles.ratingText, { color: colors.text }]}>★ {Number(item.rating || item.avgRating || 0).toFixed(1)} ({item.ratingCount ?? item.reviewsCount ?? item.review_count ?? 0})</Text>
+            <Text style={[styles.ratingText, { color: colors.text }]}>{Number(item.rating || item.avgRating || 0).toFixed(1)} ({item.ratingCount ?? item.reviewsCount ?? item.review_count ?? 0})</Text>
           </View>
-          <Text style={[styles.price, { color: colors.textSecondary }]}>{formatPriceRange(item.price_range)}</Text>
+          {!!String(item.price_range ?? '').replace(/[₦$\s]/g, '') && (
+            <Text style={[styles.price, { color: colors.textSecondary }]}>{formatPriceRange(item.price_range)}</Text>
+          )}
         </View>
       </View>
     </TouchableOpacity>
@@ -310,6 +315,8 @@ export default function Home() {
             <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>
           </View>
         )}
+
+        {isAuthenticated && <RebookReminder bookings={bookings} />}
 
         {/* One-tap rebook: stylists the customer has completed bookings with */}
         {rebookProviders.length > 0 && (

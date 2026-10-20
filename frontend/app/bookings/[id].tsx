@@ -232,9 +232,9 @@ export default function BookingDetails() {
                   router.push({
                     pathname: '/chat/[counterpartAuthId]',
                     params: {
-                      counterpartAuthId: (isProvider ? booking.customer_auth_id : booking.provider_auth_id) as string,
-                      counterpartName: isProvider ? booking.customer_name || 'Customer' : booking.provider_name,
-                      bookingId: booking.id,
+                      counterpartAuthId: String((isProvider ? booking.customer_auth_id : booking.provider_auth_id) ?? ''),
+                      counterpartName: (isProvider ? booking.customer_name || 'Customer' : booking.provider_name) || '',
+                      bookingId: String(booking.id),
                       conversationType: 'booking',
                     },
                   })

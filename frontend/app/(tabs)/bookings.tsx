@@ -17,7 +17,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
-import { Button, withAuthGate } from '../../src/components/common';
+import { Button, withAuthGate, ProfileAvatar } from '../../src/components/common';
+import { peopleService } from '../../src/services/people.service';
 import { bookingService } from '../../src/services/booking.service';
 import { reviewService } from '../../src/services/review.service';
 import { walletService } from '../../src/services/wallet.service';
@@ -85,6 +86,7 @@ function Bookings() {
         user?.auth_id ? walletService.getTransactions(user.auth_id).catch(() => []) : Promise.resolve([]),
       ]);
       setBookings(bookingList);
+      peopleService.enrichBookingProviders(bookingList).then(setBookings).catch(() => undefined);
       setReviewedBookingIds(new Set(myReviews.map((r) => r.booking_id)));
       setWallet(walletData);
       setTransactions(txnData);
@@ -271,7 +273,7 @@ function Bookings() {
                     accessibilityRole="button"
                     accessibilityLabel={item.provider_name}
                   >
-                    <Ionicons name="storefront" size={24} color={colors.primary} />
+                    <ProfileAvatar uri={item.provider_avatar} name={item.provider_name} size={48} type="provider" />
                   </TouchableOpacity>
                   <View style={styles.bookingInfo}>
                     <Text style={[styles.providerName, { color: colors.text }]}>{item.provider_name}</Text>
@@ -368,16 +370,19 @@ function Bookings() {
                       style={[styles.actionButtonSecondary, { backgroundColor: colors.surfaceLight }]}
                       onPress={() => {
                         const providerAuthId = item.provider_auth_id || item.provider_id;
-                        if (providerAuthId) {
-                          router.push({
-                            pathname: '/chat/[counterpartAuthId]',
-                            params: {
-                              counterpartAuthId: providerAuthId,
-                              bookingId: item.id,
-                              conversationType: 'booking',
-                            },
-                          });
+                        if (!providerAuthId || !item.id) {
+                          Alert.alert('Chat unavailable', 'We could not find this provider for chat. Please pull to refresh and try again.');
+                          return;
                         }
+                        router.push({
+                          pathname: '/chat/[counterpartAuthId]',
+                          params: {
+                            counterpartAuthId: String(providerAuthId),
+                            counterpartName: item.provider_name || '',
+                            bookingId: String(item.id),
+                            conversationType: 'booking',
+                          },
+                        });
                       }}
                       accessibilityRole="button"
                       accessibilityLabel="Chat with provider"

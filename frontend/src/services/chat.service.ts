@@ -239,11 +239,13 @@ export const chatService = {
           );
 
           if (chatData.messages && chatData.messages.length > 0) {
-            const providerAuthId = booking.provider_auth_id || booking.stylist_auth_id;
+            const rawProviderId = booking.provider_id != null && !/^\d+$/.test(String(booking.provider_id)) ? String(booking.provider_id) : undefined;
+            const providerAuthId = booking.provider_auth_id || booking.stylist_auth_id || rawProviderId;
             const customerAuthId = booking.customer_auth_id;
             
             // Determine counterpart
             const counterpartAuthId = authId === customerAuthId ? providerAuthId : customerAuthId;
+            if (!counterpartAuthId) continue;
             
             // Get unread count for this booking
             const unreadCount = chatData.messages.filter(
@@ -257,10 +259,13 @@ export const chatService = {
             try {
               // First try to get as provider (stylist)
               stylistProfile = await apiService.get(`/stylists/by-auth/${counterpartAuthId}`).catch(() => null);
+              const directoryPerson = await peopleService.getByAuthId(counterpartAuthId).catch(() => null);
+              if (directoryPerson?.avatar) counterpartProfileImageUrl = directoryPerson.avatar;
               if (stylistProfile) {
                 // Provider: prioritize business_name, then salon_name, then user name
-                counterpartName = profileDisplayName(stylistProfile);
+                counterpartName = profileDisplayName(stylistProfile) || directoryPerson?.name;
                 counterpartProfileImageUrl =
+                  counterpartProfileImageUrl ||
                   stylistProfile?.avatarUrl ||
                   stylistProfile?.avatar_url ||
                   stylistProfile?.profileImage ||
@@ -270,8 +275,9 @@ export const chatService = {
               } else {
                 // Fallback to user table for customers
                 const userProfile = await apiService.get(`/users/by-auth/${counterpartAuthId}`);
-                counterpartName = profileDisplayName(userProfile);
+                counterpartName = profileDisplayName(userProfile) || directoryPerson?.name;
                 counterpartProfileImageUrl =
+                  counterpartProfileImageUrl ||
                   userProfile?.avatarUrl ||
                   userProfile?.avatar_url ||
                   userProfile?.profileImage ||

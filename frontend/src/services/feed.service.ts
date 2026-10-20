@@ -18,9 +18,28 @@ export const feedService = {
   async getFeed(params?: { page?: number; per_page?: number }): Promise<PaginatedResponse<Post>> {
     const response = await apiService.get<any>('/feed/posts', { params });
     const posts = Array.isArray(response?.posts) ? response.posts : Array.isArray(response?.data) ? response.data : [];
+    // Backend sends provider display_name "Provider" and no photo when users.name
+    // is empty; fill both from the stylist directory / profile lookups.
+    const enriched = await Promise.all(
+      posts.map(async (post: any) => {
+        const authId = post.provider_auth_id || post.provider?.auth_id;
+        if (!authId) return post;
+        const person = await peopleService.getByAuthId(authId).catch(() => null);
+        if (!person) return post;
+        const current = post.provider?.display_name || post.provider?.business_name || post.provider?.name;
+        return {
+          ...post,
+          provider: {
+            ...(post.provider || {}),
+            display_name: peopleService.isPlaceholderName(current) ? person.name || current : current,
+            photo_url: post.provider?.photo_url || person.avatar,
+          },
+        };
+      })
+    );
     // Only show posts that are explicitly approved in the public UI.
     return {
-      data: posts.filter(isPubliclyVisiblePost),
+      data: enriched.filter(isPubliclyVisiblePost),
       total: response.total || posts.length || 0,
       page: params?.page || 1,
       per_page: params?.per_page || 20,
@@ -108,11 +127,15 @@ export const feedService = {
     return response?.comment || response?.data || response;
   },
 
-  async reportPost(postId: string, reason: string): Promise<void> {
+  async reportPost(postId: string, reason: string, description?: string): Promise<void> {
+    const reporterAuthId = await apiService.getAuthId();
+    if (!reporterAuthId) throw Object.assign(new Error('Please sign in to report posts.'), { friendlyMessage: 'Please sign in to report posts.' });
     await apiService.post('/reports', {
-      target_id: postId,
-      target_type: 'POST',
+      reporter_auth_id: reporterAuthId,
+      target_id: String(postId),
+      target_type: 'post',
       reason,
+      description: (description || '').trim() || undefined,
     });
   },
 

@@ -24,6 +24,7 @@ import { Booking } from '../../src/types';
 import { withCacheBuster } from '../../src/utils/display';
 import { queryClient } from '../_layout';
 import apiService from '../../src/services/api';
+import { peopleService } from '../../src/services/people.service';
 import { ProfileAvatar, withAuthGate } from '../../src/components/common';
 
 const comingSoon = (feature: string) =>
@@ -194,6 +195,7 @@ function Profile() {
       await apiService.put(`/users/${user.id}`, { profile_image_url: publicUrl });
 
       const refreshedUrl = withCacheBuster(publicUrl) as string;
+      peopleService.invalidate(user.auth_id);
       setAvatarUrl(refreshedUrl);
       updateUser({ profile_image_url: refreshedUrl, avatar: refreshedUrl });
         await queryClient.invalidateQueries({ queryKey: ['currentUser'] });

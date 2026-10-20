@@ -161,7 +161,7 @@ export function normalizeBooking(raw: any): Booking {
     customer_id: String(pick(raw, ['customer_id', 'user_id'], '')),
     customer_auth_id: pick(raw, ['customer_auth_id']),
     provider_id: String(pick(raw, ['provider_id', 'stylist_id'], '')),
-    provider_auth_id: pick(raw, ['provider_auth_id']),
+    provider_auth_id: pick(raw, ['provider_auth_id', 'stylist_auth_id'], /^\d+$/.test(String(raw?.provider_id ?? '')) ? undefined : raw?.provider_id || undefined),
     service_id: String(pick(raw, ['service_id'], firstService.service_id ?? firstService.id ?? firstService.sub_service_id ?? '')),
     service_name: pick(raw, ['service_name', 'service_title'], firstService.service_name || firstService.sub_service_name || firstService.name || 'Service'),
     provider_name: pick(raw, ['provider_name', 'stylist_name', 'business_name', 'provider_display_name'], 'Provider'),

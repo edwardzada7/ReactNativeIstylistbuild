@@ -1,5 +1,6 @@
 import apiService from './api';
 import { supabase } from '../lib/supabase';
+import { peopleService } from './people.service';
 import {
   Provider,
   Category,
@@ -51,7 +52,7 @@ export const providerService = {
   // Browse providers with their services embedded (Home + Search use this).
   async getProvidersWithServices(): Promise<Provider[]> {
     const raw = await apiService.get<any>('/providers/with-services');
-    return asList(raw).map(normalizeProvider);
+    return peopleService.withProviderAvatars(asList(raw).map(normalizeProvider));
   },
 
   // Full provider profile: bio, services, ratings, portfolio.
@@ -66,7 +67,8 @@ export const providerService = {
       if (!/^\d+$/.test(numericId)) throw Object.assign(new Error('Provider not found'), { friendlyMessage: 'Provider not found.' });
     }
     const raw = await apiService.get<any>(`/providers/${numericId}/full-profile`);
-    return normalizeProvider(raw);
+    const [withAvatar] = await peopleService.withProviderAvatars([normalizeProvider(raw)], () => numericId);
+    return withAvatar;
   },
 
   async getConsultationEligibility(providerAuthId: string): Promise<NonNullable<Provider['consultation']>> {

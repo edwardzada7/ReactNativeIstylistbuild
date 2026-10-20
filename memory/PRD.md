@@ -143,3 +143,10 @@ Full report: `/app/SHOP_PROVIDER_FIX_REPORT.md`. Summary:
 - Feed comments "User": resolves author names; customer names on provider dashboard/bookings/booking detail; shared-chat counterpart names.
 - Guest sign-up banner on provider profile; "Book Again" on completed/cancelled bookings + Home "Book Again" strip.
 - BACKEND/DB (not fixable from app): invoices table lacks amount, location, service_type, staff_id columns → POST /invoices 502 ("Something went wrong"). Service invoice validation also queries stylists.id and provider_services.provider_id which don't exist.
+
+## Session — Jun 2026 (4) (no automated tests per user)
+- SQL migration: /app/supabase/migrations/20260601_fix_invoices_orders_avatars.sql (invoices/invoice_items columns, stylists.id & provider_services.provider_id generated aliases, orders RLS select, stylists public read, own-profile update policies, public_profiles view).
+- Booking chat Unmatched Route: bookings' provider id is the auth UUID (provider_id / stylist_auth_id); normalized provider_auth_id; chat list skips threads without counterpart; guards on chat buttons.
+- Avatars/names: people.service stylist directory (stylists.profile_image_url via Supabase) applied to home/search providers, provider profile, feed posts, chat list, customer bookings; invalidated on profile photo upload.
+- Product review: auth_id query param (create/update/delete). Report post: reporter_auth_id + backend reason enum + lowercase target_type.
+- Home: duplicate star & lone ₦ removed (home/search); Rebook reminder card (src/components/booking/RebookReminder.tsx, 21+ days, dismissible).

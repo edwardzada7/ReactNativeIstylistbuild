@@ -14,6 +14,7 @@ import { resolveCurrentLocation } from '../../src/services/location.service';
 import { supabase } from '../../src/lib/supabase';
 import { Provider, Post, Review } from '../../src/types';
 import apiService from '../../src/services/api';
+import { peopleService } from '../../src/services/people.service';
 import { withCacheBuster } from '../../src/utils/display';
 import { queryClient } from '../_layout';
 import { ProfileAvatar } from '../../src/components/common';
@@ -170,6 +171,7 @@ export default function ProviderProfile() {
       await apiService.put(`/users/${user.id}`, { profile_image_url: publicUrl });
 
       const refreshedUrl = withCacheBuster(publicUrl) as string;
+      peopleService.invalidate(user.auth_id);
       setAvatarUrl(refreshedUrl);
       updateUser({ profile_image_url: refreshedUrl, avatar: refreshedUrl });
         await queryClient.invalidateQueries({ queryKey: ['currentUser'] });

@@ -85,7 +85,10 @@ function ChatList() {
           renderItem={({ item }) => (
             <TouchableOpacity
               style={[styles.conversationItem, { backgroundColor: colors.surface }]}
-              onPress={() => router.push({ pathname: '/chat/[counterpartAuthId]', params: { counterpartAuthId: String(item.counterpart_auth_id ?? ''), bookingId: item.conversation_type === 'booking' && item.booking_id ? String(item.booking_id) : undefined, conversationId: item.conversation_type !== 'booking' && item.conversation_id ? String(item.conversation_id) : undefined, conversationType: item.conversation_type || 'booking', counterpartName: item.counterpart_name || '' } })}
+              onPress={() => {
+                if (!item.counterpart_auth_id) return;
+                router.push({ pathname: '/chat/[counterpartAuthId]', params: { counterpartAuthId: String(item.counterpart_auth_id), bookingId: item.conversation_type === 'booking' && item.booking_id ? String(item.booking_id) : undefined, conversationId: item.conversation_type !== 'booking' && item.conversation_id ? String(item.conversation_id) : undefined, conversationType: item.conversation_type || 'booking', counterpartName: item.counterpart_name || '' } });
+              }}
               accessibilityRole="button"
             >
               <View style={[styles.avatar, { backgroundColor: colors.surfaceLight }]}>
