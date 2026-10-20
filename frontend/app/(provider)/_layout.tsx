@@ -71,6 +71,7 @@ export default function ProviderTabsLayout() {
           ),
         }}
       />
+      <Tabs.Screen name="messages" options={{ href: null }} />
       <Tabs.Screen name="availability" options={{ href: null }} />
       <Tabs.Screen name="create-post" options={{ href: null }} />
       <Tabs.Screen name="edit-post" options={{ href: null }} />

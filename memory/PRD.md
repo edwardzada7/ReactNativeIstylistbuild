@@ -127,3 +127,11 @@ Full report: `/app/SHOP_PROVIDER_FIX_REPORT.md`. Summary:
 - Added app/(admin)/_layout.tsx (fixes "No route named (admin)" warning).
 - Verified: Metro bundles web/iOS/Android; login, signup, forgot-password screens and validation work (iteration_2).
 - Open: Railway CORS blocks web-preview origin (native Expo Go unaffected); guest -> /(tabs) redirected to /login (decide guest browsing); minor RN warnings (shadow*, pointerEvents, stray text node in a View).
+
+## Session — Jun 2026: guest browsing + screenshot bug fixes (not auto-tested, user tests manually)
+- Guest browsing: (tabs) no longer protected; Bookings/Wallet/Profile/Messages/Notifications show GuestPrompt (src/components/common/GuestGate.tsx) for guests; Book/Ask/Consult/Like/Report/product inquiry send guests to login; login has "Continue as guest"; home skips auth-only calls for guests.
+- Chat "conversation_type is required": booking chats no longer call /conversations/{id}/mark-read (backend only accepts inquiry/consultation); shared chats pass the type.
+- Crash "Cannot read property 'toString' of null": null route params (provider business_name, counterpart_name) now coerced to strings.
+- "Input should be a valid integer": provider profile resolves auth UUIDs to numeric user_id via /stylists/by-auth before /full-profile.
+- Provider profile: removed duplicate star, hide empty "₦" price range, staff photo uses ProfileAvatar instead of via.placeholder.
+- Provider bookings: fixed clipped filter chips; resolves real customer names via /users/by-auth when backend returns "Customer"; hidden stray "messages" tab in provider tab bar.

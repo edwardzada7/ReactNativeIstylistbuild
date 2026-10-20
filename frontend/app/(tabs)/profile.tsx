@@ -24,7 +24,7 @@ import { Booking } from '../../src/types';
 import { withCacheBuster } from '../../src/utils/display';
 import { queryClient } from '../_layout';
 import apiService from '../../src/services/api';
-import { ProfileAvatar } from '../../src/components/common';
+import { ProfileAvatar, withAuthGate } from '../../src/components/common';
 
 const comingSoon = (feature: string) =>
   Alert.alert('Coming soon', `${feature} is being wired up in a later phase.`);
@@ -71,7 +71,13 @@ const menuSections = (router: ReturnType<typeof useRouter>, isDark: boolean, tog
   },
 ];
 
-export default function Profile() {
+export default withAuthGate(Profile, {
+  icon: 'person-circle-outline',
+  title: 'Your profile',
+  message: 'Sign in to manage your profile, reviews and settings.',
+});
+
+function Profile() {
   const router = useRouter();
   const { user, logout, refreshUser, updateUser } = useAuth();
   const { colors, isDark, toggleTheme } = useTheme();

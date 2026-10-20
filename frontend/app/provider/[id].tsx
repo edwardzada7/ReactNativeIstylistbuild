@@ -18,7 +18,7 @@ import { Share } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
-import { Button } from '../../src/components/common';
+import { Button, ProfileAvatar } from '../../src/components/common';
 import { providerService } from '../../src/services/provider.service';
 import { feedService } from '../../src/services/feed.service';
 import { formatCurrency, formatPriceRange } from '../../src/utils/currency';
@@ -61,11 +61,12 @@ export default function ProviderProfile() {
       }
       const today = new Date().toISOString().slice(0, 10);
       const defaultDuration = profile.services[0]?.duration || 30;
+      const pid = /^\d+$/.test(String(id)) ? String(id) : String(profile.id || id);
       const [reviewList, slotList, portfolioList, staffList, feedResponse] = await Promise.all([
-        providerService.getProviderReviews(id).catch(() => []),
-        providerService.getAvailableSlots(id, today, defaultDuration).catch(() => []),
-        providerService.getProviderPortfolio(id).catch(() => []),
-        providerService.getProviderStaff(id).catch(() => []),
+        providerService.getProviderReviews(pid).catch(() => []),
+        providerService.getAvailableSlots(pid, today, defaultDuration).catch(() => []),
+        providerService.getProviderPortfolio(pid).catch(() => []),
+        providerService.getProviderStaff(pid).catch(() => []),
         feedService.getFeed({ page: 1, per_page: 100 }).catch(() => ({ data: [] })),
       ]);
       setCoverImageError(false);
@@ -120,6 +121,10 @@ export default function ProviderProfile() {
   const handleBookNow = () => {
     if (isOwnProvider) return;
     if (!provider) return;
+    if (!user) {
+      router.push('/(auth)/login');
+      return;
+    }
     if (!selectedServiceId) {
       Alert.alert('Choose a service', 'Please select a service before booking.');
       return;
@@ -131,11 +136,15 @@ export default function ProviderProfile() {
   };
 
   const handleAskQuestion = async () => {
+    if (!user) {
+      router.push('/(auth)/login');
+      return;
+    }
     if (!provider?.user_id || contacting) return;
     setContacting(true);
     try {
       const conversation = await chatService.createInquiry(provider.user_id);
-      router.push({ pathname: '/chat/[counterpartAuthId]', params: { counterpartAuthId: provider.user_id, conversationId: String(conversation.id), conversationType: 'inquiry', counterpartName: provider.business_name } });
+      router.push({ pathname: '/chat/[counterpartAuthId]', params: { counterpartAuthId: String(provider.user_id), conversationId: String(conversation.id), conversationType: 'inquiry', counterpartName: provider.business_name || '' } });
     } catch (err: any) {
       Alert.alert('Could not start inquiry', err?.friendlyMessage || 'Please try again.');
     } finally {
@@ -144,6 +153,10 @@ export default function ProviderProfile() {
   };
 
   const handleConsult = async () => {
+    if (!user) {
+      router.push('/(auth)/login');
+      return;
+    }
     if (!provider?.user_id || !consultation || contacting) return;
     setContacting(true);
     try {
@@ -153,7 +166,7 @@ export default function ProviderProfile() {
         fee: Number(consultation.consultation_fee),
         currency: consultation.currency || 'NGN',
       });
-      router.push({ pathname: '/consultation/payment' as any, params: { consultationId: String(created.consultation.id), conversationId: String(created.conversation.id), providerAuthId: provider.user_id, providerName: provider.business_name, specialty: consultation.specialty || categoryLabel, fee: String(consultation.consultation_fee), currency: consultation.currency || 'NGN' } });
+      router.push({ pathname: '/consultation/payment' as any, params: { consultationId: String(created.consultation.id), conversationId: String(created.conversation.id), providerAuthId: String(provider.user_id), providerName: provider.business_name || '', specialty: consultation.specialty || categoryLabel || '', fee: String(consultation.consultation_fee ?? ''), currency: consultation.currency || 'NGN' } });
     } catch (err: any) {
       Alert.alert('Could not start consultation', err?.friendlyMessage || 'Please try again.');
     } finally {
@@ -250,7 +263,9 @@ export default function ProviderProfile() {
               <TouchableOpacity onPress={() => Share.share({ title: provider.business_name, message: `${provider.business_name} on iStylist\n${provider.bio || ''}`, url: `https://istylist.app/provider/${provider.id}` })} accessibilityRole="button" accessibilityLabel="Share provider profile">
                 <Ionicons name="share-social-outline" size={22} color={colors.text} />
               </TouchableOpacity>
-              <Text style={[styles.priceRange, { color: colors.text }]}>{formatPriceRange(provider.price_range)}</Text>
+              {!!String(provider.price_range ?? '').replace(/[₦$\s]/g, '') && (
+                <Text style={[styles.priceRange, { color: colors.text }]}>{formatPriceRange(provider.price_range)}</Text>
+              )}
             </View>
           </View>
 
@@ -265,7 +280,7 @@ export default function ProviderProfile() {
             <View style={styles.metaItem}>
               <Ionicons name="star" size={16} color={Colors.warning} />
               <Text style={[styles.metaText, { color: colors.text }]}>
-                ★ {Number(provider.rating || provider.avgRating || 0).toFixed(1)} ({provider.ratingCount ?? provider.reviewsCount ?? provider.review_count ?? 0})
+                {Number(provider.rating || provider.avgRating || 0).toFixed(1)} ({provider.ratingCount ?? provider.reviewsCount ?? provider.review_count ?? 0})
               </Text>
             </View>
             {(provider.location_address || provider.location) && provider.location !== 'Location not set' ? (
@@ -299,7 +314,7 @@ export default function ProviderProfile() {
             ) : staff.map((member) => (
               <View key={member.id} style={[styles.staffCard, { backgroundColor: colors.surface }]}>
                 <View style={styles.staffHeader}>
-                  <RNImage source={{ uri: member.photo_url || 'https://via.placeholder.com/150' }} style={styles.staffImage} />
+                  <ProfileAvatar uri={member.photo_url} name={member.name} size={64} />
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.staffName, { color: colors.text }]}>{member.name}</Text>
                     {!!member.role && <Text style={[styles.staffRole, { color: colors.textSecondary }]}>{member.role}</Text>}

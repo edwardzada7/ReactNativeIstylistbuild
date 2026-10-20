@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../src/constants/theme';
 import { BrandLogo } from '../src/components/branding';
+import { withAuthGate } from '../src/components/common';
 import { notificationService } from '../src/services/notification.service';
 import { Notification } from '../src/types';
 import { useTheme } from '../src/contexts/ThemeContext';
@@ -33,7 +34,13 @@ const timeAgo = (iso?: string | null) => formatRelativeTime(iso);
  * directly from Supabase's `notifications` table (RLS-verified: users only
  * see their own rows). No mock data, no placeholder.
  */
-export default function Notifications() {
+export default withAuthGate(Notifications, {
+  icon: 'notifications-outline',
+  title: 'Your notifications',
+  message: 'Sign in to get updates on bookings, messages and orders.',
+});
+
+function Notifications() {
   const router = useRouter();
   const { colors } = useTheme();
   const [items, setItems] = useState<Notification[]>([]);

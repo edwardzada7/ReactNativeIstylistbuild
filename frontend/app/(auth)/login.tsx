@@ -139,6 +139,15 @@ export default function Login() {
               <Text style={styles.footerLink}>Sign Up</Text>
             </TouchableOpacity>
           </View>
+          <TouchableOpacity
+            testID="login-browse-guest-button"
+            style={{ alignSelf: 'center', paddingVertical: 12, paddingHorizontal: 16 }}
+            onPress={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)'))}
+            accessibilityRole="button"
+            accessibilityLabel="Continue as guest"
+          >
+            <Text style={styles.footerText}>Continue as guest</Text>
+          </TouchableOpacity>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

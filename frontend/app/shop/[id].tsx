@@ -72,7 +72,11 @@ export default function ProductDetail() {
   };
 
   const handleAskAboutProduct = async () => {
-    if (!product?.stylist_auth_id || !isAuthenticated || contacting) return;
+    if (!isAuthenticated) {
+      router.push('/(auth)/login');
+      return;
+    }
+    if (!product?.stylist_auth_id || contacting) return;
     setContacting(true);
     try {
       const conversation = await chatService.createInquiry(product.stylist_auth_id, { id: Number(product.id), name: product.name });
@@ -85,6 +89,10 @@ export default function ProductDetail() {
   };
 
   const handleProductConsultation = async () => {
+    if (!isAuthenticated) {
+      router.push('/(auth)/login');
+      return;
+    }
     if (!product?.stylist_auth_id || !consultation || contacting) return;
     setContacting(true);
     try {

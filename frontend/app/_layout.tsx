@@ -44,7 +44,8 @@ function AppShell() {
     if (isLoading) return;
 
     const current = segments[0];
-    const protectedGroup = current === '(tabs)' || current === '(provider)' || current === '(admin)';
+    // (tabs) is guest-browsable; account-only tab screens show a sign-in prompt.
+    const protectedGroup = current === '(provider)' || current === '(admin)';
     if (!isAuthenticated && protectedGroup) {
       router.replace('/(auth)/login');
     }

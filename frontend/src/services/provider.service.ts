@@ -56,7 +56,16 @@ export const providerService = {
 
   // Full provider profile: bio, services, ratings, portfolio.
   async getProviderFullProfile(providerId: string): Promise<Provider> {
-    const raw = await apiService.get<any>(`/providers/${providerId}/full-profile`);
+    // full-profile expects the provider's numeric user id. Some links (feed,
+    // notifications, recommendations) carry the provider's auth UUID instead,
+    // which the backend rejects with "Input should be a valid integer".
+    let numericId = String(providerId ?? '').trim();
+    if (!/^\d+$/.test(numericId)) {
+      const stylist = await apiService.get<any>(`/stylists/by-auth/${encodeURIComponent(numericId)}`);
+      numericId = String(stylist?.user_id ?? '');
+      if (!/^\d+$/.test(numericId)) throw Object.assign(new Error('Provider not found'), { friendlyMessage: 'Provider not found.' });
+    }
+    const raw = await apiService.get<any>(`/providers/${numericId}/full-profile`);
     return normalizeProvider(raw);
   },
 

@@ -10,8 +10,15 @@ import { formatCurrency } from '../../src/utils/currency';
 import TransactionList from '../../src/components/wallet/TransactionList';
 import { Wallet, Transaction } from '../../src/types';
 import { useTheme } from '../../src/contexts/ThemeContext';
+import { withAuthGate } from '../../src/components/common';
 
-export default function CustomerWallet() {
+export default withAuthGate(CustomerWallet, {
+  icon: 'wallet-outline',
+  title: 'Your wallet',
+  message: 'Sign in to top up, pay for bookings and see your transactions.',
+});
+
+function CustomerWallet() {
   const router = useRouter();
   const { user } = useAuth();
   const { colors } = useTheme();

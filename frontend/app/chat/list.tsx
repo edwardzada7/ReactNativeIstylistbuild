@@ -16,8 +16,15 @@ import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/th
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { chatService } from '../../src/services/chat.service';
 import { Conversation } from '../../src/types';
+import { withAuthGate } from '../../src/components/common';
 
-export default function ChatList() {
+export default withAuthGate(ChatList, {
+  icon: 'chatbubbles-outline',
+  title: 'Your messages',
+  message: 'Sign in to chat with stylists about your bookings and questions.',
+});
+
+function ChatList() {
   const router = useRouter();
   const { colors } = useTheme();
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -78,7 +85,7 @@ export default function ChatList() {
           renderItem={({ item }) => (
             <TouchableOpacity
               style={[styles.conversationItem, { backgroundColor: colors.surface }]}
-              onPress={() => router.push({ pathname: '/chat/[counterpartAuthId]', params: { counterpartAuthId: item.counterpart_auth_id, bookingId: item.conversation_type === 'booking' && item.booking_id ? String(item.booking_id) : undefined, conversationId: item.conversation_type !== 'booking' && item.conversation_id ? String(item.conversation_id) : undefined, conversationType: item.conversation_type || 'booking', counterpartName: item.counterpart_name } })}
+              onPress={() => router.push({ pathname: '/chat/[counterpartAuthId]', params: { counterpartAuthId: String(item.counterpart_auth_id ?? ''), bookingId: item.conversation_type === 'booking' && item.booking_id ? String(item.booking_id) : undefined, conversationId: item.conversation_type !== 'booking' && item.conversation_id ? String(item.conversation_id) : undefined, conversationType: item.conversation_type || 'booking', counterpartName: item.counterpart_name || '' } })}
               accessibilityRole="button"
             >
               <View style={[styles.avatar, { backgroundColor: colors.surfaceLight }]}>

@@ -53,6 +53,7 @@ export default function Feed() {
 
   const toggleLike = async (postId: string) => {
     if (!user?.auth_id) {
+      router.push('/(auth)/login');
       return; // Require auth to like
     }
 
@@ -111,6 +112,10 @@ export default function Feed() {
   const handleComment = (postId: string) => setCommentsPostId(postId);
 
   const handleReportPost = (postId: string) => {
+    if (!user?.auth_id) {
+      router.push('/(auth)/login');
+      return;
+    }
     setReportTargetId(postId);
   };
 

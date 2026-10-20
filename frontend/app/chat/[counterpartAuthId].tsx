@@ -128,11 +128,12 @@ export default function ChatThread() {
     setLoadError(null);
     try {
       if (isBookingConversation) {
+        // getThread already marks booking chats read via /bookings/{id}/chat/mark-read.
         setMessages(await chatService.getThread(Number(legacyBookingId)));
-        await chatService.markRead(Number(legacyBookingId));
       } else if (isSharedConversation) {
         const result = await chatService.getConversationThread(Number(conversationId));
         setMessages(result.messages || []);
+        chatService.markRead(Number(conversationId), conversationType).catch(() => undefined);
       }
       
       // Fetch counterpart's actual name if not provided or if it's "Unknown"

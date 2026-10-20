@@ -17,7 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
-import { Button } from '../../src/components/common';
+import { Button, withAuthGate } from '../../src/components/common';
 import { bookingService } from '../../src/services/booking.service';
 import { reviewService } from '../../src/services/review.service';
 import { walletService } from '../../src/services/wallet.service';
@@ -50,7 +50,13 @@ const PAYMENT_TONE_COLOR: Record<string, string> = {
   neutral: Colors.textMuted,
 };
 
-export default function Bookings() {
+export default withAuthGate(Bookings, {
+  icon: 'calendar-outline',
+  title: 'Your bookings live here',
+  message: 'Sign in to book stylists, pay securely and track your appointments.',
+});
+
+function Bookings() {
   const router = useRouter();
   const { user } = useAuth();
   const { colors } = useTheme();

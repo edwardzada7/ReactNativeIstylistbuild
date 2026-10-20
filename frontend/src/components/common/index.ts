@@ -5,3 +5,4 @@ export { Loading } from './Loading';
 export { ProfileAvatar } from './ProfileAvatar';
 export { ReportModal } from './ReportModal';
 export { FeedCommentsModal } from './FeedCommentsModal';
+export { GuestPrompt, withAuthGate } from './GuestGate';

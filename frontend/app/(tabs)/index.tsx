@@ -28,7 +28,7 @@ import { bookingService } from '../../src/services/booking.service';
 
 export default function Home() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const { colors } = useTheme();
 
   const [categories, setCategories] = useState<Category[]>([]);
@@ -54,12 +54,12 @@ export default function Home() {
       const [providerList, categoryList, bookingList] = await Promise.all([
         providerService.getProvidersWithServices(),
         providerService.getCategories(),
-        bookingService.getBookings({ role: 'customer' }).catch(() => []),
+        isAuthenticated ? bookingService.getBookings({ role: 'customer' }).catch(() => []) : Promise.resolve([]),
       ]);
       setProviders(providerList);
       setCategories(categoryList);
       setBookings(bookingList);
-      await refreshUnreadCount();
+      if (isAuthenticated) await refreshUnreadCount();
     } catch (err: any) {
       console.error('[home] failed to load data', err);
       setError(err?.friendlyMessage || 'Could not load providers. Pull down to retry.');
@@ -67,7 +67,7 @@ export default function Home() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [refreshUnreadCount]);
+  }, [refreshUnreadCount, isAuthenticated]);
 
   useEffect(() => {
     loadData();
@@ -75,8 +75,8 @@ export default function Home() {
 
   useFocusEffect(
     useCallback(() => {
-      refreshUnreadCount();
-    }, [refreshUnreadCount])
+      if (isAuthenticated) refreshUnreadCount();
+    }, [refreshUnreadCount, isAuthenticated])
   );
 
   const handleRefresh = () => {

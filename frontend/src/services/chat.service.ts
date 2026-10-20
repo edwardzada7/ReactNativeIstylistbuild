@@ -408,8 +408,8 @@ export const chatService = {
     }
   },
 
-  async markRead(bookingId: number): Promise<number> {
-    const result = await apiService.post(`/conversations/${bookingId}/mark-read?conversation_type=booking`);
+  async markRead(conversationId: number, conversationType: 'inquiry' | 'consultation'): Promise<number> {
+    const result = await apiService.post(`/conversations/${conversationId}/mark-read?conversation_type=${conversationType}`);
     return result.clearedCount ?? 0;
   },
 };
