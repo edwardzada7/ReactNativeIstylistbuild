@@ -15,7 +15,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { bookingService } from '../../src/services/booking.service';
 import { walletService } from '../../src/services/wallet.service';
-import apiService from '../../src/services/api';
+import { peopleService } from '../../src/services/people.service';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { formatCurrency } from '../../src/utils/currency';
@@ -86,34 +86,8 @@ export default function ProviderBookings() {
       ]);
       setBookings(list);
       setTransactions(txnData);
-      // Backend falls back to the literal "Customer" when it can't resolve a
-      // name; look those up by auth id so providers see who booked.
-      const missing = Array.from(new Set(
-        list
-          .filter((b) => (!b.customer_name || b.customer_name === 'Customer') && b.customer_auth_id)
-          .map((b) => String(b.customer_auth_id))
-      ));
-      if (missing.length) {
-        const found = await Promise.all(
-          missing.map((authId) =>
-            apiService.get<any>(`/users/by-auth/${authId}`)
-              .then((u) => [authId, u] as const)
-              .catch(() => [authId, null] as const)
-          )
-        );
-        const byAuth = new Map(found);
-        setBookings(list.map((b) => {
-          const u = b.customer_auth_id ? byAuth.get(String(b.customer_auth_id)) : null;
-          if (!u) return b;
-          const name = u.name || [u.first_name || u.firstName, u.last_name || u.lastName].filter(Boolean).join(' ').trim();
-          return {
-            ...b,
-            customer_name: name || b.customer_name,
-            customer_profile_image_url: b.customer_profile_image_url || u.profile_image_url || u.avatar_url || u.avatar,
-            customer_address: b.customer_address || u.location_address || u.address,
-          };
-        }));
-      }
+      // Backend falls back to the literal "Customer"; resolve real names.
+      setBookings(await peopleService.enrichBookingCustomers(list));
     } catch (err: any) {
       console.error('[provider-bookings] failed to load', err);
       setError(err?.friendlyMessage || 'Could not load bookings.');

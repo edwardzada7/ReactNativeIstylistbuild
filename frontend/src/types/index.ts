@@ -347,6 +347,8 @@ export interface Comment {
   post_id: string;
   user_id: string;
   user?: User;
+  author_auth_id?: string;
+  author_name?: string;
   content: string;
   created_at: string;
   post_author_id?: string;

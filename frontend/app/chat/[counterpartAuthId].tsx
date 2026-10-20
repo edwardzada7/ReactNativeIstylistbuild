@@ -30,6 +30,7 @@ import { InvoiceCard } from '../../src/components/chat/InvoiceCard';
 import { ProviderRecommendationCard } from '../../src/components/chat/ProviderRecommendationCard';
 import { ReadReceipt } from '../../src/components/chat/ReadReceipt';
 import { providerService } from '../../src/services/provider.service';
+import { peopleService } from '../../src/services/people.service';
 import { useCartStore } from '../../src/store/cartStore';
 import { supabase } from '../../src/lib/supabase';
 
@@ -100,8 +101,18 @@ export default function ChatThread() {
     setRecommendationLoading(true);
     try {
       const category = typeof selectedProvider.category === 'string' ? selectedProvider.category : selectedProvider.category?.name;
+      // /providers/with-services rows don't always carry the auth UUID; the
+      // backend validates recommended_provider_auth_id against stylists.auth_id.
+      const recommendedAuthId = /^\d+$/.test(String(selectedProvider.user_id || ''))
+        || !selectedProvider.user_id
+        ? await peopleService.getProviderAuthId(selectedProvider.user_id || selectedProvider.id)
+        : selectedProvider.user_id;
+      if (!recommendedAuthId || recommendedAuthId === user?.auth_id) {
+        Alert.alert('Could not send recommendation', 'Please choose a different provider.');
+        return;
+      }
       const sent = await chatService.sendProviderRecommendation(Number(conversationId), counterpartAuthId, {
-        recommended_provider_auth_id: selectedProvider.user_id,
+        recommended_provider_auth_id: recommendedAuthId,
         provider_id: selectedProvider.id,
         provider_name: selectedProvider.business_name,
         provider_image: selectedProvider.avatarUrl || selectedProvider.profile_image_url || selectedProvider.avatar || null,

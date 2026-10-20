@@ -39,6 +39,15 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
 
+  // Most recent completed booking per stylist, newest first.
+  const rebookProviders = useMemo(() => {
+    const seen = new Set<string>();
+    return [...bookings]
+      .filter((b) => b.status === 'completed' && b.provider_id)
+      .sort((a, b) => String(b.date || b.created_at).localeCompare(String(a.date || a.created_at)))
+      .filter((b) => (seen.has(String(b.provider_id)) ? false : (seen.add(String(b.provider_id)), true)))
+      .slice(0, 10);
+  }, [bookings]);
   const refreshUnreadCount = useCallback(async () => {
     try {
       const res = await notificationService.getUnreadCount();
@@ -299,6 +308,40 @@ export default function Home() {
           <View style={[styles.errorBanner, { backgroundColor: colors.surface }]}>
             <Ionicons name="alert-circle-outline" size={18} color={colors.error} />
             <Text style={[styles.errorText, { color: colors.error }]}>{error}</Text>
+          </View>
+        )}
+
+        {/* One-tap rebook: stylists the customer has completed bookings with */}
+        {rebookProviders.length > 0 && (
+          <View style={styles.section} testID="home-book-again-section">
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Book Again</Text>
+            </View>
+            <FlatList
+              data={rebookProviders}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={(item) => String(item.provider_id)}
+              contentContainerStyle={styles.categoriesList}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  testID={`home-book-again-${item.provider_id}`}
+                  style={[styles.recentProviderCard, { backgroundColor: colors.surface }]}
+                  onPress={() => router.push({
+                    pathname: '/booking/[providerId]',
+                    params: item.service_id
+                      ? { providerId: String(item.provider_id), serviceId: String(item.service_id) }
+                      : { providerId: String(item.provider_id) },
+                  })}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Book ${item.provider_name} again`}
+                >
+                  <ProfileAvatar uri={item.provider_avatar} name={item.provider_name} size={52} type="provider" />
+                  <Text style={[styles.recentProviderName, { color: colors.text }]} numberOfLines={1}>{item.provider_name}</Text>
+                  <Text style={[styles.recentProviderLocation, { color: colors.primary }]} numberOfLines={1}>Rebook {item.service_name || ''}</Text>
+                </TouchableOpacity>
+              )}
+            />
           </View>
         )}
 

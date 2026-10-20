@@ -1,4 +1,5 @@
 import apiService from './api';
+import { peopleService } from './people.service';
 import { Conversation } from '../types';
 
 export interface InvoiceDraft {
@@ -313,14 +314,20 @@ export const chatService = {
 
       // Sort by latest message
       const shared = await apiService.get<any[]>('/conversations').catch(() => []);
-      const sharedConversations: Conversation[] = shared.map((item: any) => ({
-        id: Number(item.id),
-        conversation_id: Number(item.id),
-        conversation_type: item.type || item.conversation_type,
-        counterpart_auth_id: authId === item.customer_auth_id ? item.provider_auth_id : item.customer_auth_id,
-        counterpart_name: item.counterpart_name,
-        last_message: item.last_message || { id: 0, message: '', read: true, created_at: item.updated_at || new Date().toISOString() },
-        unread_count: item.unread_count || 0,
+      const sharedConversations: Conversation[] = await Promise.all(shared.map(async (item: any) => {
+        const counterpartAuthId = authId === item.customer_auth_id ? item.provider_auth_id : item.customer_auth_id;
+        const person = item.counterpart_name ? null : await peopleService.getByAuthId(counterpartAuthId);
+        return {
+          id: Number(item.id),
+          conversation_id: Number(item.id),
+          conversation_type: item.type || item.conversation_type,
+          counterpart_auth_id: counterpartAuthId,
+          counterpart_name: item.counterpart_name || person?.name,
+          counterpart_profile_image_url: person?.avatar || null,
+          user: { avatarUrl: person?.avatar || undefined } as any,
+          last_message: item.last_message || { id: 0, message: '', read: true, created_at: item.updated_at || new Date().toISOString() },
+          unread_count: item.unread_count || 0,
+        };
       }));
       return [...conversations, ...sharedConversations].sort((a, b) =>
         new Date(b.last_message.created_at).getTime() - new Date(a.last_message.created_at).getTime()

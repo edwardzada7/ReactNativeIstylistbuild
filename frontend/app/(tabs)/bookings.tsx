@@ -413,6 +413,23 @@ function Bookings() {
                     <Text style={[styles.reviewedBadgeText, { color: colors.success }]}>Reviewed</Text>
                   </View>
                 )}
+                {['completed', 'cancelled', 'canceled'].includes(item.status) && !!item.provider_id && (
+                  <TouchableOpacity
+                    testID={`booking-rebook-${item.id}`}
+                    style={[styles.reviewButton, { backgroundColor: colors.primary, marginTop: Spacing.sm }]}
+                    onPress={() => router.push({
+                      pathname: '/booking/[providerId]',
+                      params: item.service_id
+                        ? { providerId: String(item.provider_id), serviceId: String(item.service_id) }
+                        : { providerId: String(item.provider_id) },
+                    })}
+                    accessibilityRole="button"
+                    accessibilityLabel="Book again"
+                  >
+                    <Ionicons name="refresh" size={16} color="#fff" />
+                    <Text style={[styles.reviewButtonText, { color: '#fff' }]}>Book Again</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             ))
           )}

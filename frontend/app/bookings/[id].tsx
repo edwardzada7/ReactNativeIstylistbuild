@@ -13,6 +13,7 @@ import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { Button } from '../../src/components/common';
 import { bookingService } from '../../src/services/booking.service';
+import { peopleService } from '../../src/services/people.service';
 import { walletService } from '../../src/services/wallet.service';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
@@ -73,6 +74,10 @@ export default function BookingDetails() {
       setError(null);
       const data = await bookingService.getBooking(String(id), role);
       setBooking(data);
+      if (role === 'provider') {
+        const [enriched] = await peopleService.enrichBookingCustomers([data]);
+        setBooking(enriched);
+      }
     } catch (err: any) {
       setError(err?.friendlyMessage || 'This booking does not exist or you do not have access to it.');
     } finally {

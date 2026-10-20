@@ -95,7 +95,7 @@ export function FeedCommentsModal({
               contentContainerStyle={styles.list}
               renderItem={({ item }) => (
                 <View style={[styles.comment, { borderBottomColor: colors.border }]}>
-                  <Text style={[styles.author, { color: colors.text }]}>{item.user?.full_name || item.user?.name || 'User'}</Text>
+                  <Text style={[styles.author, { color: colors.text }]}>{item.user?.full_name || item.user?.name || (item.author_name && item.author_name !== 'Anonymous' ? item.author_name : '') || 'iStylist member'}</Text>
                   <Text style={[styles.content, { color: colors.textSecondary }]}>{item.content}</Text>
                 </View>
               )}

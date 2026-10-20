@@ -135,3 +135,11 @@ Full report: `/app/SHOP_PROVIDER_FIX_REPORT.md`. Summary:
 - "Input should be a valid integer": provider profile resolves auth UUIDs to numeric user_id via /stylists/by-auth before /full-profile.
 - Provider profile: removed duplicate star, hide empty "₦" price range, staff photo uses ProfileAvatar instead of via.placeholder.
 - Provider bookings: fixed clipped filter chips; resolves real customer names via /users/by-auth when backend returns "Customer"; hidden stray "messages" tab in provider tab bar.
+
+## Session — Jun 2026 (3): Ask-a-question, guest banner, names, rebook (user tests manually; no automated tests per user)
+- Ask a Question: full-profile has no auth_id → provider.user_id was empty → push to "/chat/" (Unmatched route). Now resolved via GET /stylists/{user_id}.auth_id (src/services/people.service.ts).
+- Recommend provider: resolves recommended_provider_auth_id to stylist auth UUID.
+- Service invoice "Could not load services": stylists PK is user_id (no id column) — fixed client-side.
+- Feed comments "User": resolves author names; customer names on provider dashboard/bookings/booking detail; shared-chat counterpart names.
+- Guest sign-up banner on provider profile; "Book Again" on completed/cancelled bookings + Home "Book Again" strip.
+- BACKEND/DB (not fixable from app): invoices table lacks amount, location, service_type, staff_id columns → POST /invoices 502 ("Something went wrong"). Service invoice validation also queries stylists.id and provider_services.provider_id which don't exist.

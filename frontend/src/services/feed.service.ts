@@ -1,4 +1,5 @@
 import apiService from './api';
+import { peopleService } from './people.service';
 import { Post, Comment, PaginatedResponse } from '../types';
 
 const normalizePostModeration = (post: Partial<Post> & { approved?: boolean; moderation_status?: string; status?: string }) => {
@@ -78,7 +79,15 @@ export const feedService = {
     const response = await apiService.get<any>(`/feed/posts/${postId}/comments`, {
       params,
     });
-    const comments = Array.isArray(response) ? response : response?.comments || response?.data || [];
+    const rawComments = Array.isArray(response) ? response : response?.comments || response?.data || [];
+    // Backend returns author_name "Anonymous" when users.name is empty; resolve real names.
+    const comments = await Promise.all(
+      rawComments.map(async (c: any) => {
+        if (!peopleService.isPlaceholderName(c.author_name) || !c.author_auth_id) return c;
+        const person = await peopleService.getByAuthId(c.author_auth_id);
+        return person?.name ? { ...c, author_name: person.name } : c;
+      })
+    );
     return {
       data: comments,
       total: response?.total ?? comments.length,

@@ -37,8 +37,10 @@ export default function ServiceInvoice() {
     (async () => {
       try {
         const profile = await apiService.get<any>(`/stylists/by-auth/${user.auth_id}`);
-        const id = String(profile?.id || profile?.stylist_id || '');
+        // stylists has no `id` column; its primary key is user_id.
+        const id = String(profile?.user_id || profile?.id || profile?.stylist_id || '');
         setProviderId(id);
+        if (!id) throw new Error('Provider profile not found');
         const [serviceList, staffList] = await Promise.all([
           providerService.getProviderServices(id),
           id ? providerService.getProviderStaff(id, true) : Promise.resolve([]),

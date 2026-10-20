@@ -17,6 +17,7 @@ import { ProfileAvatar } from '../../src/components/common';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { bookingService } from '../../src/services/booking.service';
+import { peopleService } from '../../src/services/people.service';
 import { providerService } from '../../src/services/provider.service';
 import { notificationService } from '../../src/services/notification.service';
 import { ChatIconWithBadge } from '../../src/components/chat/ChatIconWithBadge';
@@ -72,6 +73,7 @@ export default function ProviderDashboard() {
         providerOrders = await shopService.getProviderOrders(user.auth_id).catch(() => []);
       }
       setBookings(bookingList);
+      peopleService.enrichBookingCustomers(bookingList).then(setBookings).catch(() => undefined);
       setShopOrders(providerOrders);
       setProfile(providerProfile);
       await refreshUnreadCount();

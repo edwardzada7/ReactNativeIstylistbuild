@@ -20,6 +20,7 @@ import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { Button, ProfileAvatar } from '../../src/components/common';
 import { providerService } from '../../src/services/provider.service';
+import { peopleService } from '../../src/services/people.service';
 import { feedService } from '../../src/services/feed.service';
 import { formatCurrency, formatPriceRange } from '../../src/utils/currency';
 import { Provider, Review, Post, StaffMember } from '../../src/types';
@@ -53,6 +54,11 @@ export default function ProviderProfile() {
     try {
       setError(null);
       const profile = await providerService.getProviderFullProfile(id);
+      const pid = /^\d+$/.test(String(id)) ? String(id) : String(profile.id || id);
+      // full-profile has no auth_id; inquiries/consultations/own-profile checks need it.
+      if (!profile.user_id || /^\d+$/.test(String(profile.user_id))) {
+        profile.user_id = (await peopleService.getProviderAuthId(pid)) || '';
+      }
       setProvider(profile);
       if (profile.user_id) {
         void providerService.getConsultationEligibility(profile.user_id)
@@ -61,7 +67,6 @@ export default function ProviderProfile() {
       }
       const today = new Date().toISOString().slice(0, 10);
       const defaultDuration = profile.services[0]?.duration || 30;
-      const pid = /^\d+$/.test(String(id)) ? String(id) : String(profile.id || id);
       const [reviewList, slotList, portfolioList, staffList, feedResponse] = await Promise.all([
         providerService.getProviderReviews(pid).catch(() => []),
         providerService.getAvailableSlots(pid, today, defaultDuration).catch(() => []),
@@ -140,7 +145,11 @@ export default function ProviderProfile() {
       router.push('/(auth)/login');
       return;
     }
-    if (!provider?.user_id || contacting) return;
+    if (contacting) return;
+    if (!provider?.user_id) {
+      Alert.alert('Unavailable', 'This provider cannot receive questions right now. Please try again later.');
+      return;
+    }
     setContacting(true);
     try {
       const conversation = await chatService.createInquiry(provider.user_id);
@@ -268,6 +277,27 @@ export default function ProviderProfile() {
               )}
             </View>
           </View>
+
+          {!user && !isOwnProvider ? (
+            <View testID="provider-guest-banner" style={[styles.guestBanner, { backgroundColor: `${Colors.primary}15`, borderColor: `${Colors.primary}40` }]}>
+              <Ionicons name="sparkles-outline" size={20} color={Colors.primary} />
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.guestBannerTitle, { color: colors.text }]}>Like what you see?</Text>
+                <Text style={[styles.guestBannerText, { color: colors.textSecondary }]} numberOfLines={2}>
+                  Sign up free to book {provider.business_name || 'this stylist'}, ask questions and pay securely.
+                </Text>
+              </View>
+              <TouchableOpacity
+                testID="provider-guest-banner-signup"
+                style={[styles.guestBannerButton, { backgroundColor: Colors.primary }]}
+                onPress={() => router.push('/(auth)/signup')}
+                accessibilityRole="button"
+                accessibilityLabel="Sign up to book"
+              >
+                <Text style={styles.guestBannerButtonText}>Sign up</Text>
+              </TouchableOpacity>
+            </View>
+          ) : null}
 
           {isOwnProvider ? (
             <View style={[styles.infoBanner, { backgroundColor: `${Colors.info}15` }]}>
@@ -538,6 +568,11 @@ const styles = StyleSheet.create({
     fontSize: FontSizes.lg,
     fontWeight: '700',
   },
+  guestBanner: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, padding: Spacing.md, borderRadius: BorderRadius.md, borderWidth: 1, marginTop: Spacing.md },
+  guestBannerTitle: { fontSize: FontSizes.sm, fontWeight: '700' },
+  guestBannerText: { fontSize: FontSizes.xs, marginTop: 2 },
+  guestBannerButton: { paddingHorizontal: Spacing.md, height: 36, borderRadius: BorderRadius.full, alignItems: 'center', justifyContent: 'center' },
+  guestBannerButtonText: { color: '#fff', fontSize: FontSizes.sm, fontWeight: '700' },
   infoBanner: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, padding: Spacing.sm, borderRadius: BorderRadius.md, marginTop: Spacing.md },
   infoBannerText: { flex: 1, fontSize: FontSizes.sm, lineHeight: 19 },
   staffCard: { borderRadius: BorderRadius.md, padding: Spacing.md, marginBottom: Spacing.sm },
