@@ -20,7 +20,7 @@ import { feedService } from '../../src/services/feed.service';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { Post } from '../../src/types';
-import { FeedCommentsModal, ProfileAvatar, ReportModal } from '../../src/components/common';
+import { FeedCommentsModal, ProfileAvatar, ReportModal, VerifiedBadge, isVerifiedProfile } from '../../src/components/common';
 
 export default function Feed() {
   const router = useRouter();
@@ -186,9 +186,12 @@ export default function Feed() {
             type="provider"
           />
           <View>
-            <Text style={[styles.userName, { color: colors.text }]}>
-              {item.provider?.display_name || item.provider?.business_name || item.provider?.name || item.provider?.full_name || item.user?.full_name || item.user?.name || 'Stylist'}
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Text style={[styles.userName, { color: colors.text }]}>
+                {item.provider?.display_name || item.provider?.business_name || item.provider?.name || item.provider?.full_name || item.user?.full_name || item.user?.name || 'Stylist'}
+              </Text>
+              <VerifiedBadge verified={isVerifiedProfile(item.provider)} size={14} />
+            </View>
             <Text style={[styles.timestamp, { color: colors.textSecondary, paddingRight: 4 }]} textBreakStrategy="simple">{item.created_at ? new Date(item.created_at).toLocaleDateString() : ''}</Text>
           </View>
         </TouchableOpacity>

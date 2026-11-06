@@ -33,6 +33,7 @@ export const feedService = {
             ...(post.provider || {}),
             display_name: peopleService.isPlaceholderName(current) ? person.name || current : current,
             photo_url: post.provider?.photo_url || person.avatar,
+            is_verified: post.provider?.is_verified === true || person.verified === true,
           },
         };
       })

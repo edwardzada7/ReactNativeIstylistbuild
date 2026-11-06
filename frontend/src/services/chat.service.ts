@@ -252,6 +252,7 @@ export const chatService = {
             counterpart_auth_id: counterpartAuthId,
             counterpart_name: person?.name,
             counterpart_profile_image_url: person?.avatar || null,
+            counterpart_verified: person?.verified === true,
             user: { avatarUrl: person?.avatar || undefined } as any,
             last_message: chatData.messages[0],
             unread_count: unreadCount,
@@ -267,7 +268,7 @@ export const chatService = {
       const shared = await apiService.get<any[]>('/conversations').catch(() => []);
       const sharedConversations: Conversation[] = await Promise.all(shared.map(async (item: any) => {
         const counterpartAuthId = authId === item.customer_auth_id ? item.provider_auth_id : item.customer_auth_id;
-        const person = item.counterpart_name ? null : await peopleService.getByAuthId(counterpartAuthId);
+        const person = await peopleService.getByAuthId(counterpartAuthId).catch(() => null);
         return {
           id: Number(item.id),
           conversation_id: Number(item.id),
@@ -275,6 +276,7 @@ export const chatService = {
           counterpart_auth_id: counterpartAuthId,
           counterpart_name: item.counterpart_name || person?.name,
           counterpart_profile_image_url: person?.avatar || null,
+          counterpart_verified: person?.verified === true,
           user: { avatarUrl: person?.avatar || undefined } as any,
           last_message: item.last_message || { id: 0, message: '', read: true, created_at: item.updated_at || new Date().toISOString() },
           unread_count: item.unread_count || 0,

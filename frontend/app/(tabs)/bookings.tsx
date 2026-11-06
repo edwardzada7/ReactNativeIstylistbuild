@@ -17,7 +17,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
-import { Button, withAuthGate, ProfileAvatar } from '../../src/components/common';
+import { Button, withAuthGate, ProfileAvatar, VerifiedBadge } from '../../src/components/common';
 import { peopleService } from '../../src/services/people.service';
 import { screenCache } from '../../src/utils/screenCache';
 import { bookingService } from '../../src/services/booking.service';
@@ -277,7 +277,10 @@ function Bookings() {
                     <ProfileAvatar uri={item.provider_avatar} name={item.provider_name} size={48} type="provider" />
                   </TouchableOpacity>
                   <View style={styles.bookingInfo}>
-                    <Text style={[styles.providerName, { color: colors.text }]}>{item.provider_name}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <Text style={[styles.providerName, { color: colors.text, flexShrink: 1 }]} numberOfLines={1}>{item.provider_name}</Text>
+                      <VerifiedBadge verified={item.provider_verified} size={15} />
+                    </View>
                     <Text style={[styles.serviceName, { color: colors.textSecondary }]}>{item.service_name}</Text>
                   </View>
                   <View

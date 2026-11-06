@@ -16,7 +16,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { BrandColors } from '../../src/constants/brand';
 import { BrandLogo } from '../../src/components/branding';
-import { ProfileAvatar } from '../../src/components/common';
+import { ProfileAvatar, RatingStars, VerifiedBadge, isVerifiedProfile } from '../../src/components/common';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { providerService } from '../../src/services/provider.service';
@@ -170,16 +170,13 @@ export default function Home() {
       <View style={styles.providerInfo}>
         <View style={styles.providerNameRow}>
           <Text style={[styles.providerName, { color: colors.text }]} numberOfLines={1}>{item.business_name}</Text>
-          {(item.isVerified === true || item.isKycVerified === true || item.user?.isKycVerified === true || item.is_verified === true) && <Ionicons name="checkmark-circle" size={16} color={Colors.info} />}
+          <VerifiedBadge verified={isVerifiedProfile(item)} />
         </View>
         <Text style={[styles.providerCategory, { color: colors.textSecondary }]} numberOfLines={1}>
           {typeof item.category === 'string' ? item.category : item.location}
         </Text>
         <View style={styles.providerMeta}>
-          <View style={styles.rating}>
-            <Ionicons name="star" size={14} color={colors.warning} />
-            <Text style={[styles.ratingText, { color: colors.text }]}>{Number(item.rating || item.avgRating || 0).toFixed(1)} ({item.ratingCount ?? item.reviewsCount ?? item.review_count ?? 0})</Text>
-          </View>
+          <RatingStars rating={item.rating || item.avgRating} count={item.ratingCount ?? item.reviewsCount ?? item.review_count} size={13} testID={`provider-rating-${item.id}`} />
           {!!String(item.price_range ?? '').replace(/[₦$\s]/g, '') && (
             <Text style={[styles.price, { color: colors.textSecondary }]}>{formatPriceRange(item.price_range)}</Text>
           )}
@@ -346,7 +343,10 @@ export default function Home() {
                   accessibilityLabel={`Book ${item.provider_name} again`}
                 >
                   <ProfileAvatar uri={item.provider_avatar} name={item.provider_name} size={52} type="provider" />
-                  <Text style={[styles.recentProviderName, { color: colors.text }]} numberOfLines={1}>{item.provider_name}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: Spacing.sm, maxWidth: '100%' }}>
+                    <Text style={[styles.recentProviderName, { color: colors.text, marginTop: 0, flexShrink: 1 }]} numberOfLines={1}>{item.provider_name}</Text>
+                    <VerifiedBadge verified={item.provider_verified} size={14} />
+                  </View>
                   <Text style={[styles.recentProviderLocation, { color: colors.primary }]} numberOfLines={1}>Rebook {item.service_name || ''}</Text>
                 </TouchableOpacity>
               )}
@@ -397,7 +397,10 @@ export default function Home() {
                   accessibilityLabel={item.business_name}
                 >
                   <ProfileAvatar uri={item.avatarUrl || item.user?.avatarUrl || item.profileImage || item.user?.profileImage || item.profile_image_url || item.avatar} name={item.business_name} size={52} type="provider" />
-                  <Text style={[styles.recentProviderName, { color: colors.text }]} numberOfLines={1}>{item.business_name}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: Spacing.sm, maxWidth: '100%' }}>
+                    <Text style={[styles.recentProviderName, { color: colors.text, marginTop: 0, flexShrink: 1 }]} numberOfLines={1}>{item.business_name}</Text>
+                    <VerifiedBadge verified={isVerifiedProfile(item)} size={14} />
+                  </View>
                   <Text style={[styles.recentProviderLocation, { color: colors.textSecondary }]} numberOfLines={1}>{item.location}</Text>
                 </TouchableOpacity>
               )}

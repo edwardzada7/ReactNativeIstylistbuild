@@ -18,7 +18,7 @@ import { Share } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
-import { Button, ProfileAvatar } from '../../src/components/common';
+import { Button, ProfileAvatar, RatingStars, VerifiedBadge, isVerifiedProfile } from '../../src/components/common';
 import { providerService } from '../../src/services/provider.service';
 import { peopleService } from '../../src/services/people.service';
 import { feedService } from '../../src/services/feed.service';
@@ -262,11 +262,12 @@ export default function ProviderProfile() {
             <View style={{ flex: 1 }}>
               <View style={styles.nameRow}>
                 <Text style={[styles.name, { color: colors.text }]}>{provider.business_name}</Text>
-                {(provider.isVerified === true || provider.isKycVerified === true || provider.user?.isKycVerified === true || provider.is_verified === true) && (
-                  <Ionicons name="checkmark-circle" size={18} color={Colors.info} />
-                )}
+                <VerifiedBadge verified={isVerifiedProfile(provider)} size={18} />
               </View>
               {!!categoryLabel && <Text style={[styles.category, { color: colors.textSecondary }]}>{categoryLabel}</Text>}
+              <View style={{ marginTop: 6 }}>
+                <RatingStars rating={provider.rating || provider.avgRating} count={provider.ratingCount ?? provider.reviewsCount ?? provider.review_count ?? reviews.length} testID="provider-profile-rating" />
+              </View>
             </View>
             <View style={styles.titleActions}>
               <TouchableOpacity onPress={() => Share.share({ title: provider.business_name, message: `${provider.business_name} on iStylist\n${provider.bio || ''}`, url: `https://istylist.app/provider/${provider.id}` })} accessibilityRole="button" accessibilityLabel="Share provider profile">

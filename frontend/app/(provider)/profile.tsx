@@ -17,7 +17,7 @@ import apiService from '../../src/services/api';
 import { peopleService } from '../../src/services/people.service';
 import { withCacheBuster } from '../../src/utils/display';
 import { queryClient } from '../_layout';
-import { ProfileAvatar } from '../../src/components/common';
+import { ProfileAvatar, RatingStars } from '../../src/components/common';
 
 export default function ProviderProfile() {
   const router = useRouter();
@@ -390,6 +390,7 @@ export default function ProviderProfile() {
         <View style={[styles.statsContainer, { backgroundColor: colors.surface }]}>
           <View style={styles.statItem}>
             <Text style={[styles.statValue, { color: colors.text }]}>{averageRating}</Text>
+            <RatingStars rating={Number(averageRating)} count={null} size={11} testID="provider-own-rating-stars" />
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Rating</Text>
           </View>
           <View style={[styles.statDivider, { backgroundColor: colors.border, height: 40 }]} />

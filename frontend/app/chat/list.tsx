@@ -16,7 +16,7 @@ import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/th
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { chatService } from '../../src/services/chat.service';
 import { Conversation } from '../../src/types';
-import { withAuthGate, ProfileAvatar } from '../../src/components/common';
+import { withAuthGate, ProfileAvatar, VerifiedBadge } from '../../src/components/common';
 import { screenCache } from '../../src/utils/screenCache';
 
 export default withAuthGate(ChatList, {
@@ -100,9 +100,12 @@ function ChatList() {
                 />
               </View>
               <View style={styles.conversationContent}>
-                <Text style={[styles.conversationName, { color: colors.text }]}>
-                  {item.provider?.businessName || item.provider?.firstName || item.counterpart_name || 'Stylist'}
-                </Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Text style={[styles.conversationName, { color: colors.text, flexShrink: 1 }]} numberOfLines={1}>
+                    {item.provider?.businessName || item.provider?.firstName || item.counterpart_name || 'Stylist'}
+                  </Text>
+                  <VerifiedBadge verified={item.counterpart_verified} size={15} />
+                </View>
                 <Text style={[styles.lastMessage, { color: colors.textSecondary }]} numberOfLines={1}>
                   {item.conversation_type === 'inquiry' ? 'Inquiry' : item.conversation_type === 'consultation' ? 'Consultation' : item.last_message?.message || 'No messages yet'}
                 </Text>

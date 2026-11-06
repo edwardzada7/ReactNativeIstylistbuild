@@ -5,6 +5,7 @@ import { Booking } from '../types';
 export interface PersonSummary {
   name?: string;
   avatar?: string | null;
+  verified?: boolean;
 }
 
 const cache = new Map<string, Promise<PersonSummary | null>>();
@@ -22,7 +23,17 @@ const isPlaceholderName = (name?: string | null) =>
   !name || ['customer', 'user', 'anonymous', 'provider', 'stylist'].includes(String(name).trim().toLowerCase());
 
 // ---- Stylist directory (photos live in stylists.profile_image_url) ----------
-type StylistRow = { user_id: number; auth_id: string; profile_image_url: string | null; business_name: string | null };
+type StylistRow = {
+  user_id: number;
+  auth_id: string;
+  profile_image_url: string | null;
+  business_name: string | null;
+  is_verified?: boolean | null;
+  verified?: boolean | null;
+  rating?: number | null;
+  review_count?: number | null;
+};
+const rowVerified = (row?: StylistRow) => !!row && (row.is_verified === true || row.verified === true);
 let directory: Promise<Map<string, StylistRow>> | null = null;
 let directoryAt = 0;
 const DIRECTORY_TTL = 5 * 60_000;
@@ -32,7 +43,8 @@ function getStylistDirectory(): Promise<Map<string, StylistRow>> {
     directoryAt = Date.now();
     directory = (async () => {
       const map = new Map<string, StylistRow>();
-      const { data } = await supabase.from('stylists').select('user_id,auth_id,profile_image_url,business_name');
+      // select('*') so newer columns (review_count) are used once the migration runs
+      const { data } = await supabase.from('stylists').select('*');
       (data || []).forEach((row: any) => {
         if (row.user_id != null) map.set(String(row.user_id), row);
         if (row.auth_id) map.set(String(row.auth_id), row);
@@ -46,6 +58,7 @@ function getStylistDirectory(): Promise<Map<string, StylistRow>> {
 /** Call after any profile photo / name change so every avatar refreshes. */
 function invalidate(authId?: string | null) {
   directory = null;
+  directoryAt = 0;
   if (authId) cache.delete(String(authId));
   else cache.clear();
 }
@@ -57,8 +70,16 @@ async function withProviderAvatars<T extends Record<string, any>>(list: T[], key
     const row = dir.get(String(key(p) ?? '')) || (p.user_id ? dir.get(String(p.user_id)) : undefined);
     if (!row) return p;
     const avatar = row.profile_image_url || p.avatarUrl || p.profile_image_url || p.avatar;
+    const rating = Number(row.rating) > 0 ? Number(row.rating) : Number(p.rating) || 0;
+    const reviewCount = row.review_count != null ? Number(row.review_count) : Number(p.review_count ?? p.ratingCount) || 0;
+    const verified = rowVerified(row) || p.is_verified === true || p.isKycVerified === true;
     return {
       ...p,
+      rating,
+      review_count: reviewCount,
+      ratingCount: reviewCount,
+      is_verified: verified,
+      isKycVerified: verified,
       ...(avatar ? { avatarUrl: avatar, profile_image_url: avatar, profileImage: avatar, avatar } : {}),
       ...(row.auth_id && (!p.user_id || /^\d+$/.test(String(p.user_id))) ? { user_id: row.auth_id } : {}),
     };
@@ -77,7 +98,7 @@ function getByAuthId(authId?: string | null): Promise<PersonSummary | null> {
         const row = dir.get(key);
         // Fast path: stylist directory (one cached query) already has name + photo.
         if (row?.business_name && row?.profile_image_url) {
-          return { name: row.business_name, avatar: row.profile_image_url };
+          return { name: row.business_name, avatar: row.profile_image_url, verified: rowVerified(row) };
         }
         const [publicProfile, user] = await Promise.all([
           supabase.from('public_profiles').select('*').eq('auth_id', key).maybeSingle().then((r) => r.data, () => null),
@@ -87,6 +108,7 @@ function getByAuthId(authId?: string | null): Promise<PersonSummary | null> {
         return {
           name: row?.business_name || publicProfile?.business_name || displayName(user) || publicProfile?.name,
           avatar: row?.profile_image_url || avatarOf(publicProfile) || avatarOf(user),
+          verified: rowVerified(row) || user?.is_verified === true || user?.isKycVerified === true,
         };
       })()
     );
@@ -131,7 +153,8 @@ async function enrichBookingProviders(list: Booking[]): Promise<Booking[]> {
         ...b,
         provider_name: isPlaceholderName(b.provider_name) ? person.name || b.provider_name : b.provider_name,
         provider_avatar: b.provider_avatar || person.avatar || undefined,
-      };
+        provider_verified: person.verified,
+      } as Booking;
     })
   );
 }

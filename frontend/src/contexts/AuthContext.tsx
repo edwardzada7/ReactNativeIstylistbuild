@@ -6,6 +6,8 @@ import { supabase } from '../lib/supabase';
 import { authService } from '../services/auth.service';
 import { User } from '../types';
 import { useCartStore } from '../store/cartStore';
+import { screenCache } from '../utils/screenCache';
+import { peopleService } from '../services/people.service';
 
 interface AuthContextType {
   user: User | null;
@@ -113,6 +115,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Fire-and-forget: keep the listener callback itself synchronous.
       const run = async () => {
         if (event === 'SIGNED_OUT') {
+          screenCache.clear();
+          peopleService.invalidate();
           setSession(null);
           setUser(null);
           return;
@@ -129,6 +133,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   }, []);
 
   const login = async (credentials: { email: string; password: string }) => {
+    screenCache.clear();
+    peopleService.invalidate();
     const data = await authService.login(credentials);
     return hydrateFromSession(data.session);
   };
@@ -155,6 +161,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.error('Logout error:', error);
     } finally {
       useCartStore.getState().clearCart();
+      // Drop every per-account in-memory cache so the next account never sees
+      // the previous account's messages/bookings/names.
+      screenCache.clear();
+      peopleService.invalidate();
       try {
         await AsyncStorage.clear();
       } catch (err) {

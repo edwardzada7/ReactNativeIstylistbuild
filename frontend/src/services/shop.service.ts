@@ -386,7 +386,19 @@ export const shopService = {
   },
 
   async getProviderReferralEarnings(): Promise<PlatformReferralEarning[]> {
-    return apiService.get<PlatformReferralEarning[]>("/provider/referral-earnings");
+    // Backend has no provider-facing route (only /admin/referrals/earnings),
+    // so read the signed-in recipient's own rows directly (RLS: recipient_auth_id = auth.uid()).
+    const authId = await apiService.getAuthId();
+    if (!authId) return [];
+    const { data, error } = await supabase
+      .from("platform_referral_earnings")
+      .select("*")
+      .eq("recipient_auth_id", authId)
+      .order("created_at", { ascending: false });
+    if (error) {
+      throw Object.assign(new Error(error.message), { friendlyMessage: "Could not load referral earnings. Please try again." });
+    }
+    return (data || []) as PlatformReferralEarning[];
   },
 
   async listProviderInventory(input: {

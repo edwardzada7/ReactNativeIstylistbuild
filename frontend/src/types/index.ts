@@ -202,6 +202,7 @@ export interface Booking {
   customer_profile_image_url?: string | null;
   customer_address?: string | null;
   provider_avatar?: string;
+  provider_verified?: boolean;
   service?: Service;
   provider?: Provider;
   customer?: User;
@@ -417,6 +418,7 @@ export interface Conversation {
   conversation_id?: number;
   conversation_type?: 'booking' | 'inquiry' | 'consultation';
   counterpart_auth_id: string;
+  counterpart_verified?: boolean;
   counterpart_name?: string;
   counterpart_profile_image_url?: string | null;
   provider?: {

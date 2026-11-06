@@ -17,7 +17,7 @@ import { providerService } from '../../src/services/provider.service';
 import { formatPriceRange } from '../../src/utils/currency';
 import { Provider, Category } from '../../src/types';
 import { useTheme } from '../../src/contexts/ThemeContext';
-import { ProfileAvatar } from '../../src/components/common';
+import { ProfileAvatar, RatingStars, VerifiedBadge, isVerifiedProfile } from '../../src/components/common';
 
 const PAGE_SIZE = 10;
 
@@ -128,15 +128,14 @@ export default function Search() {
       <View style={styles.resultInfo}>
         <View style={styles.resultNameRow}>
           <Text style={[styles.resultName, { color: colors.text }]} numberOfLines={1}>{item.business_name}</Text>
-          {item.isKycVerified === true && <Ionicons name="checkmark-circle" size={16} color={Colors.info} />}
+          <VerifiedBadge verified={isVerifiedProfile(item)} />
         </View>
         <Text style={[styles.resultCategory, { color: colors.textSecondary }]} numberOfLines={1}>
           {typeof item.category === 'string' ? item.category : item.location}
         </Text>
         <View style={styles.resultMeta}>
           <View style={styles.metaItem}>
-            <Ionicons name="star" size={14} color={colors.warning} />
-            <Text style={[styles.metaText, { color: colors.textSecondary }]}>{Number(item.rating || 0).toFixed(1)} ({item.ratingCount ?? item.review_count ?? 0})</Text>
+            <RatingStars rating={item.rating} count={item.ratingCount ?? item.review_count} size={12} testID={`search-rating-${item.id}`} />
           </View>
           <View style={styles.metaItem}>
             <Ionicons name="location" size={14} color={colors.textSecondary} />

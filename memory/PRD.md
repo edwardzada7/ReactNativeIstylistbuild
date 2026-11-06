@@ -157,3 +157,11 @@ Full report: `/app/SHOP_PROVIDER_FIX_REPORT.md`. Summary:
 - Chat list avatars use ProfileAvatar (no via.placeholder "150x150").
 - Android text clipping: global Text patch (src/utils/androidTextFix.ts: fontFamily sans-serif + textBreakStrategy simple), provider booking action buttons centered.
 - SQL migration updated (::text casts, staff photo storage policies).
+
+## Session — Jun 2026 (6) (no automated tests per user)
+- Cross-account stale messages: screenCache + people cache cleared on login/logout/SIGNED_OUT.
+- Ratings: RatingStars component (5 stars + "4.5 (12 reviews)") on Home, Search, provider profile, own profile; SQL trigger keeps stylists.rating + review_count in sync from reviews; directory merges them.
+- Verified tick: VerifiedBadge on Home, Search, Feed, Messages, Bookings, Book Again, provider profile (from stylists.is_verified).
+- Referral earnings: read platform_referral_earnings directly (backend has no provider route) + RLS policy.
+- Service invoice: backend checks empty provider_services; migration #2 replaces it with a view over services.
+- Migration #2: /app/supabase/migrations/20260602_ratings_referrals_service_invoice.sql
