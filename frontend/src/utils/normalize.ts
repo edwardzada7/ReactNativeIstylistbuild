@@ -82,6 +82,8 @@ export function normalizeProvider(raw: any): Provider {
     bio: pick(raw, ['bio', 'about', 'description'], ''),
     category_id: String(pick(raw, ['category_id', 'category'], '')),
     category: pick(raw, ['category', 'category_name', 'specialty']),
+    primary_category: pick(raw, ['primary_category', 'category_id'], undefined),
+    primary_service: pick(raw, ['primary_service'], undefined),
     rating: Number(ratingValue) || 0,
     review_count: Number(reviewCountValue) || 0,
     price_range: pick(raw, ['price_range', 'price_level'], '\u20A6\u20A6'),

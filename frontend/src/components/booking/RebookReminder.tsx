@@ -13,6 +13,24 @@ const REMIND_AFTER_DAYS = 21;
 const DAY_MS = 24 * 60 * 60 * 1000;
 const ACTIVE = ['pending_payment', 'pending', 'confirmed'];
 
+/** First parseable visit timestamp (booking dates arrive as "YYYY-MM-DD" + slot, ISO, or only created_at). */
+const visitTime = (b: any): number => {
+  const candidates = [
+    b?.scheduled_at,
+    b?.date && b?.time ? `${b.date}T${String(b.time).slice(0, 5)}:00` : null,
+    b?.booking_date,
+    b?.date,
+    b?.updated_at,
+    b?.created_at,
+  ];
+  for (const value of candidates) {
+    if (!value) continue;
+    const t = new Date(value).getTime();
+    if (Number.isFinite(t)) return t;
+  }
+  return NaN;
+};
+
 /**
  * In-app nudge: "It's been N weeks since your visit with X - rebook?"
  * Shows for the most recent completed booking older than 3 weeks when the
@@ -38,7 +56,6 @@ export function RebookReminder({ bookings }: { bookings: Booking[] }) {
   const candidate = useMemo(() => {
     if (!dismissed) return null;
     const now = Date.now();
-    const visitTime = (b: Booking) => new Date(b.scheduled_at || b.date || b.created_at).getTime();
     return [...bookings]
       .filter((b) => b.status === 'completed' && b.provider_id && !dismissed.includes(String(b.id)))
       .sort((a, b) => visitTime(b) - visitTime(a))
@@ -51,7 +68,7 @@ export function RebookReminder({ bookings }: { bookings: Booking[] }) {
 
   if (!candidate) return null;
 
-  const weeks = Math.max(3, Math.floor((Date.now() - new Date(candidate.scheduled_at || candidate.date).getTime()) / (7 * DAY_MS)));
+  const weeks = Math.max(3, Math.floor((Date.now() - visitTime(candidate)) / (7 * DAY_MS)) || 3);
 
   const dismiss = () => {
     const next = [...(dismissed || []), String(candidate.id)];

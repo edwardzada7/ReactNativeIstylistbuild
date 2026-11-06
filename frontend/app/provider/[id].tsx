@@ -21,6 +21,7 @@ import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/th
 import { Button, ProfileAvatar, RatingStars, VerifiedBadge, isVerifiedProfile } from '../../src/components/common';
 import { providerService } from '../../src/services/provider.service';
 import { peopleService } from '../../src/services/people.service';
+import { screenCache } from '../../src/utils/screenCache';
 import { feedService } from '../../src/services/feed.service';
 import { formatCurrency, formatPriceRange } from '../../src/utils/currency';
 import { Provider, Review, Post, StaffMember } from '../../src/types';
@@ -34,13 +35,13 @@ export default function ProviderProfile() {
   const { colors } = useTheme();
   const { user } = useAuth();
 
-  const [provider, setProvider] = useState<Provider | null>(null);
+  const [provider, setProvider] = useState<Provider | null>(() => screenCache.get<Provider>(`provider-${id}`) || null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [portfolio, setPortfolio] = useState<string[]>([]);
   const [slots, setSlots] = useState<string[]>([]);
   const [posts, setPosts] = useState<Post[]>([]);
   const [staff, setStaff] = useState<StaffMember[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !screenCache.get(`provider-${id}`));
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedServiceId, setSelectedServiceId] = useState<string | null>(null);
@@ -59,7 +60,7 @@ export default function ProviderProfile() {
       if (!profile.user_id || /^\d+$/.test(String(profile.user_id))) {
         profile.user_id = (await peopleService.getProviderAuthId(pid)) || '';
       }
-      setProvider(profile);
+      setProvider(screenCache.set(`provider-${id}`, profile));
       if (profile.user_id) {
         void providerService.getConsultationEligibility(profile.user_id)
           .then((eligibility) => setConsultation(eligibility?.eligible ? eligibility : null))

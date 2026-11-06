@@ -14,6 +14,7 @@ import { FlashList } from '@shopify/flash-list';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { providerService } from '../../src/services/provider.service';
+import { SERVICE_CATALOG } from '../../src/constants/serviceCatalog';
 import { formatPriceRange } from '../../src/utils/currency';
 import { Provider, Category } from '../../src/types';
 import { useTheme } from '../../src/contexts/ThemeContext';
@@ -61,25 +62,63 @@ export default function Search() {
 
   const filters = useMemo(() => ['All', ...categories.map((c) => c.name)], [categories]);
 
+  // Every slug/name that belongs to each top-level category (category -> services -> sub-services),
+  // so "Beauty & Grooming" also matches providers whose primary category is "makeup" or "haircut".
+  const categoryTerms = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    const norm = (v: any) => String(v ?? '').toLowerCase().trim();
+    Object.values(SERVICE_CATALOG).forEach((cat: any) => {
+      const terms = new Set<string>([norm(cat.id), norm(cat.name)]);
+      Object.values(cat.services || {}).forEach((svc: any) => {
+        terms.add(norm(svc.id));
+        terms.add(norm(svc.name));
+        (svc.subServices || []).forEach((sub: any) => {
+          terms.add(norm(sub.id));
+          terms.add(norm(sub.name));
+        });
+      });
+      map.set(norm(cat.name), terms);
+      map.set(norm(cat.id), terms);
+    });
+    categories.forEach((c) => {
+      const terms = map.get(norm(c.id)) || map.get(norm(c.name)) || new Set<string>();
+      terms.add(norm(c.id));
+      terms.add(norm(c.name));
+      map.set(norm(c.name), terms);
+    });
+    return map;
+  }, [categories]);
+
   const filteredProviders = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    return allProviders.filter((p) => {
-      const categoryValues = [typeof p.category === 'string' ? p.category : '', ...p.services.map((service) => service.category || '')]
-        .map((value) => value.toLowerCase().trim());
-      const matchesFilter = selectedFilter === 'All' || categoryValues.includes(selectedFilter.toLowerCase().trim());
+    return allProviders.filter((p: any) => {
+      const categoryValues = [
+        typeof p.category === 'string' ? p.category : p.category?.name || '',
+        p.primary_category,
+        p.primary_service,
+        ...(p.services || []).flatMap((service: any) => [service.category, service.name, service.service_id, service.sub_service_id]),
+      ]
+        .filter(Boolean)
+        .map((value) => String(value).toLowerCase().trim());
+      const terms = categoryTerms.get(selectedFilter.toLowerCase().trim());
+      const matchesFilter =
+        selectedFilter === 'All' ||
+        categoryValues.some((v) => v === selectedFilter.toLowerCase().trim() || (terms ? terms.has(v) : false));
       if (!matchesFilter) return false;
       if (!query) return true;
       const haystack = [
         p.business_name,
         typeof p.category === 'string' ? p.category : '',
+        p.primary_category,
+        p.primary_service,
         p.location,
-        ...p.services.map((s) => s.name),
+        ...(p.services || []).map((s: any) => s.name),
       ]
         .join(' ')
         .toLowerCase();
       return haystack.includes(query);
     });
-  }, [allProviders, selectedFilter, searchQuery]);
+  }, [allProviders, selectedFilter, searchQuery, categoryTerms]);
 
   useEffect(() => {
     setVisibleCount(PAGE_SIZE);
@@ -190,6 +229,7 @@ export default function Search() {
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
+        style={styles.filtersScroller}
         contentContainerStyle={styles.filtersContainer}
       >
         {filters.map(renderFilterChip)}
@@ -269,12 +309,15 @@ const styles = StyleSheet.create({
   },
   filtersContainer: {
     paddingHorizontal: Spacing.lg,
-    paddingBottom: Spacing.md,
+    alignItems: 'center',
     gap: Spacing.sm,
   },
+  filtersScroller: { flexGrow: 0, flexShrink: 0, height: 56 },
   filterChip: {
+    height: 36,
+    flexShrink: 0,
+    justifyContent: 'center',
     paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm,
     borderRadius: BorderRadius.full,
     borderWidth: 1,
   },

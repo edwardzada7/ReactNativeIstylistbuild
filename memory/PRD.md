@@ -172,3 +172,9 @@ Full report: `/app/SHOP_PROVIDER_FIX_REPORT.md`. Summary:
 - Ratings 0: app now uses GET /providers/{auth_id}/reviews (avg_rating,total_reviews) for Home/Search cards, provider profile, dashboard, own profile (works without migration #2).
 - Provider feed header: owns top inset; embedded Feed skips top edge. Dashboard greeting single line.
 - Migration #3: /app/supabase/migrations/20260603_product_invoices_shop_orders.sql
+
+## Session — Jun 2026 (8) (no automated tests per user)
+- Rebook reminder NaN weeks: robust visit date parsing (scheduled_at / date+time / booking_date / created_at).
+- Search categories: chips fixed height (no stretching); top-level categories match providers via catalog (category → services → sub-services) using primary_category/primary_service.
+- Shop reviews: reviewer_name / reviewer photo (people directory) mapped to UI fields; avg_rating/total_reviews mapped to summary.
+- Speed: provider profile cached per id (instant revisit), rating lookup capped at 1.2s.

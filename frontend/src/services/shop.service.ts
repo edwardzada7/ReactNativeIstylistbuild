@@ -683,9 +683,28 @@ export const shopService = {
   },
 
   async getProductReviews(productId: number): Promise<ProductReviewsResponse> {
-    return await apiService.get<ProductReviewsResponse>(
+    const raw: any = await apiService.get<ProductReviewsResponse>(
       `/shop/products/${productId}/reviews`,
     );
+    // Backend sends reviewer_name / reviewer_auth_id; the UI reads
+    // user_full_name / user_avatar. Fill real name + uploaded photo.
+    const reviews = await Promise.all(
+      (raw?.reviews || []).map(async (review: any) => {
+        const person = review.reviewer_auth_id
+          ? await peopleService.getByAuthId(review.reviewer_auth_id).catch(() => null)
+          : null;
+        const backendName = peopleService.isPlaceholderName(review.reviewer_name) ? null : review.reviewer_name;
+        return {
+          ...review,
+          user_full_name: review.user_full_name || backendName || person?.name || null,
+          user_avatar: review.user_avatar || person?.avatar || null,
+        };
+      }),
+    );
+    const average_rating = Number(raw?.average_rating ?? raw?.avg_rating ?? 0) ||
+      (reviews.length ? reviews.reduce((s: number, r: any) => s + (Number(r.rating) || 0), 0) / reviews.length : 0);
+    const review_count = Number(raw?.review_count ?? raw?.total_reviews ?? reviews.length) || 0;
+    return { ...raw, reviews, average_rating, review_count };
   },
 
   async createProductReview(

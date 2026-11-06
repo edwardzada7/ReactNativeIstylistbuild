@@ -68,7 +68,11 @@ export const providerService = {
     }
     const raw = await apiService.get<any>(`/providers/${numericId}/full-profile`);
     const [withAvatar] = await peopleService.withProviderAvatars([normalizeProvider(raw)], () => numericId);
-    const [withRating] = await peopleService.withProviderRatings([withAvatar]).catch(() => [withAvatar]);
+    // Don't let the rating lookup hold the screen: wait at most 1.2s, it's cached for next time.
+    const [withRating] = await Promise.race([
+      peopleService.withProviderRatings([withAvatar]).catch(() => [withAvatar]),
+      new Promise<Provider[]>((resolve) => setTimeout(() => resolve([withAvatar]), 1200)),
+    ]);
     return withRating;
   },
 
