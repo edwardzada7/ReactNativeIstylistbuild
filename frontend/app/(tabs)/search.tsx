@@ -18,6 +18,7 @@ import { formatPriceRange } from '../../src/utils/currency';
 import { Provider, Category } from '../../src/types';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { ProfileAvatar, RatingStars, VerifiedBadge, isVerifiedProfile } from '../../src/components/common';
+import { peopleService } from '../../src/services/people.service';
 
 const PAGE_SIZE = 10;
 
@@ -48,6 +49,7 @@ export default function Search() {
         ]);
         setAllProviders(providerList);
         setCategories(categoryList);
+        peopleService.withProviderRatings(providerList).then(setAllProviders).catch(() => undefined);
       } catch (err: any) {
         console.error('[search] failed to load providers', err);
         setError(err?.friendlyMessage || 'Could not load providers.');

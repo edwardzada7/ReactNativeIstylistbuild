@@ -68,7 +68,8 @@ export const providerService = {
     }
     const raw = await apiService.get<any>(`/providers/${numericId}/full-profile`);
     const [withAvatar] = await peopleService.withProviderAvatars([normalizeProvider(raw)], () => numericId);
-    return withAvatar;
+    const [withRating] = await peopleService.withProviderRatings([withAvatar]).catch(() => [withAvatar]);
+    return withRating;
   },
 
   async getConsultationEligibility(providerAuthId: string): Promise<NonNullable<Provider['consultation']>> {

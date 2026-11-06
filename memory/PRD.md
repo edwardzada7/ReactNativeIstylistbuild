@@ -165,3 +165,10 @@ Full report: `/app/SHOP_PROVIDER_FIX_REPORT.md`. Summary:
 - Referral earnings: read platform_referral_earnings directly (backend has no provider route) + RLS policy.
 - Service invoice: backend checks empty provider_services; migration #2 replaces it with a view over services.
 - Migration #2: /app/supabase/migrations/20260602_ratings_referrals_service_invoice.sql
+
+## Session — Jun 2026 (7) (no automated tests per user)
+- Product invoice 502: invoice_items.unit_price/total_price NOT NULL but backend never sends them → migration #3 trigger fills from product/service price; invoices.order_id added.
+- Shop orders empty: checkout writes shop_orders/shop_order_items, app read "orders" → app now reads shop_orders (+legacy orders); provider orders via shop_order_items⋈products(stylist_auth_id); RLS in migration #3.
+- Ratings 0: app now uses GET /providers/{auth_id}/reviews (avg_rating,total_reviews) for Home/Search cards, provider profile, dashboard, own profile (works without migration #2).
+- Provider feed header: owns top inset; embedded Feed skips top edge. Dashboard greeting single line.
+- Migration #3: /app/supabase/migrations/20260603_product_invoices_shop_orders.sql

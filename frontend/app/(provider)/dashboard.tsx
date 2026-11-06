@@ -170,9 +170,9 @@ export default function ProviderDashboard() {
         <View style={styles.header}>
           <View style={styles.titleWrap}>
             <BrandLogo size={36} />
-            <View style={{ flex: 1 }}>
-              <Text style={[styles.greeting, { color: colors.text }]}>Welcome back, {user?.full_name?.split(' ')[0] || 'there'} 👋</Text>
-              <Text style={[styles.subGreeting, { color: colors.textSecondary }]}>Here is how your business is doing</Text>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={[styles.greeting, { color: colors.text }]} numberOfLines={1}>Welcome back, {user?.full_name?.split(' ')[0] || 'there'} 👋</Text>
+              <Text style={[styles.subGreeting, { color: colors.textSecondary }]} numberOfLines={1}>Here is how your business is doing</Text>
             </View>
           </View>
           <View style={styles.headerActions}>
@@ -236,7 +236,7 @@ export default function ProviderDashboard() {
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Average Rating</Text>
           </View>
           <View style={[styles.statCard, { backgroundColor: colors.surface }]}>
-            <Text style={[styles.statValue, { color: colors.text }]}>{profile?.review_count ?? 0}</Text>
+            <Text style={[styles.statValue, { color: colors.text }]}>{profile?.review_count ?? profile?.ratingCount ?? 0}</Text>
             <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Total Reviews</Text>
           </View>
         </View>
@@ -434,8 +434,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   badgeText: { fontSize: 10, fontWeight: '700', color: '#fff' },
-  greeting: { fontSize: FontSizes.xl, fontWeight: 'bold' },
-  subGreeting: { fontSize: FontSizes.sm, marginTop: 4 },
+  greeting: { fontSize: FontSizes.lg, fontWeight: 'bold' },
+  subGreeting: { fontSize: FontSizes.xs, marginTop: 2 },
   errorBanner: {
     flexDirection: 'row',
     alignItems: 'center',

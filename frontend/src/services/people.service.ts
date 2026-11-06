@@ -59,6 +59,7 @@ function getStylistDirectory(): Promise<Map<string, StylistRow>> {
 function invalidate(authId?: string | null) {
   directory = null;
   directoryAt = 0;
+  ratingCache.clear();
   if (authId) cache.delete(String(authId));
   else cache.clear();
 }
@@ -159,7 +160,43 @@ async function enrichBookingProviders(list: Booking[]): Promise<Booking[]> {
   );
 }
 
+/** Real rating + review count from GET /providers/{auth_id}/reviews (stylists.rating is never updated by the backend). */
+const ratingCache = new Map<string, Promise<{ rating: number; count: number } | null>>();
+function getRatingSummary(authId?: string | null): Promise<{ rating: number; count: number } | null> {
+  const key = String(authId ?? '').trim();
+  if (!key || /^\d+$/.test(key)) return Promise.resolve(null);
+  if (!ratingCache.has(key)) {
+    ratingCache.set(
+      key,
+      apiService.get<any>(`/providers/${key}/reviews`).then((raw) => {
+        const reviews: any[] = Array.isArray(raw?.reviews) ? raw.reviews : Array.isArray(raw) ? raw : [];
+        const count = Number(raw?.total_reviews ?? reviews.length) || 0;
+        const avg = Number(raw?.avg_rating) || (reviews.length ? reviews.reduce((s, r) => s + (Number(r.rating) || 0), 0) / reviews.length : 0);
+        return { rating: Math.round(avg * 10) / 10, count };
+      }).catch(() => {
+        ratingCache.delete(key);
+        return null;
+      })
+    );
+  }
+  return ratingCache.get(key)!;
+}
+
+/** Fills rating + review count on provider cards (runs in the background). */
+async function withProviderRatings<T extends Record<string, any>>(list: T[]): Promise<T[]> {
+  return Promise.all(
+    list.map(async (p) => {
+      const authId = p.user_id && !/^\d+$/.test(String(p.user_id)) ? p.user_id : await getProviderAuthId(p.id);
+      const summary = await getRatingSummary(authId);
+      if (!summary) return p;
+      return { ...p, rating: summary.rating, avgRating: summary.rating, review_count: summary.count, ratingCount: summary.count, reviewsCount: summary.count };
+    })
+  );
+}
+
 export const peopleService = {
+  getRatingSummary,
+  withProviderRatings,
   getByAuthId,
   getProviderAuthId,
   enrichBookingCustomers,

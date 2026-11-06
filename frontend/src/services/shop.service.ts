@@ -2,6 +2,7 @@ import { normalizeShopCategoryMetadata } from "../constants/shopCategories";
 import { supabase } from "../lib/supabase";
 import { ProductReview, ProductReviewsResponse } from "../types";
 import apiService from "./api";
+import { peopleService } from "./people.service";
 
 export interface Product {
   id: number;
@@ -605,56 +606,65 @@ export const shopService = {
   async getMyOrders(): Promise<Order[]> {
     const authId = await apiService.getAuthId();
     if (!authId) return [];
-    const { data, error } = await supabase
-      .from("orders")
-      .select("*")
-      .eq("customer_auth_id", authId)
-      .order("created_at", { ascending: false });
-    if (error) throw error;
+    // Checkout (POST /api/shop/orders) writes to shop_orders / shop_order_items.
+    // The legacy "orders" table is still read so older orders keep showing.
+    const [shopRes, legacyRes] = await Promise.all([
+      supabase.from("shop_orders").select("*").eq("customer_auth_id", authId).order("created_at", { ascending: false }),
+      supabase.from("orders").select("*").eq("customer_auth_id", authId).order("created_at", { ascending: false }),
+    ]);
+    const shopOrders = (shopRes.data || []) as Order[];
+    const legacyOrders = (legacyRes.data || []) as Order[];
+    if (shopRes.error && legacyRes.error) throw shopRes.error;
 
-    const orders = (data || []) as Order[];
-    return await Promise.all(
-      orders.map(async (order) => {
-        const items = await this.getOrderItems(order.id);
-        let provider_name: string | null = null;
-        if (order.provider_auth_id) {
-          try {
-            const profile = await apiService.get<any>(
-              `/users/by-auth/${order.provider_auth_id}`,
-            );
-            provider_name = profile?.name || profile?.full_name || null;
-          } catch (err) {
-            console.warn("[shop] failed to load provider profile", err);
-          }
-        }
-        return { ...order, items, provider_name };
+    const shopItems = await this.getShopOrderItems(shopOrders.map((o) => o.id));
+    const withItems = [
+      ...shopOrders.map((order) => ({ ...order, items: shopItems.filter((i) => i.order_id === order.id) })),
+      ...(await Promise.all(legacyOrders.map(async (order) => ({ ...order, items: await this.getOrderItems(order.id).catch(() => []) })))),
+    ];
+    return Promise.all(
+      withItems.map(async (order: any) => {
+        const sellerAuthId = order.provider_auth_id || order.items?.[0]?.products?.stylist_auth_id;
+        const person = sellerAuthId ? await peopleService.getByAuthId(sellerAuthId).catch(() => null) : null;
+        return { ...order, provider_auth_id: order.provider_auth_id || sellerAuthId, provider_name: person?.name || null };
       }),
-    );
+    ).then((list) => list.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))));
+  },
+
+  async getShopOrderItems(orderIds: number[]): Promise<any[]> {
+    if (!orderIds.length) return [];
+    const { data, error } = await supabase
+      .from("shop_order_items")
+      .select("*, products(name, image_urls, stylist_auth_id)")
+      .in("order_id", orderIds);
+    if (error) return [];
+    return (data || []).map((item: any) => ({ ...item, price: item.unit_price ?? item.price }));
   },
 
   async getProviderOrders(providerAuthId: string): Promise<Order[]> {
-    // A single order can contain items from multiple sellers, and
-    // `orders.provider_auth_id` only ever reflects the first seller resolved
-    // at checkout - so a direct client-side filter on that column alone
-    // misses orders where this provider's item wasn't first. The backend
-    // resolves correct attribution via order_items -> product_listings ->
-    // shop_sellers / products.
-    const orders = (await apiService.get<any[]>('/provider/shop-orders')) || [];
-    return await Promise.all(
-      orders.map(async (order) => {
-        const items = await this.getOrderItems(order.id);
-        let customer_name: string | null = null;
-        if (order.customer_auth_id) {
-          try {
-            const profile = await apiService.get<any>(
-              `/users/by-auth/${order.customer_auth_id}`,
-            );
-            customer_name = profile?.name || profile?.full_name || null;
-          } catch (err) {
-            console.warn("[shop] failed to load customer profile", err);
-          }
-        }
-        return { ...order, items, customer_name };
+    // shop_orders has no seller column, so find this provider's products in
+    // shop_order_items first, then load those orders.
+    const { data: itemRows } = await supabase
+      .from("shop_order_items")
+      .select("*, products!inner(name, image_urls, stylist_auth_id)")
+      .eq("products.stylist_auth_id", providerAuthId);
+    const items = (itemRows || []).map((item: any) => ({ ...item, price: item.unit_price ?? item.price }));
+    const orderIds = Array.from(new Set(items.map((i: any) => i.order_id)));
+    let orders: any[] = [];
+    if (orderIds.length) {
+      const { data } = await supabase.from("shop_orders").select("*").in("id", orderIds).order("created_at", { ascending: false });
+      orders = data || [];
+    }
+    // Legacy orders table (older checkouts).
+    const legacy = await supabase.from("orders").select("*").eq("provider_auth_id", providerAuthId);
+    const legacyOrders = await Promise.all((legacy.data || []).map(async (o: any) => ({ ...o, items: await this.getOrderItems(o.id).catch(() => []) })));
+    const combined = [
+      ...orders.map((order) => ({ ...order, provider_auth_id: providerAuthId, items: items.filter((i: any) => i.order_id === order.id) })),
+      ...legacyOrders,
+    ];
+    return Promise.all(
+      combined.map(async (order: any) => {
+        const person = order.customer_auth_id ? await peopleService.getByAuthId(order.customer_auth_id).catch(() => null) : null;
+        return { ...order, customer_name: person?.name || null };
       }),
     );
   },

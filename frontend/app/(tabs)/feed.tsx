@@ -257,7 +257,7 @@ export default function Feed() {
   );
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
+    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={isProvider ? [] : ['top']}>
       {!isProvider && (
         <View style={styles.header}>
           <View style={styles.titleWrap}>

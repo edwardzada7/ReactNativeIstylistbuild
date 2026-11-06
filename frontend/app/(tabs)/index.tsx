@@ -70,6 +70,9 @@ export default function Home() {
         isAuthenticated ? bookingService.getBookings({ role: 'customer' }).catch(() => []) : Promise.resolve([]),
       ]);
       setProviders(screenCache.set('home-providers', providerList));
+      peopleService.withProviderRatings(providerList)
+        .then((rated) => setProviders(screenCache.set('home-providers', rated)))
+        .catch(() => undefined);
       setCategories(screenCache.set('home-categories', categoryList));
       setBookings(bookingList);
       if (bookingList.length) peopleService.enrichBookingProviders(bookingList).then(setBookings).catch(() => undefined);
