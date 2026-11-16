@@ -178,3 +178,7 @@ Full report: `/app/SHOP_PROVIDER_FIX_REPORT.md`. Summary:
 - Search categories: chips fixed height (no stretching); top-level categories match providers via catalog (category → services → sub-services) using primary_category/primary_service.
 - Shop reviews: reviewer_name / reviewer photo (people directory) mapped to UI fields; avg_rating/total_reviews mapped to summary.
 - Speed: provider profile cached per id (instant revisit), rating lookup capped at 1.2s.
+
+## Session — Jun 2026 (9) (no automated tests per user)
+- Shop order status: UI labels mapped to backend enum (Accepted→confirmed, Ready→shipped, Cancelled→canceled); badges show friendly labels.
+- Service invoice 502: price check passes; insert likely rejected by CHECK constraint (payment_provider 'flutterwave') → migration #4 /app/supabase/migrations/20260604_service_invoice_constraints.sql.

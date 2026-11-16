@@ -9,14 +9,44 @@ import { useTheme } from '../../src/contexts/ThemeContext';
 import { shopService, Order } from '../../src/services/shop.service';
 import { formatCurrency } from '../../src/utils/currency';
 
+// UI label -> backend status (backend allows: pending, confirmed, processing,
+// shipped, delivered, canceled, returned).
 const STATUS_OPTIONS = ['Pending', 'Accepted', 'Processing', 'Ready', 'Delivered', 'Cancelled'] as const;
+const STATUS_TO_API: Record<string, string> = {
+  Pending: 'pending',
+  Accepted: 'confirmed',
+  Processing: 'processing',
+  Ready: 'shipped',
+  Delivered: 'delivered',
+  Cancelled: 'canceled',
+};
+const API_TO_LABEL: Record<string, string> = {
+  pending: 'Pending',
+  confirmed: 'Accepted',
+  accepted: 'Accepted',
+  processing: 'Processing',
+  shipped: 'Ready',
+  ready: 'Ready',
+  delivered: 'Delivered',
+  canceled: 'Cancelled',
+  cancelled: 'Cancelled',
+  returned: 'Returned',
+  paid: 'Paid',
+};
 const STATUS_COLOR: Record<string, string> = {
   pending: Colors.warning,
   accepted: Colors.primary,
+  confirmed: Colors.primary,
   processing: Colors.warning,
   ready: Colors.success,
+  shipped: Colors.success,
   delivered: Colors.success,
   cancelled: Colors.error,
+  canceled: Colors.error,
+};
+const statusLabel = (status?: string) => {
+  const key = String(status || '').toLowerCase();
+  return API_TO_LABEL[key] || (key ? key.charAt(0).toUpperCase() + key.slice(1) : 'Pending');
 };
 
 export default function ProviderShopOrders() {
@@ -49,8 +79,9 @@ export default function ProviderShopOrders() {
   const handleStatusChange = async (order: Order, status: string) => {
     try {
       setUpdatingId(order.id);
-      await shopService.updateOrderStatus(order.id, status);
-      setOrders((prev) => prev.map((item) => (item.id === order.id ? { ...item, status: status.toLowerCase() } : item)));
+      const apiStatus = STATUS_TO_API[status] || status.toLowerCase();
+      await shopService.updateOrderStatus(order.id, apiStatus);
+      setOrders((prev) => prev.map((item) => (item.id === order.id ? { ...item, status: apiStatus } : item)));
     } catch (err: any) {
       Alert.alert('Update failed', err?.friendlyMessage || err?.message || 'Could not update this order status.');
     } finally {
@@ -83,7 +114,7 @@ export default function ProviderShopOrders() {
                 <Text style={[styles.orderId, { color: colors.text }]}>Order #{order.id}</Text>
                 <View style={[styles.statusBadge, { backgroundColor: `${STATUS_COLOR[order.status.toLowerCase()] || colors.textSecondary}20` }]}>
                   <Text style={[styles.statusText, { color: STATUS_COLOR[order.status.toLowerCase()] || colors.textSecondary }]}>
-                    {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                    {statusLabel(order.status)}
                   </Text>
                 </View>
               </View>
@@ -94,11 +125,14 @@ export default function ProviderShopOrders() {
               <Text style={[styles.orderMeta, { color: colors.textSecondary }]}>Amount: {formatCurrency(order.total_amount)}</Text>
               <Text style={[styles.orderMeta, { color: colors.textSecondary }]}>Date: {new Date(order.created_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })}</Text>
               <View style={styles.actionsRow}>
-                {STATUS_OPTIONS.map((status) => (
-                  <TouchableOpacity key={status} style={[styles.actionChip, { backgroundColor: colors.surfaceLight, borderColor: colors.border }, order.status.toLowerCase() === status.toLowerCase() && { backgroundColor: Colors.primary, borderColor: Colors.primary }]} onPress={() => handleStatusChange(order, status)} disabled={updatingId === order.id}>
-                    <Text style={[styles.actionText, { color: colors.textSecondary }, order.status.toLowerCase() === status.toLowerCase() && { color: '#fff' }]}>{status}</Text>
+                {STATUS_OPTIONS.map((status) => {
+                  const active = statusLabel(order.status) === status;
+                  return (
+                  <TouchableOpacity key={status} testID={`order-${order.id}-status-${status.toLowerCase()}`} style={[styles.actionChip, { backgroundColor: colors.surfaceLight, borderColor: colors.border }, active && { backgroundColor: Colors.primary, borderColor: Colors.primary }]} onPress={() => handleStatusChange(order, status)} disabled={updatingId === order.id || active}>
+                    <Text style={[styles.actionText, { color: colors.textSecondary }, active && { color: '#fff' }]}>{status}</Text>
                   </TouchableOpacity>
-                ))}
+                  );
+                })}
               </View>
             </View>
           ))}
