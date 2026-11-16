@@ -194,11 +194,13 @@ export default function ProviderManageStaff() {
         await staffService.updateMultipart(editingStaff.id, authId, {
           name: profileForm.name.trim(), role: profileForm.role.trim(), bio: profileForm.bio.trim(),
           service_ids: editingStaff.service_ids || [], photoUri: selectedImage?.uri,
+          is_active: !!profileForm.is_active,
         });
       } else {
         await staffService.createMultipart(authId, {
           name: profileForm.name.trim(), role: profileForm.role.trim(), bio: profileForm.bio.trim(),
           service_ids: [], photoUri: selectedImage?.uri,
+          is_active: !!profileForm.is_active,
         });
       }
       setProfileVisible(false);

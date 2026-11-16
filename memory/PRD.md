@@ -182,3 +182,8 @@ Full report: `/app/SHOP_PROVIDER_FIX_REPORT.md`. Summary:
 ## Session — Jun 2026 (9) (no automated tests per user)
 - Shop order status: UI labels mapped to backend enum (Accepted→confirmed, Ready→shipped, Cancelled→canceled); badges show friendly labels.
 - Service invoice 502: price check passes; insert likely rejected by CHECK constraint (payment_provider 'flutterwave') → migration #4 /app/supabase/migrations/20260604_service_invoice_constraints.sql.
+
+## Session — Jun 2026 (10) (no automated tests per user)
+- Order details screen: app/shop/order/[id].tsx (status, items, totals, customer name/photo/phone/email/address); cards in My Orders + provider Shop Orders are tappable; order notifications open it.
+- Staff visibility: is_active now sent on staff save (create/update).
+- Order notifications (in-app): migration #5 /app/supabase/migrations/20260605_order_notifications.sql — triggers on shop_orders (customer: placed + status change) and shop_order_items (seller: new order).

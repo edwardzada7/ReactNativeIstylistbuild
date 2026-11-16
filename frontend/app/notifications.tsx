@@ -136,7 +136,7 @@ function Notifications() {
         return;
       }
       if (data.order_id) {
-        router.push('/shop/orders');
+        router.push({ pathname: '/shop/order/[id]', params: { id: String(data.order_id) } });
         return;
       }
       if (data.feed_id || data.post_id || data.postId) {

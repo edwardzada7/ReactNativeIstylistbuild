@@ -74,7 +74,15 @@ export default function OrderHistory() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={colors.primary} />}
         >
           {orders.map((order) => (
-            <View key={order.id} style={[styles.card, { backgroundColor: colors.surface }]}>
+            <TouchableOpacity
+              key={order.id}
+              testID={`customer-order-${order.id}`}
+              activeOpacity={0.8}
+              onPress={() => router.push({ pathname: '/shop/order/[id]', params: { id: String(order.id) } })}
+              accessibilityRole="button"
+              accessibilityLabel={`View order ${order.id}`}
+              style={[styles.card, { backgroundColor: colors.surface }]}
+            >
               <View style={styles.cardHeader}>
                 <Text style={[styles.orderId, { color: colors.text }]}>Order #{order.id}</Text>
                 <View style={[styles.statusBadge, { backgroundColor: `${STATUS_COLOR[order.status] || colors.textMuted}20` }]}>
@@ -94,7 +102,8 @@ export default function OrderHistory() {
                 </Text>
               ) : null}
               {order.payment_reference ? <Text style={[styles.orderMeta, { color: colors.textSecondary }]}>Ref: {order.payment_reference}</Text> : null}
-            </View>
+              <Text style={[styles.orderMeta, { color: colors.primary, fontWeight: '700', marginTop: 6 }]}>View details ›</Text>
+            </TouchableOpacity>
           ))}
         </ScrollView>
       )}

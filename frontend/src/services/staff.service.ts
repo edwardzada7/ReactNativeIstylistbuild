@@ -32,24 +32,27 @@ async function uploadStaffPhoto(authId: string, uri?: string): Promise<string | 
 }
 
 export const staffService = {
-    async createMultipart(authId: string, payload: { name: string; role: string; bio: string; service_ids: number[]; photoUri?: string }): Promise<StaffMember> {
+    async createMultipart(authId: string, payload: { name: string; role: string; bio: string; service_ids: number[]; photoUri?: string; is_active?: boolean }): Promise<StaffMember> {
       const photo_url = await uploadStaffPhoto(authId, payload.photoUri);
       const raw = await apiService.post<any>('/staff', {
         name: payload.name,
         role: payload.role || null,
         bio: payload.bio || null,
         service_ids: payload.service_ids || [],
+        is_active: payload.is_active ?? true,
         ...(photo_url ? { photo_url } : {}),
       }, { params: { auth_id: authId } });
       return toStaff(raw);
     },
 
-    async updateMultipart(staffId: string, authId: string, payload: { name: string; role: string; bio: string; service_ids: number[]; photoUri?: string }): Promise<StaffMember> {
+    async updateMultipart(staffId: string, authId: string, payload: { name: string; role: string; bio: string; service_ids: number[]; photoUri?: string; is_active?: boolean }): Promise<StaffMember> {
       const photo_url = await uploadStaffPhoto(authId, payload.photoUri);
       const raw = await apiService.put<any>(`/staff/${staffId}`, {
         name: payload.name,
         role: payload.role || null,
         bio: payload.bio || null,
+        // Visibility toggle must be sent, otherwise "Visible to customers" never saves.
+        ...(payload.is_active !== undefined ? { is_active: payload.is_active } : {}),
         ...(photo_url ? { photo_url } : {}),
       }, { params: { auth_id: authId } });
       return toStaff(raw);

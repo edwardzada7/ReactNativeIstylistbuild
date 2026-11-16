@@ -110,6 +110,13 @@ export default function ProviderShopOrders() {
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadData(); }} tintColor={Colors.primary} />}>
           {orders.map((order) => (
             <View key={order.id} style={[styles.card, { backgroundColor: colors.surface }]}>
+              <TouchableOpacity
+                testID={`provider-order-${order.id}`}
+                activeOpacity={0.8}
+                onPress={() => router.push({ pathname: '/shop/order/[id]', params: { id: String(order.id) } })}
+                accessibilityRole="button"
+                accessibilityLabel={`View order ${order.id}`}
+              >
               <View style={styles.cardHeader}>
                 <Text style={[styles.orderId, { color: colors.text }]}>Order #{order.id}</Text>
                 <View style={[styles.statusBadge, { backgroundColor: `${STATUS_COLOR[order.status.toLowerCase()] || colors.textSecondary}20` }]}>
@@ -124,6 +131,8 @@ export default function ProviderShopOrders() {
               ) : null}
               <Text style={[styles.orderMeta, { color: colors.textSecondary }]}>Amount: {formatCurrency(order.total_amount)}</Text>
               <Text style={[styles.orderMeta, { color: colors.textSecondary }]}>Date: {new Date(order.created_at).toLocaleDateString('en-NG', { day: 'numeric', month: 'short', year: 'numeric' })}</Text>
+              <Text style={[styles.orderMeta, { color: Colors.primary, fontWeight: '700', marginTop: 6 }]}>View order & customer details ›</Text>
+              </TouchableOpacity>
               <View style={styles.actionsRow}>
                 {STATUS_OPTIONS.map((status) => {
                   const active = statusLabel(order.status) === status;

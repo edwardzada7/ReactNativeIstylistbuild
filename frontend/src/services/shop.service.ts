@@ -630,6 +630,42 @@ export const shopService = {
     ).then((list) => list.sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))));
   },
 
+  /** Full order + items + customer/seller details for the order detail screen. */
+  async getOrderDetails(orderId: number): Promise<any> {
+    let order: any = null;
+    let items: any[] = [];
+    const shop = await supabase.from("shop_orders").select("*").eq("id", orderId).maybeSingle();
+    if (shop.data) {
+      order = shop.data;
+      items = await this.getShopOrderItems([orderId]);
+    } else {
+      const legacy = await supabase.from("orders").select("*").eq("id", orderId).maybeSingle();
+      if (!legacy.data) throw Object.assign(new Error("Order not found"), { friendlyMessage: "Order not found." });
+      order = legacy.data;
+      items = await this.getOrderItems(orderId).catch(() => []);
+    }
+    const sellerAuthId = order.provider_auth_id || items[0]?.products?.stylist_auth_id || null;
+    const [customerPerson, customerUser, sellerPerson] = await Promise.all([
+      order.customer_auth_id ? peopleService.getByAuthId(order.customer_auth_id).catch(() => null) : null,
+      order.customer_auth_id ? apiService.get<any>(`/users/by-auth/${order.customer_auth_id}`).catch(() => null) : null,
+      sellerAuthId ? peopleService.getByAuthId(sellerAuthId).catch(() => null) : null,
+    ]);
+    const address = order.shipping_address;
+    return {
+      ...order,
+      items,
+      provider_auth_id: sellerAuthId,
+      provider_name: sellerPerson?.name || null,
+      customer: {
+        name: customerPerson?.name || customerUser?.name || address?.full_name || address?.name || null,
+        avatar: customerPerson?.avatar || null,
+        email: customerUser?.email || address?.email || null,
+        phone: customerUser?.phone || address?.phone || address?.phone_number || null,
+        address,
+      },
+    };
+  },
+
   async getShopOrderItems(orderIds: number[]): Promise<any[]> {
     if (!orderIds.length) return [];
     const { data, error } = await supabase
