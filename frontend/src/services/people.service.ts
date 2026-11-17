@@ -6,7 +6,21 @@ export interface PersonSummary {
   name?: string;
   avatar?: string | null;
   verified?: boolean;
+  address?: string | null;
+  phone?: string | null;
+  email?: string | null;
 }
+
+// A person's saved location: one address string if they have it, otherwise city/state/country.
+const addressOf = (p: any): string | null => {
+  if (!p) return null;
+  const direct = [p.location_address, p.address, typeof p.location === 'string' ? p.location : null].find(
+    (value) => typeof value === 'string' && value.trim()
+  );
+  if (direct) return String(direct).trim();
+  const parts = [p.city, p.state, p.country].filter((part) => typeof part === 'string' && part.trim());
+  return parts.length ? parts.join(', ') : null;
+};
 
 const cache = new Map<string, Promise<PersonSummary | null>>();
 
@@ -110,6 +124,10 @@ function getByAuthId(authId?: string | null): Promise<PersonSummary | null> {
           name: row?.business_name || publicProfile?.business_name || displayName(user) || publicProfile?.name,
           avatar: row?.profile_image_url || avatarOf(publicProfile) || avatarOf(user),
           verified: rowVerified(row) || user?.is_verified === true || user?.isKycVerified === true,
+          // Saved location + contact details (users.location_address, phone, email).
+          address: addressOf(user) || addressOf(publicProfile) || addressOf(row),
+          phone: user?.phone || user?.phone_number || publicProfile?.phone || null,
+          email: user?.email || publicProfile?.email || null,
         };
       })()
     );
@@ -131,13 +149,18 @@ async function getProviderAuthId(userId?: string | number | null): Promise<strin
 async function enrichBookingCustomers(list: Booking[]): Promise<Booking[]> {
   return Promise.all(
     list.map(async (b) => {
-      if (!isPlaceholderName(b.customer_name) && b.customer_profile_image_url) return b;
+      // Skip the lookup only when everything we display is already present.
+      if (!isPlaceholderName(b.customer_name) && b.customer_profile_image_url && b.customer_address) return b;
       const person = await getByAuthId(b.customer_auth_id);
       if (!person) return b;
       return {
         ...b,
         customer_name: isPlaceholderName(b.customer_name) ? person.name || b.customer_name : b.customer_name,
         customer_profile_image_url: b.customer_profile_image_url || person.avatar,
+        // The booking response often has no address; the customer's saved profile location fills it in.
+        customer_address: b.customer_address || person.address || b.customer_address,
+        customer_phone: b.customer_phone || person.phone || b.customer_phone,
+        customer_email: b.customer_email || person.email || b.customer_email,
       };
     })
   );

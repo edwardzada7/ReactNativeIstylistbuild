@@ -99,7 +99,14 @@ export default function ProviderWithdraw() {
         Alert.alert('Request Failed', response.message || 'Failed to submit withdrawal request.');
       }
     } catch (err: any) {
-      Alert.alert('Request Failed', err?.friendlyMessage || err?.message || 'Failed to submit withdrawal request.');
+      const status = err?.response?.status;
+      // 404/405 means the server has no withdrawal endpoint at this address - say so
+      // plainly rather than a vague "Request failed".
+      const message =
+        status === 404 || status === 405
+          ? 'Withdrawals are not available on the server yet. Please contact support.'
+          : err?.friendlyMessage || err?.message || 'Failed to submit withdrawal request.';
+      Alert.alert('Request Failed', message);
     } finally {
       setSubmitting(false);
     }

@@ -11,6 +11,7 @@ import { chatService } from '../../src/services/chat.service';
 import apiService from '../../src/services/api';
 import { Service, StaffMember } from '../../src/types';
 import { formatCurrency } from '../../src/utils/currency';
+import { toLocalDateString } from '../../src/utils/time';
 
 export default function ServiceInvoice() {
   const router = useRouter();
@@ -56,7 +57,7 @@ export default function ServiceInvoice() {
   useEffect(() => {
     if (!providerId || !selectedService) return;
     setSelectedTime('');
-    providerService.getAvailableSlots(providerId, selectedDate.toISOString().slice(0, 10), selectedService.duration || 30).then(setSlots).catch(() => setSlots([]));
+    providerService.getAvailableSlots(providerId, toLocalDateString(selectedDate), selectedService.duration || 30).then(setSlots).catch(() => setSlots([]));
   }, [providerId, selectedDate, selectedService]);
 
   const eligibleStaff = staff.filter((member) => (member.service_ids || []).map(String).includes(String(selectedService?.id)));
@@ -68,14 +69,14 @@ export default function ServiceInvoice() {
     try {
       const invoice = await chatService.createInvoice({
         conversation_id: Number(conversationId), customer_auth_id: customerAuthId, provider_auth_id: user.auth_id,
-        invoice_type: 'service', amount: Number(selectedService.price), service_date: selectedDate.toISOString().slice(0, 10),
+        invoice_type: 'service', amount: Number(selectedService.price), service_date: toLocalDateString(selectedDate),
         service_time: selectedTime, location: location.trim() || undefined, service_type: location.trim() || undefined,
         staff_id: selectedStaff ? Number(selectedStaff) : undefined, note: note.trim() || undefined,
         items: [{ service_id: Number(selectedService.id), quantity: 1 }],
       });
       await chatService.sendInvoiceMessage(Number(conversationId), customerAuthId, {
         invoice_id: invoice.id, invoice_type: 'service', amount: Number(selectedService.price), service: selectedService.name,
-        date: selectedDate.toISOString().slice(0, 10), time: selectedTime, location: location.trim() || undefined,
+        date: toLocalDateString(selectedDate), time: selectedTime, location: location.trim() || undefined,
         staff: eligibleStaff.find((member) => String(member.id) === selectedStaff)?.name, status: 'pending',
       });
       router.back();

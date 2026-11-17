@@ -201,6 +201,11 @@ export interface Booking {
   customer_name?: string;
   customer_profile_image_url?: string | null;
   customer_address?: string | null;
+  customer_phone?: string | null;
+  customer_email?: string | null;
+  service_category?: string | null; // e.g. "Hair", "Makeup"
+  service_type?: string | null; // e.g. home service / in-store, when the booking carries it
+  staff_name?: string | null;
   provider_avatar?: string;
   provider_verified?: boolean;
   service?: Service;
