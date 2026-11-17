@@ -7,6 +7,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
 import hmac
+import re
 import requests
 from pathlib import Path as PathlibPath
 from pydantic import BaseModel, Field, field_validator
@@ -1988,6 +1989,20 @@ class CompleteProductInvoiceInput(BaseModel):
     payment_reference: Optional[str] = None
 
 
+def _supabase_error_message(response: requests.Response) -> str:
+    """Short, human-readable reason from a failed PostgREST response (never raises)."""
+    try:
+        body = response.json()
+    except ValueError:
+        return (response.text or "").strip()[:160]
+    if isinstance(body, dict):
+        message = body.get("message") or body.get("error") or body.get("hint") or ""
+        code = body.get("code")
+        text = f"{message} [{code}]" if code and message else (message or str(code or ""))
+        return str(text).strip()[:160]
+    return str(body)[:160]
+
+
 def _supabase_request(method: str, table: str, **kwargs):
     response = requests.request(
         method,
@@ -1997,8 +2012,56 @@ def _supabase_request(method: str, table: str, **kwargs):
         **kwargs,
     )
     if response.status_code not in (200, 201, 204):
-        raise HTTPException(status_code=502, detail=f"Could not access {table}")
+        reason = _supabase_error_message(response)
+        # Log the full failure so the real cause (missing column, bad constraint, ...)
+        # is visible in the server logs, and return it in `detail` instead of the
+        # opaque "Could not access <table>" that hid every database problem.
+        logger.error(
+            "Supabase %s %s failed (%s): %s | params=%s",
+            method, table, response.status_code, (response.text or "")[:500], kwargs.get("params"),
+        )
+        raise HTTPException(
+            status_code=502,
+            detail=f"Could not access {table}: {reason}" if reason else f"Could not access {table}",
+        )
     return response.json() if response.content else []
+
+
+_MISSING_COLUMN_RE = re.compile(r"Could not find the '([^']+)' column")
+
+
+def _supabase_write_lenient(method: str, table: str, payload: dict, **kwargs):
+    """POST/PATCH that tolerates columns missing from the table.
+
+    PostgREST rejects a whole write with PGRST204 ("Could not find the 'x' column of
+    '<table>' in the schema cache") when the body contains a column the table does not
+    have. Drop that column and retry (a few times) rather than failing the user's
+    request, and log which columns were skipped so the schema can be fixed.
+    """
+    body = dict(payload)
+    for _ in range(6):
+        response = requests.request(
+            method,
+            f"{SUPABASE_URL}/rest/v1/{table}",
+            headers=_supabase_headers(),
+            timeout=10,
+            json=body,
+            **kwargs,
+        )
+        if response.status_code in (200, 201, 204):
+            return response.json() if response.content else []
+        match = _MISSING_COLUMN_RE.search(response.text or "")
+        if response.status_code == 400 and match and match.group(1) in body:
+            logger.warning("Table %s has no column %r; retrying the write without it", table, match.group(1))
+            body.pop(match.group(1))
+            continue
+        reason = _supabase_error_message(response)
+        logger.error("Supabase %s %s failed (%s): %s", method, table, response.status_code, (response.text or "")[:500])
+        raise HTTPException(
+            status_code=502,
+            detail=f"Could not save to {table}: {reason}" if reason else f"Could not save to {table}",
+        )
+    raise HTTPException(status_code=502, detail=f"Could not save to {table}: schema mismatch")
 
 
 def _conversation_for_invoice(conversation_id: int, auth_id: str):
@@ -2024,6 +2087,64 @@ def _mark_invoice_chat(invoice_id: int, status: str, payment_reference: Optional
         )
 
 
+def _find_owned_service(service_id: int, provider_id) -> list:
+    """Finds an active service owned by this provider.
+
+    Depending on how the database was migrated, `provider_services` is either the
+    original table (owner column `stylist_id`), a view over `services` (owner columns
+    `stylist_id` and `provider_id`), or absent in favour of `services`. Try each shape
+    instead of hard-coding one - a wrong column name is a 400 from PostgREST and
+    used to fail every invoice.
+    """
+    attempts = [
+        ("provider_services", {"id": f"eq.{service_id}", "provider_id": f"eq.{provider_id}"}),
+        ("provider_services", {"id": f"eq.{service_id}", "stylist_id": f"eq.{provider_id}"}),
+        ("services", {"id": f"eq.{service_id}", "stylist_id": f"eq.{provider_id}"}),
+    ]
+    for table, filters in attempts:
+        try:
+            rows = _supabase_request("GET", table, params={**filters, "select": "*", "limit": "1"})
+        except HTTPException:
+            continue
+        rows = [row for row in rows if row.get("is_active") is not False]
+        if rows:
+            return rows
+    return []
+
+
+def _normalize_slot_text(value) -> str:
+    """'9:05', '09:05:00' -> '09:05'; anything unparseable is returned stripped."""
+    text = str(value or "").strip()
+    match = re.match(r"^(\d{1,2}):(\d{2})(?::\d{2})?$", text)
+    return f"{int(match.group(1)):02d}:{match.group(2)}" if match else text
+
+
+def _available_slot_times(provider_id, service_date: str, service_row: dict):
+    """Open 'HH:MM' slots for the provider on a date, or None if the lookup failed."""
+    duration = service_row.get("duration_minutes") or service_row.get("duration") or 30
+    try:
+        resp = requests.get(
+            f"{PRIMARY_BACKEND_URL.rstrip('/')}/api/providers/{provider_id}/available-slots",
+            params={"date": service_date, "service_duration": int(duration)}, timeout=20,
+        )
+        if resp.status_code != 200:
+            return None
+        body = resp.json()
+    except (requests.RequestException, ValueError, TypeError):
+        logger.warning("Could not verify slot availability for provider %s on %s", provider_id, service_date)
+        return None
+    entries = body if isinstance(body, list) else (body.get("slots") or body.get("available_slots") or body.get("data") or [])
+    times = set()
+    for entry in entries:
+        if isinstance(entry, dict):
+            if entry.get("available") is False or entry.get("is_available") is False:
+                continue
+            entry = entry.get("time") or entry.get("start_time") or entry.get("slot")
+        if entry:
+            times.add(_normalize_slot_text(entry))
+    return times
+
+
 @api_router.post("/invoices")
 def create_invoice(payload: CreateInvoiceInput, authorization: Optional[str] = Header(None)):
     auth_id = _verify_supabase_user(authorization)
@@ -2035,22 +2156,25 @@ def create_invoice(payload: CreateInvoiceInput, authorization: Optional[str] = H
     if conversation.get("provider_auth_id") != payload.provider_auth_id or conversation.get("customer_auth_id") != payload.customer_auth_id:
         raise HTTPException(status_code=403, detail="Invoice participants do not match the conversation")
 
-    provider = _supabase_request("GET", "stylists", params={"auth_id": f"eq.{auth_id}", "select": "id", "limit": "1"})
-    provider_id = provider[0]["id"] if provider else None
+    # `stylists` has no `id` column - its primary key is `user_id` (the id used
+    # everywhere else as the provider id). Selecting `id` made PostgREST answer
+    # 400, which surfaced as "Invoice failed - Something went wrong on our end"
+    # for every invoice, service or product.
+    provider = _supabase_request("GET", "stylists", params={"auth_id": f"eq.{auth_id}", "select": "user_id", "limit": "1"})
+    provider_id = provider[0].get("user_id") if provider else None
     if payload.invoice_type == "service":
         if not provider_id or len(payload.items) != 1 or not payload.items[0].service_id:
             raise HTTPException(status_code=400, detail="A provider service is required")
-        owned = _supabase_request("GET", "provider_services", params={"id": f"eq.{payload.items[0].service_id}", "provider_id": f"eq.{provider_id}", "is_active": "eq.true", "select": "id,price,duration_minutes"})
+        owned = _find_owned_service(payload.items[0].service_id, provider_id)
         if not owned:
             raise HTTPException(status_code=403, detail="You can only invoice services you offer")
-        if abs(float(owned[0].get("price", 0)) - payload.amount) > 0.01:
+        if abs(float(owned[0].get("price") or 0) - payload.amount) > 0.01:
             raise HTTPException(status_code=400, detail="Invoice amount must match the selected service price")
-        slots = requests.get(
-            f"{PRIMARY_BACKEND_URL.rstrip('/')}/api/providers/{provider_id}/available-slots",
-            params={"date": payload.service_date, "service_duration": 30}, timeout=20,
-        )
-        if payload.service_date and payload.service_time and slots.status_code == 200 and payload.service_time not in (slots.json() if isinstance(slots.json(), list) else slots.json().get("slots", [])):
-            raise HTTPException(status_code=400, detail="That time is not available")
+        if payload.service_date and payload.service_time:
+            available = _available_slot_times(provider_id, payload.service_date, owned[0])
+            # None = the availability service could not be reached; do not block the invoice on that.
+            if available is not None and _normalize_slot_text(payload.service_time) not in available:
+                raise HTTPException(status_code=400, detail="That time is not available")
         if payload.staff_id:
             staff_row = _supabase_request("GET", "staff", params={"id": f"eq.{payload.staff_id}", "business_auth_id": f"eq.{auth_id}", "select": "id", "limit": "1"})
             assigned = _supabase_request("GET", "staff_services", params={"staff_id": f"eq.{payload.staff_id}", "service_id": f"eq.{payload.items[0].service_id}", "select": "staff_id", "limit": "1"})
@@ -2410,23 +2534,33 @@ def submit_provider_certification(provider_auth_id: str, payload: ProviderCertif
         "GET", "provider_certifications",
         params={"provider_auth_id": f"eq.{auth_id}", "select": "id,status", "order": "created_at.desc", "limit": "1"},
     )
+    expiry_date = (payload.expiry_date or "").strip() or None
+    if expiry_date:
+        try:
+            expiry_date = datetime.strptime(expiry_date[:10], "%Y-%m-%d").date().isoformat()
+        except ValueError:
+            raise HTTPException(status_code=400, detail="Expiry date must be in YYYY-MM-DD format")
+    # Only columns the rest of the code already reads/writes (see the admin
+    # approve/reject handlers). `verified_by_auth_id` was sent here but is used
+    # nowhere else - if the table does not have it, PostgREST rejected the whole
+    # insert and the provider saw "Submission failed". The lenient writer also
+    # skips any other column the table turns out not to have.
     certification_payload = {
         "provider_auth_id": auth_id,
         "specialty": payload.specialty.strip(),
         "certification_name": payload.certification_name.strip(),
         "certificate_url": payload.certificate_url,
-        "expiry_date": payload.expiry_date,
+        "expiry_date": expiry_date,
         "status": "pending",
         "rejection_reason": None,
-        "verified_by_auth_id": None,
         "verified_at": None,
     }
     if existing and existing[0].get("status") in ("pending", "rejected", "expired"):
-        updated = _supabase_request("PATCH", "provider_certifications", params={"id": f"eq.{existing[0]['id']}"}, json=certification_payload)
+        updated = _supabase_write_lenient("PATCH", "provider_certifications", certification_payload, params={"id": f"eq.{existing[0]['id']}"})
     elif existing:
         raise HTTPException(status_code=409, detail="Your certificate is already approved and active")
     else:
-        updated = _supabase_request("POST", "provider_certifications", json=certification_payload)
+        updated = _supabase_write_lenient("POST", "provider_certifications", certification_payload)
     return updated[0] if updated else certification_payload
 
 

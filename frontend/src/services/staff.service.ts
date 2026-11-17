@@ -1,18 +1,31 @@
 import apiService from './api';
 import { supabase } from '../lib/supabase';
 import { StaffMember, StaffAvailabilityDay } from '../types';
+import { normalizeSlots, normalizeTime, normalizeTimeOr, validateTimeRange } from '../utils/time';
+
+const DAY_LABELS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 const asList = (raw: any): any[] => {
   if (Array.isArray(raw)) return raw;
   return raw?.staff || raw?.data || raw?.results || [];
 };
 
+// Times arrive from Postgres as "HH:MM:SS"; the API only accepts "HH:MM" back.
+const normalizeWeekly = (weekly: any): StaffAvailabilityDay[] =>
+  (Array.isArray(weekly) ? weekly : []).map((day: any) => ({
+    ...day,
+    day_of_week: Number(day.day_of_week),
+    is_available: day.is_available !== undefined ? !!day.is_available : day.is_active !== false,
+    start_time: normalizeTime(day.start_time) ?? day.start_time ?? null,
+    end_time: normalizeTime(day.end_time) ?? day.end_time ?? null,
+  }));
+
 const toStaff = (raw: any): StaffMember => ({
   ...raw,
   id: String(raw.id),
   is_active: !!raw.is_active,
   service_ids: Array.isArray(raw.service_ids) ? raw.service_ids.map(Number) : [],
-  weekly: Array.isArray(raw.weekly) ? raw.weekly : [],
+  weekly: normalizeWeekly(raw.weekly),
 });
 
 // The backend /staff endpoints only accept JSON (StaffCreate / StaffUpdate with
@@ -116,29 +129,41 @@ export const staffService = {
     return Array.isArray(raw?.service_ids) ? raw.service_ids.map(Number) : [];
   },
 
+  // The backend rejects every row whose times are not strict 24h "HH:MM" with
+  // "Value error, Time must be in HH:MM format" (once per field, so a full week
+  // produced 14 identical errors). Stored schedules come back as "HH:MM:SS", and
+  // the whole week was re-sent as-is, so saving always failed. Every row is now
+  // normalized here, and a genuinely bad value is reported by day instead.
   async setAvailability(staffId: string, authId: string, weekly: StaffAvailabilityDay[]): Promise<StaffAvailabilityDay[]> {
-    const raw = await apiService.put<any>(`/staff/${staffId}/availability`, { weekly }, {
+    const payload = weekly.map((day) => {
+      const label = DAY_LABELS[day.day_of_week] ?? `Day ${day.day_of_week}`;
+      if (day.is_available) {
+        const problem = validateTimeRange(label, day.start_time, day.end_time);
+        if (problem) throw Object.assign(new Error(problem), { friendlyMessage: problem });
+      }
+      return {
+        day_of_week: day.day_of_week,
+        is_available: !!day.is_available,
+        start_time: normalizeTimeOr(day.start_time, '09:00'),
+        end_time: normalizeTimeOr(day.end_time, '17:00'),
+      };
+    });
+    const raw = await apiService.put<any>(`/staff/${staffId}/availability`, { weekly: payload }, {
       params: { auth_id: authId },
     });
-    return Array.isArray(raw?.weekly) ? raw.weekly : [];
+    return Array.isArray(raw?.weekly) ? normalizeWeekly(raw.weekly) : [];
   },
 
   async get(staffId: string): Promise<StaffMember> {
     const raw = await apiService.get<any>(`/staff/${staffId}`);
-    return {
-      ...raw,
-      id: String(raw.id),
-      is_active: !!raw.is_active,
-      service_ids: Array.isArray(raw.service_ids) ? raw.service_ids.map(Number) : [],
-      weekly: Array.isArray(raw.weekly) ? raw.weekly : [],
-    };
+    return toStaff(raw);
   },
 
   async getAvailableSlots(staffId: string, date: string, serviceDuration: number): Promise<string[]> {
     const raw = await apiService.get<any>(`/staff/${staffId}/available-slots`, {
       params: { date, service_duration: serviceDuration },
     });
-    return Array.isArray(raw) ? raw : raw?.slots || raw?.data || [];
+    return normalizeSlots(raw);
   },
 };
 

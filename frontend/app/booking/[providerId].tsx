@@ -17,6 +17,8 @@ import { Button, ProfileAvatar } from '../../src/components/common';
 import { providerService } from '../../src/services/provider.service';
 import { bookingService } from '../../src/services/booking.service';
 import { walletService } from '../../src/services/wallet.service';
+import staffService from '../../src/services/staff.service';
+import { dropPastSlots, toLocalDateString } from '../../src/utils/time';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { formatCurrency } from '../../src/utils/currency';
@@ -53,6 +55,8 @@ export default function CreateBooking() {
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(true);
   const [slotsLoading, setSlotsLoading] = useState(false);
+  const [slotsError, setSlotsError] = useState(false);
+  const [slotsReloadKey, setSlotsReloadKey] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [paymentOutcome, setPaymentOutcome] = useState<'paid' | 'payment_failed' | null>(null);
@@ -100,26 +104,44 @@ export default function CreateBooking() {
     })();
   }, [providerId]);
 
+  // Load the provider's (or the chosen staff member's) real open time slots for
+  // the selected date + service. Uses the LOCAL calendar date - toISOString()
+  // is UTC and picked the wrong day for users east of UTC right after midnight.
   useEffect(() => {
+    if (!providerId || !selectedService) return;
+    let cancelled = false;
     (async () => {
-      if (!providerId || !selectedService) return;
       setSlotsLoading(true);
+      setSlotsError(false);
       setSelectedSlot(null);
+      const dateStr = toLocalDateString(selectedDate);
+      const duration = selectedService.duration || 30;
       try {
-        const dateStr = selectedDate.toISOString().slice(0, 10);
-        const slotList = await providerService.getAvailableSlots(
-          providerId,
-          dateStr,
-          selectedService.duration || 30
-        );
-        setSlots(slotList);
+        let slotList: string[];
+        if (selectedStaffId) {
+          try {
+            slotList = await staffService.getAvailableSlots(selectedStaffId, dateStr, duration);
+          } catch {
+            // Staff endpoint unavailable - fall back to the provider's overall availability.
+            slotList = await providerService.getAvailableSlots(providerId, dateStr, duration);
+          }
+        } else {
+          slotList = await providerService.getAvailableSlots(providerId, dateStr, duration);
+        }
+        if (!cancelled) setSlots(dropPastSlots(slotList, selectedDate));
       } catch {
-        setSlots([]);
+        if (!cancelled) {
+          setSlots([]);
+          setSlotsError(true);
+        }
       } finally {
-        setSlotsLoading(false);
+        if (!cancelled) setSlotsLoading(false);
       }
     })();
-  }, [providerId, selectedDate, selectedService]);
+    return () => {
+      cancelled = true;
+    };
+  }, [providerId, selectedDate, selectedService, selectedStaffId, slotsReloadKey]);
 
   // Real contract: wallet balance comes from GET /api/wallets (see
   // wallet.service.ts). Fetched up-front so the Booking Summary can show
@@ -149,7 +171,7 @@ export default function CreateBooking() {
     const serviceIdText = String((selectedService as any).id || (selectedService as any)._id || '').trim();
     const providerIdValue = Number(providerIdText);
     const serviceIdValue = Number(serviceIdText);
-    const selectedDateValue = selectedDate.toISOString().slice(0, 10);
+    const selectedDateValue = toLocalDateString(selectedDate);
     const selectedTimeSlot = String(selectedSlot).trim();
     const servicePrice = Number(selectedService.price);
     if (!Number.isFinite(providerIdValue) || !Number.isFinite(serviceIdValue) || !selectedDateValue || !selectedTimeSlot || !Number.isFinite(servicePrice) || servicePrice <= 0) {
@@ -445,8 +467,26 @@ export default function CreateBooking() {
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Select Time</Text>
         {slotsLoading ? (
           <ActivityIndicator color={Colors.primary} style={{ marginBottom: Spacing.lg }} />
+        ) : slotsError ? (
+          <View style={{ marginBottom: Spacing.lg }}>
+            <Text style={[styles.emptyInline, { color: colors.textSecondary }]}>
+              We couldn't load this provider's availability.
+            </Text>
+            <TouchableOpacity
+              onPress={() => setSlotsReloadKey((key) => key + 1)}
+              accessibilityRole="button"
+              accessibilityLabel="Retry loading time slots"
+              style={{ marginTop: Spacing.sm }}
+            >
+              <Text style={{ color: Colors.primary, fontWeight: '600' }}>Tap to retry</Text>
+            </TouchableOpacity>
+          </View>
         ) : slots.length === 0 ? (
-          <Text style={[styles.emptyInline, { color: colors.textSecondary }]}>No available slots on this date. Try another day.</Text>
+          <Text style={[styles.emptyInline, { color: colors.textSecondary }]}>
+            {selectedStaffId
+              ? 'This staff member has no open slots on this date. Try another day or choose "Any staff".'
+              : 'No available slots on this date. Try another day.'}
+          </Text>
         ) : (
           <View style={styles.slotsWrap}>
             {slots.map((slot) => (

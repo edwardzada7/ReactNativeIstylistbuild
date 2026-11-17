@@ -6,7 +6,7 @@
 // anywhere - it was verified absent in the source, so none is invented
 // here either.
 import React, { useCallback, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Linking } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
@@ -40,6 +40,50 @@ function formatTime(timeStr?: string) {
   const displayHours = hours % 12 || 12;
   return `${displayHours}:${minutes} ${ampm}`;
 }
+
+// One labelled line (icon + small label + value). Tappable when `onPress` is given (call / email).
+function DetailRow({
+  icon,
+  label,
+  value,
+  onPress,
+  muted,
+  textColor,
+  labelColor,
+}: {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  value: string;
+  onPress?: () => void;
+  muted?: boolean;
+  textColor: string;
+  labelColor: string;
+}) {
+  const content = (
+    <View style={detailStyles.row}>
+      <Ionicons name={icon} size={18} color={Colors.primary} style={detailStyles.icon} />
+      <View style={detailStyles.textWrap}>
+        <Text style={[detailStyles.label, { color: labelColor }]}>{label}</Text>
+        <Text style={[detailStyles.value, { color: muted ? labelColor : textColor }]}>{value}</Text>
+      </View>
+    </View>
+  );
+  return onPress ? (
+    <TouchableOpacity onPress={onPress} accessibilityRole="button" accessibilityLabel={`${label}: ${value}`}>
+      {content}
+    </TouchableOpacity>
+  ) : (
+    content
+  );
+}
+
+const detailStyles = StyleSheet.create({
+  row: { flexDirection: 'row', alignItems: 'flex-start', marginTop: Spacing.sm },
+  icon: { marginTop: 2, marginRight: Spacing.sm },
+  textWrap: { flex: 1 },
+  label: { fontSize: FontSizes.xs },
+  value: { fontSize: FontSizes.md, fontWeight: '600', marginTop: 2 },
+});
 
 const STATUS_ICON: Record<string, keyof typeof Ionicons.glyphMap> = {
   pending_payment: 'time-outline',
@@ -248,6 +292,48 @@ export default function BookingDetails() {
           </View>
         </TouchableOpacity>
 
+        {/* Customer Details Card (provider view): who is booked and where to go */}
+        {isProvider && (
+          <View style={[styles.card, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.cardTitle, { color: colors.text }]}>Customer Details</Text>
+            <DetailRow
+              icon="person-outline"
+              label="Full name"
+              value={booking.customer_name || 'Customer'}
+              textColor={colors.text}
+              labelColor={colors.textSecondary}
+            />
+            <DetailRow
+              icon="location-outline"
+              label="Location"
+              value={booking.customer_address || booking.location || 'Location not provided'}
+              muted={!(booking.customer_address || booking.location)}
+              textColor={colors.text}
+              labelColor={colors.textSecondary}
+            />
+            {!!booking.customer_phone && (
+              <DetailRow
+                icon="call-outline"
+                label="Phone"
+                value={booking.customer_phone}
+                onPress={() => Linking.openURL(`tel:${String(booking.customer_phone).replace(/\s+/g, '')}`).catch(() => undefined)}
+                textColor={colors.text}
+                labelColor={colors.textSecondary}
+              />
+            )}
+            {!!booking.customer_email && (
+              <DetailRow
+                icon="mail-outline"
+                label="Email"
+                value={booking.customer_email}
+                onPress={() => Linking.openURL(`mailto:${booking.customer_email}`).catch(() => undefined)}
+                textColor={colors.text}
+                labelColor={colors.textSecondary}
+              />
+            )}
+          </View>
+        )}
+
         {/* Date & Time Card */}
         <View style={[styles.card, { backgroundColor: colors.surface }]}>
           <Text style={[styles.cardTitle, { color: colors.text }]}>Appointment</Text>
@@ -291,6 +377,22 @@ export default function BookingDetails() {
               <Text style={[styles.servicePrice, { color: colors.text }]}>{formatCurrency(booking.total_amount)}</Text>
             </View>
           )}
+          {!!(booking.service_category || booking.service_type || booking.staff_name || booking.payment_status) && (
+            <View style={{ marginTop: Spacing.md }}>
+              {!!booking.service_category && (
+                <DetailRow icon="pricetag-outline" label="Category" value={booking.service_category} textColor={colors.text} labelColor={colors.textSecondary} />
+              )}
+              {!!booking.service_type && (
+                <DetailRow icon="home-outline" label="Service type" value={booking.service_type} textColor={colors.text} labelColor={colors.textSecondary} />
+              )}
+              {!!booking.staff_name && (
+                <DetailRow icon="people-outline" label="Staff" value={booking.staff_name} textColor={colors.text} labelColor={colors.textSecondary} />
+              )}
+              {!!booking.payment_status && (
+                <DetailRow icon="card-outline" label="Payment" value={formatStatusLabel(String(booking.payment_status))} textColor={colors.text} labelColor={colors.textSecondary} />
+              )}
+            </View>
+          )}
         </View>
 
         {/* Notes Card */}
@@ -331,7 +433,18 @@ export default function BookingDetails() {
             <Button
               title="Book Again"
               variant="outline"
-              onPress={() => router.push(`/provider/${booking.provider_id}`)}
+              onPress={() =>
+                // Go straight to the booking screen (date + the provider's open time
+                // slots) with the same service preselected, instead of bouncing the
+                // customer through the provider profile first.
+                router.push({
+                  pathname: '/booking/[providerId]',
+                  params: {
+                    providerId: String(booking.provider_id),
+                    ...(booking.service_id ? { serviceId: String(booking.service_id) } : {}),
+                  },
+                })
+              }
               fullWidth
               style={styles.actionSpacing}
             />

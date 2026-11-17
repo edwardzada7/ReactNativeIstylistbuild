@@ -5,6 +5,36 @@ const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_BASE_URL ||
   'https://updatedistylistbeauty-marketplace-production.up.railway.app/api';
 
+// Pulls a readable reason out of whatever error body the server sent: FastAPI
+// `detail` (string | array of { msg } | object), `message`, `error`, `errors`,
+// or a bare string body. Always returns a short plain string (or '') so it is
+// safe to pass straight into Alert.alert. Previously anything other than a
+// string/array `detail` collapsed to the useless "Request failed.".
+function extractServerMessage(data: any): string {
+  const toText = (value: any): string => {
+    if (value === undefined || value === null) return '';
+    if (typeof value === 'string') return value.trim();
+    if (Array.isArray(value)) {
+      return value
+        .map((item) => toText(typeof item === 'object' && item ? item.msg ?? item.message ?? item.error : item))
+        .filter(Boolean)
+        // FastAPI repeats the same message once per invalid field - show it once.
+        .filter((text, index, all) => all.indexOf(text) === index)
+        .join(', ');
+    }
+    if (typeof value === 'object') {
+      return toText(value.msg ?? value.message ?? value.error ?? value.detail ?? value.reason);
+    }
+    return String(value);
+  };
+  // Gateways (Railway, nginx) sometimes answer with an HTML error page - not user-readable.
+  if (typeof data === 'string' && /^\s*</.test(data)) return '';
+  const text = toText(data?.detail) || toText(data?.message) || toText(data?.error) || toText(data?.errors) || toText(data);
+  // Strip pydantic's "Value error, " prefix and keep alerts a sane length.
+  const cleaned = text.replace(/Value error,\s*/gi, '').trim();
+  return cleaned.length > 220 ? `${cleaned.slice(0, 217)}...` : cleaned;
+}
+
 // The production business-logic API is a separate service from Supabase
 // Auth. Authentication (signup/login/session/refresh) is handled entirely
 // by Supabase (see src/lib/supabase.ts and src/services/auth.service.ts).
@@ -57,22 +87,24 @@ class ApiService {
         // safe string here so no caller can ever crash on this.
         if (!error.response) {
           error.friendlyMessage = 'Network error. Please check your connection and try again.';
-        } else if (error.response.status >= 500) {
-          error.friendlyMessage = 'Something went wrong on our end. Please try again shortly.';
         } else {
-          const detail = error.response.data?.detail ?? error.response.data?.message;
-          if (typeof detail === 'string' && detail.trim()) {
-            error.friendlyMessage = detail;
-          } else if (Array.isArray(detail)) {
-            const messages = detail
-              .map((d: any) => (typeof d === 'string' ? d : d?.msg))
-              .filter(Boolean);
-            error.friendlyMessage = messages.length > 0 ? messages.join(', ') : 'Request failed.';
-          } else if (detail && typeof detail === 'object') {
-            error.friendlyMessage = detail.msg || 'Request failed.';
+          const status = error.response.status;
+          const reason = extractServerMessage(error.response.data);
+          if (status >= 500) {
+            // Keep the friendly wording, but include the server's own reason when it
+            // gave one, so "Something went wrong" is no longer a dead end.
+            error.friendlyMessage = reason
+              ? `Something went wrong on our end (${reason}). Please try again shortly.`
+              : 'Something went wrong on our end. Please try again shortly.';
           } else {
-            error.friendlyMessage = 'Request failed.';
+            error.friendlyMessage = reason || `Request failed (${status}).`;
           }
+          console.warn('[api] request failed', {
+            method: error.config?.method,
+            url: error.config?.url,
+            status,
+            data: error.response.data,
+          });
         }
         return Promise.reject(error);
       }

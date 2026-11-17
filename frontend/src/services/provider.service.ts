@@ -18,6 +18,7 @@ import {
   deriveCategories,
 } from '../utils/normalize';
 import { getAllSubServicesCatalog } from '../constants/serviceCatalog';
+import { normalizeSlots, normalizeTime, normalizeTimeOr, validateTimeRange } from '../utils/time';
 
 const asList = (raw: any): any[] => {
   if (Array.isArray(raw)) return raw;
@@ -29,15 +30,21 @@ const asList = (raw: any): any[] => {
   return raw?.data || raw?.providers || raw?.services || raw?.categories || raw?.reviews || raw?.results || [];
 };
 
+// The availability API only accepts day_of_week 0-6 ("Input should be less than
+// or equal to 6"), i.e. JavaScript's getDay() convention: Sunday=0, Monday=1 ...
+// Saturday=6. Sunday used to be sent as 7, which made every save that had
+// Sunday switched on fail. Older rows may still carry 7 for Sunday, so reads
+// accept both (see SUNDAY_ALIASES).
 const DAY_NAME_TO_NUMBER: Record<DayAvailability['day'], number> = {
+  sunday: 0,
   monday: 1,
   tuesday: 2,
   wednesday: 3,
   thursday: 4,
   friday: 5,
   saturday: 6,
-  sunday: 7,
 };
+const SUNDAY_ALIASES = [0, 7];
 const ALL_DAY_NAMES: DayAvailability['day'][] = [
   'monday',
   'tuesday',
@@ -210,8 +217,9 @@ export const providerService = {
     const raw = await apiService.get<any>(`/providers/${providerId}/available-slots`, {
       params: { date, service_duration: durationMinutes },
     });
-    if (Array.isArray(raw)) return raw;
-    return raw?.slots || raw?.data || [];
+    // Accepts string[] as well as { slots | available_slots | times | data } and
+    // { time, available } entries, and returns clean "HH:MM" values.
+    return normalizeSlots(raw);
   },
 
   // Real contract (verified via direct API probe): GET returns
@@ -223,14 +231,19 @@ export const providerService = {
       const raw = await apiService.get<any>(`/providers/${providerId}/availability`);
       if (!raw) return null;
       const weekly = Array.isArray(raw.weekly) ? raw.weekly : [];
-      const byDayNumber = new Map<number, any>(weekly.map((w: any) => [w.day_of_week, w]));
+      const byDayNumber = new Map<number, any>(weekly.map((w: any) => [Number(w.day_of_week), w]));
       const days: DayAvailability[] = ALL_DAY_NAMES.map((dayName) => {
-        const entry = byDayNumber.get(DAY_NAME_TO_NUMBER[dayName]);
+        const dayNumber = DAY_NAME_TO_NUMBER[dayName];
+        const entry =
+          dayName === 'sunday'
+            ? SUNDAY_ALIASES.map((n) => byDayNumber.get(n)).find(Boolean)
+            : byDayNumber.get(dayNumber);
         return {
           day: dayName,
-          is_open: !!entry,
-          open_time: entry?.start_time?.slice(0, 5) || '09:00',
-          close_time: entry?.end_time?.slice(0, 5) || '18:00',
+          // A stored row with is_active=false means the day is switched off.
+          is_open: !!entry && entry.is_active !== false,
+          open_time: normalizeTimeOr(entry?.start_time, '09:00'),
+          close_time: normalizeTimeOr(entry?.end_time, '18:00'),
         };
       });
       const exceptions = Array.isArray(raw.exceptions) ? raw.exceptions : [];
@@ -255,14 +268,23 @@ export const providerService = {
     providerId: string,
     availability: ProviderAvailability
   ): Promise<void> {
+    // Validate and normalize every open day to strict 24h "HH:MM" first, so a
+    // typo is reported here (naming the day) rather than as a server error.
     const weekly = availability.days
       .filter((d) => d.is_open)
-      .map((d) => ({
-        day_of_week: DAY_NAME_TO_NUMBER[d.day],
-        start_time: d.open_time,
-        end_time: d.close_time,
-        is_active: true,
-      }));
+      .map((d) => {
+        const label = d.day.charAt(0).toUpperCase() + d.day.slice(1);
+        const problem = validateTimeRange(label, d.open_time, d.close_time);
+        if (problem) {
+          throw Object.assign(new Error(problem), { friendlyMessage: problem });
+        }
+        return {
+          day_of_week: DAY_NAME_TO_NUMBER[d.day],
+          start_time: normalizeTime(d.open_time) as string,
+          end_time: normalizeTime(d.close_time) as string,
+          is_active: true,
+        };
+      });
     await apiService.post(`/providers/${providerId}/availability`, { weekly });
   },
 

@@ -133,6 +133,53 @@ function deriveDateTime(scheduledAt: string): { date: string; time: string } {
   return { date, time };
 }
 
+// Reduces a value that may be a string or a small address object to display text.
+const asText = (value: any): string => {
+  if (value === undefined || value === null) return '';
+  if (typeof value === 'string') return value.trim();
+  if (typeof value === 'number') return String(value);
+  if (typeof value === 'object') {
+    const direct = value.formatted_address || value.location_address || value.address || value.name || value.label;
+    if (typeof direct === 'string' && direct.trim()) return direct.trim();
+    return [value.street, value.city, value.state, value.country].filter((part) => typeof part === 'string' && part.trim()).join(', ');
+  }
+  return '';
+};
+
+const firstText = (...values: any[]): string | undefined => {
+  for (const value of values) {
+    const text = asText(value);
+    if (text) return text;
+  }
+  return undefined;
+};
+
+// The customer's location can come back in several shapes depending on the
+// endpoint: flat booking fields (customer_address, customer_location, ...), the
+// booking's own `location`, or a nested customer/user object whose address may
+// be one string or split into city/state/country. The old code only looked in
+// the nested object, so cards showed "Location not provided" even when the
+// customer had saved a location.
+function resolveCustomerAddress(raw: any): string | undefined {
+  const customer = raw?.customer || raw?.customer_profile || raw?.user || raw?.customer_details || null;
+  const cityStateCountry = [customer?.city, customer?.state, customer?.country]
+    .filter((part) => typeof part === 'string' && part.trim())
+    .join(', ');
+  return firstText(
+    raw?.customer_address,
+    raw?.customer_location,
+    raw?.customer_location_address,
+    raw?.service_location,
+    raw?.location_address,
+    raw?.address,
+    raw?.location,
+    customer?.location_address,
+    customer?.address,
+    customer?.location,
+    cityStateCountry
+  );
+}
+
 export function normalizeBooking(raw: any): Booking {
   // GROUND TRUTH (Phase 6): the production booking object uses SEPARATE
   // `booking_date` ("YYYY-MM-DD") + `booking_time` (raw slot string, e.g.
@@ -169,7 +216,27 @@ export function normalizeBooking(raw: any): Booking {
     provider_name: pick(raw, ['provider_name', 'stylist_name', 'business_name', 'provider_display_name'], 'Provider'),
     customer_name: pick(raw, ['customer_name', 'customer_display_name']),
     customer_profile_image_url: pick(raw.customer || raw.customer_profile || raw.user, ['profile_image_url', 'avatarUrl', 'avatar_url', 'avatar', 'photo_url']),
-    customer_address: pick(raw.customer || raw.customer_profile || raw.user, ['location_address', 'address', 'location']),
+    customer_address: resolveCustomerAddress(raw),
+    customer_phone: firstText(
+      raw?.customer_phone,
+      raw?.customer_phone_number,
+      (raw?.customer || raw?.customer_profile || raw?.user)?.phone,
+      (raw?.customer || raw?.customer_profile || raw?.user)?.phone_number
+    ),
+    customer_email: firstText(
+      raw?.customer_email,
+      (raw?.customer || raw?.customer_profile || raw?.user)?.email
+    ),
+    service_category: firstText(
+      raw?.service_category,
+      raw?.category_name,
+      raw?.category,
+      firstService.category_name,
+      firstService.category,
+      firstService.service_category
+    ),
+    service_type: firstText(raw?.service_type, raw?.booking_type, raw?.location_type, firstService.service_type),
+    staff_name: firstText(raw?.staff_name, raw?.staff?.name),
     provider_avatar: pick(raw, ['provider_avatar', 'provider_image', 'avatar']),
     scheduled_at: scheduledAt,
     date: pick(raw, ['date'], date),

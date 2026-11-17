@@ -19,6 +19,7 @@ import { useAuth } from '../../src/contexts/AuthContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { providerService } from '../../src/services/provider.service';
 import { DayAvailability } from '../../src/types';
+import { normalizeTime } from '../../src/utils/time';
 
 const DEFAULT_DAYS: DayAvailability[] = [
   'monday',
@@ -72,6 +73,12 @@ export default function ProviderAvailability() {
 
   const updateTime = (day: string, field: 'open_time' | 'close_time', value: string) => {
     setDays((prev) => prev.map((d) => (d.day === day ? { ...d, [field]: value } : d)));
+  };
+
+  // Tidy "9:00" / "900" / "09:00:00" into "09:00" when the field loses focus.
+  const tidyTime = (day: string, field: 'open_time' | 'close_time', value: string) => {
+    const cleaned = normalizeTime(value);
+    if (cleaned && cleaned !== value) updateTime(day, field, cleaned);
   };
 
   const addBlockedDate = () => {
@@ -143,6 +150,9 @@ export default function ProviderAvailability() {
                     style={[styles.timeInput, { backgroundColor: colors.surfaceLight, color: colors.text }]}
                     value={d.open_time}
                     onChangeText={(v) => updateTime(d.day, 'open_time', v)}
+                    onBlur={() => tidyTime(d.day, 'open_time', d.open_time)}
+                    keyboardType="numbers-and-punctuation"
+                    maxLength={8}
                     placeholder="09:00"
                     placeholderTextColor={colors.textSecondary}
                   />
@@ -153,6 +163,9 @@ export default function ProviderAvailability() {
                     style={[styles.timeInput, { backgroundColor: colors.surfaceLight, color: colors.text }]}
                     value={d.close_time}
                     onChangeText={(v) => updateTime(d.day, 'close_time', v)}
+                    onBlur={() => tidyTime(d.day, 'close_time', d.close_time)}
+                    keyboardType="numbers-and-punctuation"
+                    maxLength={8}
                     placeholder="18:00"
                     placeholderTextColor={colors.textSecondary}
                   />

@@ -25,6 +25,7 @@ import { providerService } from '../../src/services/provider.service';
 import staffService from '../../src/services/staff.service';
 import { Service, StaffAvailabilityDay, StaffMember } from '../../src/types';
 import { ProfileAvatar } from '../../src/components/common';
+import { normalizeTime } from '../../src/utils/time';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -285,6 +286,12 @@ export default function ProviderManageStaff() {
     setWeekly((prev) => prev.map((d, i) => (i === index ? { ...d, ...patch } : d)));
   };
 
+  // Tidy "9:00" / "900" / "09:00:00" into "09:00" when a field loses focus.
+  const tidyWeeklyTime = (index: number, field: 'start_time' | 'end_time', value?: string | null) => {
+    const cleaned = normalizeTime(value);
+    if (cleaned && cleaned !== value) updateWeekly(index, { [field]: cleaned });
+  };
+
   const saveAvailability = async () => {
     if (!authId || !availabilityEditing) return;
     setSavingAvailability(true);
@@ -513,6 +520,8 @@ export default function ProviderManageStaff() {
                       <TextInput
                         value={day.start_time || '09:00'}
                         onChangeText={(text) => updateWeekly(index, { start_time: text })}
+                        onBlur={() => tidyWeeklyTime(index, 'start_time', day.start_time)}
+                        maxLength={8}
                         keyboardType="numbers-and-punctuation"
                         style={[styles.timeInput, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
                       />
@@ -520,6 +529,8 @@ export default function ProviderManageStaff() {
                       <TextInput
                         value={day.end_time || '17:00'}
                         onChangeText={(text) => updateWeekly(index, { end_time: text })}
+                        onBlur={() => tidyWeeklyTime(index, 'end_time', day.end_time)}
+                        maxLength={8}
                         keyboardType="numbers-and-punctuation"
                         style={[styles.timeInput, { backgroundColor: colors.background, color: colors.text, borderColor: colors.border }]}
                       />
