@@ -42,10 +42,42 @@ interface AuthProviderProps {
   children: ReactNode;
 }
 
+// Last known profile, saved per account so a cold start can show the app straight
+// away instead of waiting on a backend round trip (which on a slow connection or a
+// sleeping server is what made the app feel stuck on the loading screen). The
+// fresh profile still loads in the background and replaces it. AsyncStorage is
+// wiped on logout, so one account's profile is never shown to another.
+const PROFILE_CACHE_PREFIX = 'istylist_profile_cache_v1_';
+
+const readCachedProfile = async (authId: string): Promise<User | null> => {
+  try {
+    const raw = await AsyncStorage.getItem(`${PROFILE_CACHE_PREFIX}${authId}`);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as User;
+    return parsed && parsed.auth_id === authId ? parsed : null;
+  } catch {
+    return null;
+  }
+};
+
+const writeCachedProfile = async (profile: User): Promise<void> => {
+  try {
+    if (!profile?.auth_id) return;
+    await AsyncStorage.setItem(`${PROFILE_CACHE_PREFIX}${profile.auth_id}`, JSON.stringify(profile));
+  } catch {
+    // Cache is best-effort only.
+  }
+};
+
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const userRef = useRef<User | null>(null);
+  userRef.current = user;
+  // Shares one in-flight profile load between the startup code and the
+  // INITIAL_SESSION auth event, which used to each make the same backend calls.
+  const inflightRef = useRef<{ id: string; promise: Promise<User | null> } | null>(null);
   // Prevents overlapping ensureProfile calls (e.g. INITIAL_SESSION + a
   // near-simultaneous TOKEN_REFRESHED event) from racing each other.
   const hydratingRef = useRef<Promise<void> | null>(null);
@@ -61,7 +93,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     void useCartStore.getState().setSession(user?.id ?? null, user?.role ?? null);
   }, [user?.id, user?.role]);
 
-  const hydrateFromSession = async (nextSession: Session | null): Promise<User | null> => {
+  const loadProfileForSession = async (nextSession: Session | null): Promise<User | null> => {
     setSession(nextSession);
     if (!nextSession?.user) {
       setUser(null);
@@ -70,6 +102,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     try {
       const profile = await authService.ensureProfile(nextSession.user);
       setUser(profile);
+      void writeCachedProfile(profile);
       return profile;
     } catch (error) {
       // Web parity (frontend/src/contexts/AuthContext.jsx loadUser/
@@ -79,6 +112,15 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // full_name) so the session the customer/provider already has with
       // Supabase is never wasted. Mirrored here instead of throwing.
       console.error('[auth] failed to load/create profile, using session fallback:', error);
+      // Prefer the last real profile over a metadata guess, so a flaky connection
+      // never downgrades a provider to a customer or blanks their name/photo.
+      const cachedProfile = userRef.current?.auth_id === nextSession.user.id
+        ? userRef.current
+        : await readCachedProfile(nextSession.user.id);
+      if (cachedProfile) {
+        setUser(cachedProfile);
+        return cachedProfile;
+      }
       const meta = (nextSession.user.user_metadata || {}) as Record<string, any>;
       const fallbackRole: User['role'] =
         meta.role === 'stylist' || meta.role === 'provider' ? 'provider' : 'customer';
@@ -101,13 +143,42 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  // `shareInflight` lets the startup code and the auth listener reuse one load for
+  // the same account. login()/refreshUser() leave it off so they always fetch fresh.
+  const hydrateFromSession = (nextSession: Session | null, shareInflight = false): Promise<User | null> => {
+    const id = nextSession?.user?.id;
+    if (shareInflight && id && inflightRef.current?.id === id) {
+      setSession(nextSession);
+      return inflightRef.current.promise;
+    }
+    const promise: Promise<User | null> = loadProfileForSession(nextSession).finally(() => {
+      if (inflightRef.current?.promise === promise) inflightRef.current = null;
+    });
+    if (id) inflightRef.current = { id, promise };
+    return promise;
+  };
+
   useEffect(() => {
     let mounted = true;
 
     (async () => {
       const { data } = await supabase.auth.getSession();
       if (!mounted) return;
-      await hydrateFromSession(data.session);
+
+      // Fast start: if we already know this account's profile, open the app now
+      // and refresh the profile in the background.
+      const authId = data.session?.user?.id;
+      const cached = authId ? await readCachedProfile(authId) : null;
+      if (!mounted) return;
+      if (data.session && cached) {
+        setSession(data.session);
+        setUser(cached);
+        setIsLoading(false);
+        void hydrateFromSession(data.session, true);
+        return;
+      }
+
+      await hydrateFromSession(data.session, true);
       if (mounted) setIsLoading(false);
     })();
 
@@ -121,7 +192,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           setUser(null);
           return;
         }
-        await hydrateFromSession(nextSession);
+        // A silent token refresh (roughly hourly) doesn't change who the user is,
+        // so don't refetch the profile for it.
+        if (event === 'TOKEN_REFRESHED' && nextSession?.user && userRef.current?.auth_id === nextSession.user.id) {
+          setSession(nextSession);
+          return;
+        }
+        await hydrateFromSession(nextSession, true);
       };
       hydratingRef.current = run();
     });
