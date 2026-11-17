@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, Image, StyleSheet, ViewStyle } from 'react-native';
+import { View, StyleSheet, ViewStyle } from 'react-native';
+import { Image } from 'expo-image';
 import { Ionicons } from '@expo/vector-icons';
 import { withCacheBuster } from '../../utils/display';
 
@@ -13,6 +14,9 @@ interface ProfileAvatarProps {
 
 const FALLBACK_AVATAR = require('../../../assets/images/app-icon.png');
 
+// expo-image caches to memory + disk and decodes off the UI thread, so lists of
+// avatars scroll smoothly and photos are not re-downloaded on every mount (the
+// plain react-native Image re-fetched and re-decoded them each time).
 export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
   uri,
   name,
@@ -31,7 +35,11 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
     <View style={[styles.container, { width: size, height: size, borderRadius: size / 2 }, style]}>
       {imageError || !imageUri ? (
         <>
-          <Image source={FALLBACK_AVATAR} style={[styles.image, { width: size, height: size, borderRadius: size / 2 }]} />
+          <Image
+            source={FALLBACK_AVATAR}
+            style={{ width: size, height: size, borderRadius: size / 2 }}
+            contentFit="cover"
+          />
           <View style={[styles.fallbackIcon, { width: size, height: size, borderRadius: size / 2 }]}>
             <Ionicons name="person" size={size * 0.48} color="#ffffff" />
           </View>
@@ -39,7 +47,11 @@ export const ProfileAvatar: React.FC<ProfileAvatarProps> = ({
       ) : (
         <Image
           source={{ uri: imageUri }}
-          style={[styles.image, { width: size, height: size, borderRadius: size / 2 }]}
+          style={{ width: size, height: size, borderRadius: size / 2 }}
+          contentFit="cover"
+          cachePolicy="memory-disk"
+          recyclingKey={imageUri}
+          transition={120}
           onError={() => setImageError(true)}
         />
       )}
@@ -53,9 +65,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     overflow: 'hidden',
-  },
-  image: {
-    resizeMode: 'cover',
   },
   fallbackIcon: {
     position: 'absolute',

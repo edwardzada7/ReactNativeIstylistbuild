@@ -21,7 +21,7 @@ import { bookingService } from '../../src/services/booking.service';
 import { resolveCurrentLocation } from '../../src/services/location.service';
 import { supabase } from '../../src/lib/supabase';
 import { Booking } from '../../src/types';
-import { withCacheBuster } from '../../src/utils/display';
+import { withCacheBuster, bumpAvatarVersion } from '../../src/utils/display';
 import { queryClient } from '../_layout';
 import apiService from '../../src/services/api';
 import { peopleService } from '../../src/services/people.service';
@@ -194,7 +194,7 @@ function Profile() {
       if (updateError) throw updateError;
       await apiService.put(`/users/${user.id}`, { profile_image_url: publicUrl });
 
-      const refreshedUrl = withCacheBuster(publicUrl) as string;
+      const refreshedUrl = withCacheBuster(publicUrl, bumpAvatarVersion()) as string;
       peopleService.invalidate(user.auth_id);
       setAvatarUrl(refreshedUrl);
       updateUser({ profile_image_url: refreshedUrl, avatar: refreshedUrl });

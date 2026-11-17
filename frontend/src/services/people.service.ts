@@ -51,14 +51,22 @@ const rowVerified = (row?: StylistRow) => !!row && (row.is_verified === true || 
 let directory: Promise<Map<string, StylistRow>> | null = null;
 let directoryAt = 0;
 const DIRECTORY_TTL = 5 * 60_000;
+const STYLIST_DIRECTORY_COLUMNS = 'user_id,auth_id,profile_image_url,business_name,is_verified,verified,rating,review_count';
 
 function getStylistDirectory(): Promise<Map<string, StylistRow>> {
   if (!directory || Date.now() - directoryAt > DIRECTORY_TTL) {
     directoryAt = Date.now();
     directory = (async () => {
       const map = new Map<string, StylistRow>();
-      // select('*') so newer columns (review_count) are used once the migration runs
-      const { data } = await supabase.from('stylists').select('*');
+      // Only download the columns the app actually reads. select('*') pulled every
+      // column of every stylist (bio, cover/portfolio images, etc.) on each cold
+      // start and the Home list waited on all of it. If one of these columns does
+      // not exist yet (e.g. review_count before its migration), fall back to '*'.
+      let res: any = await supabase.from('stylists').select(STYLIST_DIRECTORY_COLUMNS);
+      if (res.error) res = await supabase.from('stylists').select('*');
+      // Don't cache a failed load as an empty directory for the next 5 minutes.
+      if (res.error) directoryAt = 0;
+      const data = res.data;
       (data || []).forEach((row: any) => {
         if (row.user_id != null) map.set(String(row.user_id), row);
         if (row.auth_id) map.set(String(row.auth_id), row);
