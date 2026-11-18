@@ -107,9 +107,7 @@ export default function Settings() {
 
     setDeletingAccount(true);
     try {
-      console.log('[settings] deleting account', { auth_id: user.auth_id });
-      const response = await apiService.delete(`/users/by-auth/${user.auth_id}`);
-      console.log('[settings] delete account response', response);
+      await apiService.delete(`/users/by-auth/${user.auth_id}`);
 
       await supabase.auth.signOut();
       await AsyncStorage.clear();
@@ -137,6 +135,7 @@ export default function Settings() {
         { icon: 'person-outline', label: 'Edit Profile', onPress: () => router.push('/settings/edit-profile') },
         { icon: 'lock-closed-outline', label: 'Change Password', onPress: () => router.push('/settings/change-password') },
         { icon: 'notifications-outline', label: 'Notifications', onPress: () => router.push('/notifications') },
+        { icon: 'ban-outline', label: 'Blocked Users', onPress: () => router.push('/settings/blocked-users') },
         { icon: 'trash-outline', label: 'Delete Account', onPress: () => setDeleteModalVisible(true), isDanger: true },
       ],
     },

@@ -209,6 +209,28 @@ export default function Signup() {
               error={errors.confirmPassword}
             />
 
+            <Text style={styles.consentText}>
+              By creating an account you agree to our{' '}
+              <Text
+                style={styles.consentLink}
+                onPress={() => router.push('/settings/terms')}
+                accessibilityRole="link"
+                accessibilityLabel="Terms of Service"
+              >
+                Terms of Service
+              </Text>{' '}
+              and{' '}
+              <Text
+                style={styles.consentLink}
+                onPress={() => router.push('/settings/privacy')}
+                accessibilityRole="link"
+                accessibilityLabel="Privacy Policy"
+              >
+                Privacy Policy
+              </Text>
+              . There is no tolerance for objectionable content or abusive behaviour; you can report or block anyone in the app.
+            </Text>
+
             <Button
               title="Sign Up"
               onPress={handleSignup}
@@ -295,6 +317,18 @@ const styles = StyleSheet.create({
   },
   form: {
     marginBottom: Spacing.lg,
+  },
+  consentText: {
+    fontSize: FontSizes.xs,
+    lineHeight: 18,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: Spacing.md,
+  },
+  consentLink: {
+    color: Colors.primary,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
   footer: {
     flexDirection: 'row',

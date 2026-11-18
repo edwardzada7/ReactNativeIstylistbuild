@@ -13,8 +13,11 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BorderRadius, FontSizes, Spacing } from '../../constants/theme';
+import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useBlockedUsers } from '../../hooks/useBlockedUsers';
 import { feedService } from '../../services/feed.service';
+import { confirmBlock } from '../../utils/confirmBlock';
 import { Comment } from '../../types';
 
 export function FeedCommentsModal({
@@ -29,6 +32,8 @@ export function FeedCommentsModal({
   onCommentAdded?: () => void;
 }) {
   const { colors } = useTheme();
+  const { user } = useAuth();
+  const { isBlocked, block } = useBlockedUsers();
   const [comments, setComments] = useState<Comment[]>([]);
   const [commentText, setCommentText] = useState('');
   const [loading, setLoading] = useState(false);
@@ -72,6 +77,14 @@ export function FeedCommentsModal({
     }
   };
 
+  const commentAuthorId = (comment: Comment): string | undefined =>
+    comment.author_auth_id || (comment.user as any)?.auth_id || undefined;
+  const commentAuthorName = (comment: Comment): string =>
+    comment.user?.full_name || comment.user?.name || (comment.author_name && comment.author_name !== 'Anonymous' ? comment.author_name : '') || 'iStylist member';
+
+  // Comments from people the user has blocked are hidden.
+  const visibleComments = comments.filter((comment) => !isBlocked(commentAuthorId(comment)));
+
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <KeyboardAvoidingView style={styles.backdrop} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
@@ -86,19 +99,35 @@ export function FeedCommentsModal({
             <ActivityIndicator style={styles.loader} color={colors.primary} />
           ) : error ? (
             <Text style={[styles.error, { color: colors.error }]}>{error}</Text>
-          ) : comments.length === 0 ? (
+          ) : visibleComments.length === 0 ? (
             <Text style={[styles.empty, { color: colors.textSecondary }]}>No comments yet.</Text>
           ) : (
             <FlatList
-              data={comments}
+              data={visibleComments}
               keyExtractor={(item, index) => String(item.id || index)}
               contentContainerStyle={styles.list}
-              renderItem={({ item }) => (
-                <View style={[styles.comment, { borderBottomColor: colors.border }]}>
-                  <Text style={[styles.author, { color: colors.text }]}>{item.user?.full_name || item.user?.name || (item.author_name && item.author_name !== 'Anonymous' ? item.author_name : '') || 'iStylist member'}</Text>
-                  <Text style={[styles.content, { color: colors.textSecondary }]}>{item.content}</Text>
-                </View>
-              )}
+              renderItem={({ item }) => {
+                const authorId = commentAuthorId(item);
+                const canBlock = !!authorId && !!user?.auth_id && authorId !== user.auth_id;
+                return (
+                  <View style={[styles.comment, { borderBottomColor: colors.border }]}>
+                    <View style={styles.commentHeader}>
+                      <Text style={[styles.author, { color: colors.text, flexShrink: 1 }]}>{commentAuthorName(item)}</Text>
+                      {canBlock && (
+                        <TouchableOpacity
+                          onPress={() => confirmBlock(commentAuthorName(item), () => block(authorId as string))}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Block ${commentAuthorName(item)}`}
+                        >
+                          <Ionicons name="ban-outline" size={18} color={colors.textMuted} />
+                        </TouchableOpacity>
+                      )}
+                    </View>
+                    <Text style={[styles.content, { color: colors.textSecondary }]}>{item.content}</Text>
+                  </View>
+                );
+              }}
             />
           )}
           <View style={[styles.inputRow, { borderTopColor: colors.border }]}>
@@ -138,6 +167,7 @@ const styles = StyleSheet.create({
   empty: { flex: 1, textAlign: 'center', paddingTop: Spacing.xl },
   list: { padding: Spacing.lg },
   comment: { paddingVertical: Spacing.sm, borderBottomWidth: 1 },
+  commentHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.sm },
   author: { fontSize: FontSizes.sm, fontWeight: '700' },
   content: { marginTop: 4, fontSize: FontSizes.sm, lineHeight: 20 },
   inputRow: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'center', padding: Spacing.md, borderTopWidth: 1 },

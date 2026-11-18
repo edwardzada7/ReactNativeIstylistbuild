@@ -10,6 +10,7 @@ import {
   Platform,
   RefreshControl,
   Alert,
+  type AlertButton,
   Image,
   Modal,
   TextInput,
@@ -20,7 +21,9 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
-import { Button, Input } from '../../src/components/common';
+import { Button, Input, ReportModal } from '../../src/components/common';
+import { useBlockedUsers } from '../../src/hooks/useBlockedUsers';
+import { confirmBlock } from '../../src/utils/confirmBlock';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { chatService, ChatMessage } from '../../src/services/chat.service';
@@ -82,6 +85,33 @@ export default function ChatThread() {
   const [recommendationMessage, setRecommendationMessage] = useState('');
   const [recommendationLoading, setRecommendationLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const { isBlocked, block, unblock } = useBlockedUsers();
+  const [reportVisible, setReportVisible] = useState(false);
+  const counterpartBlocked = isBlocked(counterpartAuthId);
+
+  const handleUnblock = () => {
+    if (!counterpartAuthId) return;
+    unblock(String(counterpartAuthId)).catch((err: any) =>
+      Alert.alert('Could not unblock', err?.friendlyMessage || err?.message || 'Please try again.')
+    );
+  };
+
+  // Report or block the person on the other side of this chat.
+  const openUserMenu = () => {
+    if (!counterpartAuthId) return;
+    const buttons: AlertButton[] = [
+      { text: 'Report user', onPress: () => setReportVisible(true) },
+      counterpartBlocked
+        ? { text: 'Unblock user', onPress: handleUnblock }
+        : {
+            text: 'Block user',
+            style: 'destructive',
+            onPress: () => confirmBlock(resolvedCounterpartName, () => block(String(counterpartAuthId))),
+          },
+      { text: 'Cancel', style: 'cancel' },
+    ];
+    Alert.alert(resolvedCounterpartName || 'Chat options', undefined, buttons);
+  };
 
   const openRecommendation = async () => {
     if (!isSharedConversation || !conversationId || !user?.auth_id) return;
@@ -185,6 +215,10 @@ export default function ChatThread() {
 
   const handleSend = async () => {
     if (!text.trim() || !activeChatId) return;
+    if (counterpartBlocked) {
+      Alert.alert('User blocked', 'Unblock this user to send messages.');
+      return;
+    }
     const body = text.trim();
     if (containsBlockedContactInfo(body)) {
       Alert.alert(CONTACT_SHARING_WARNING);
@@ -314,7 +348,9 @@ export default function ChatThread() {
           <Text style={[styles.title, { color: colors.text }]}>{resolvedCounterpartName || 'Stylist'}</Text>
           {conversationType && conversationType !== 'booking' && <Text style={[styles.context, { color: colors.textSecondary }]}>{conversationType === 'consultation' ? 'Consultation' : 'Inquiry'}</Text>}
         </View>
-        <View style={{ width: 24 }} />
+        <TouchableOpacity onPress={openUserMenu} accessibilityRole="button" accessibilityLabel="Chat options: report or block user">
+          <Ionicons name="ellipsis-horizontal" size={22} color={colors.text} />
+        </TouchableOpacity>
       </View>
 
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
@@ -388,6 +424,14 @@ export default function ChatThread() {
             }}
           />
         )}
+        {counterpartBlocked ? (
+          <View style={[styles.blockedBanner, { borderTopColor: colors.border, backgroundColor: colors.surface }]}>
+            <Text style={[styles.blockedText, { color: colors.textSecondary }]}>You blocked this user. Unblock them to send messages.</Text>
+            <TouchableOpacity onPress={handleUnblock} accessibilityRole="button" accessibilityLabel="Unblock user">
+              <Text style={[styles.blockedAction, { color: colors.primary }]}>Unblock</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
         <View style={[styles.inputRow, { borderTopColor: colors.border }]}>
           {isSharedConversation && <TouchableOpacity onPress={openRecommendation} accessibilityRole="button" accessibilityLabel="Recommend provider"><Ionicons name="person-add-outline" size={22} color={colors.primary} /></TouchableOpacity>}
           {isSharedConversation && user?.role === 'provider' && <TouchableOpacity onPress={openInvoiceMenu} accessibilityRole="button" accessibilityLabel="Create invoice"><Ionicons name="add-circle-outline" size={23} color={colors.primary} /></TouchableOpacity>}
@@ -413,7 +457,15 @@ export default function ChatThread() {
             {sending ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="send" size={18} color="#fff" />}
           </TouchableOpacity>
         </View>
+        )}
       </KeyboardAvoidingView>
+      <ReportModal
+        visible={reportVisible}
+        targetId={counterpartAuthId ? String(counterpartAuthId) : null}
+        targetType="USER"
+        onClose={() => setReportVisible(false)}
+        onSubmitted={() => Alert.alert('Report submitted', 'Thank you. Our team will review this report.')}
+      />
       <Modal visible={recommendationVisible} transparent animationType="slide" onRequestClose={() => setRecommendationVisible(false)}>
         <View style={styles.modalBackdrop}>
           <View style={[styles.recommendationSheet, { backgroundColor: colors.background }]}>
@@ -485,6 +537,9 @@ const styles = StyleSheet.create({
   },
   inputRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, borderTopWidth: 1 },
   sendBtn: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
+  blockedBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.md, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, borderTopWidth: 1 },
+  blockedText: { flex: 1, fontSize: FontSizes.sm },
+  blockedAction: { fontSize: FontSizes.sm, fontWeight: '700' },
   modalBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(17,24,39,0.45)' },
   recommendationSheet: { maxHeight: '85%', borderTopLeftRadius: BorderRadius.xl, borderTopRightRadius: BorderRadius.xl, padding: Spacing.lg, paddingBottom: Spacing.xl },
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },

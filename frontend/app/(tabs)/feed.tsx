@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   View,
   Text,
@@ -19,6 +19,8 @@ import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/th
 import { feedService } from '../../src/services/feed.service';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
+import { useBlockedUsers } from '../../src/hooks/useBlockedUsers';
+import { confirmBlock } from '../../src/utils/confirmBlock';
 import { Post } from '../../src/types';
 import { FeedCommentsModal, ProfileAvatar, ReportModal, VerifiedBadge, isVerifiedProfile } from '../../src/components/common';
 
@@ -31,6 +33,16 @@ export default function Feed() {
   const [refreshing, setRefreshing] = useState(false);
   const [reportTargetId, setReportTargetId] = useState<string | null>(null);
   const [commentsPostId, setCommentsPostId] = useState<string | null>(null);
+  const { isBlocked, block } = useBlockedUsers();
+
+  const postAuthorId = (post: Post): string | undefined =>
+    post.provider_auth_id || post.provider?.auth_id || undefined;
+
+  // Posts from people the user has blocked never appear.
+  const visiblePosts = useMemo(
+    () => feedData.filter((post) => !isBlocked(post.provider_auth_id || post.provider?.auth_id)),
+    [feedData, isBlocked]
+  );
 
   const loadFeed = useCallback(async () => {
     try {
@@ -121,8 +133,28 @@ export default function Feed() {
 
   const handlePostMenu = (post: Post) => {
     const isOwnPost = post.provider_auth_id === user?.auth_id || post.user_id === user?.auth_id || post.provider?.auth_id === user?.auth_id;
-    console.log('[feed] handlePostMenu - isOwnPost:', isOwnPost, 'post.provider_auth_id:', post.provider_auth_id, 'user.auth_id:', user?.auth_id);
-    if (!isOwnPost) return;
+    if (!isOwnPost) {
+      // Someone else's post: report it or block the person who posted it.
+      if (!user?.auth_id) {
+        router.push('/(auth)/login');
+        return;
+      }
+      const authorId = postAuthorId(post);
+      const authorName =
+        post.provider?.display_name || post.provider?.business_name || post.provider?.name || post.provider?.full_name || undefined;
+      Alert.alert('Post options', undefined, [
+        { text: 'Report post', onPress: () => handleReportPost(String(post.id)) },
+        ...(authorId
+          ? [{
+              text: authorName ? `Block ${authorName}` : 'Block this user',
+              style: 'destructive' as const,
+              onPress: () => confirmBlock(authorName, () => block(authorId)),
+            }]
+          : []),
+        { text: 'Cancel', style: 'cancel' as const },
+      ]);
+      return;
+    }
 
     Alert.alert(
       'Manage Post',
@@ -195,16 +227,14 @@ export default function Feed() {
             <Text style={[styles.timestamp, { color: colors.textSecondary, paddingRight: 4 }]} textBreakStrategy="simple">{item.created_at ? new Date(item.created_at).toLocaleDateString() : ''}</Text>
           </View>
         </TouchableOpacity>
-        {(item.provider_auth_id === user?.auth_id || item.user_id === user?.auth_id || item.provider?.auth_id === user?.auth_id) && (
-          <TouchableOpacity
-            style={styles.menuButton}
-            onPress={() => handlePostMenu(item)}
-            accessibilityRole="button"
-            accessibilityLabel="Manage post"
-          >
-            <Ionicons name="ellipsis-horizontal" size={20} color={colors.textSecondary} />
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity
+          style={styles.menuButton}
+          onPress={() => handlePostMenu(item)}
+          accessibilityRole="button"
+          accessibilityLabel={item.provider_auth_id === user?.auth_id || item.user_id === user?.auth_id || item.provider?.auth_id === user?.auth_id ? 'Manage post' : 'Post options: report or block'}
+        >
+          <Ionicons name="ellipsis-horizontal" size={20} color={colors.textSecondary} />
+        </TouchableOpacity>
       </View>
 
       {item.video_url ? (
@@ -270,7 +300,7 @@ export default function Feed() {
         <View style={styles.centerState}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
-      ) : feedData.length === 0 ? (
+      ) : visiblePosts.length === 0 ? (
         <View style={styles.centerState}>
           <Ionicons name="images-outline" size={48} color={colors.textMuted} />
           <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
@@ -279,7 +309,7 @@ export default function Feed() {
         </View>
       ) : (
         <FlatList
-          data={feedData}
+          data={visiblePosts}
           renderItem={renderPost}
           keyExtractor={(item) => String(item.id)}
           contentContainerStyle={styles.feedList}

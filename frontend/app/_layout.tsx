@@ -14,6 +14,12 @@ import '@/src/utils/androidTextFix';
 // and agent works as expected.
 LogBox.ignoreAllLogs(true);
 
+// Release builds: silence console.log so debug output (booking payloads, ids) is
+// never written to the device log. console.warn / console.error still work.
+if (!__DEV__) {
+  console.log = () => {};
+}
+
 // Keep the native splash visible from cold start until icon fonts register.
 // Required because @expo/vector-icons' componentDidMount fallback fires
 // Font.loadAsync against a broken vendor path if any <Icon> mounts before
