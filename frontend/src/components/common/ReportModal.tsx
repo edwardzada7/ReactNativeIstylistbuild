@@ -2,11 +2,12 @@ import React, { useState } from 'react';
 import { ActivityIndicator, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { BorderRadius, FontSizes, Spacing } from '../../constants/theme';
+import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { feedService } from '../../services/feed.service';
 import { supportService } from '../../services/support.service';
 
-export type ReportTargetType = 'POST' | 'PRODUCT' | 'FEED_POST';
+export type ReportTargetType = 'POST' | 'PRODUCT' | 'FEED_POST' | 'USER';
 
 interface ReportModalProps {
   visible: boolean;
@@ -27,6 +28,7 @@ const REASONS: { label: string; value: string }[] = [
 
 export function ReportModal({ visible, targetId, targetType, onClose, onSubmitted }: ReportModalProps) {
   const { colors } = useTheme();
+  const { user } = useAuth();
   const [reason, setReason] = useState('');
   const [description, setDescription] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -55,6 +57,13 @@ export function ReportModal({ visible, targetId, targetType, onClose, onSubmitte
     try {
       if (targetType === 'FEED_POST') {
         await feedService.reportPost(String(targetId), reason, description);
+      } else if (targetType === 'USER') {
+        await supportService.reportUser({
+          target_auth_id: String(targetId),
+          reason: REASONS.find((r) => r.value === reason)?.label || reason,
+          description,
+          reporter: { name: user?.full_name, email: user?.email, auth_id: user?.auth_id },
+        });
       } else {
         await supportService.createReport({
           target_id: String(targetId),
@@ -79,7 +88,7 @@ export function ReportModal({ visible, targetId, targetType, onClose, onSubmitte
       <View style={styles.backdrop}>
         <View style={[styles.card, { backgroundColor: colors.surface }]}>
           <View style={styles.header}>
-            <Text style={[styles.title, { color: colors.text }]}>Report {targetType === 'PRODUCT' ? 'product' : 'post'}</Text>
+            <Text style={[styles.title, { color: colors.text }]}>Report {targetType === 'PRODUCT' ? 'product' : targetType === 'USER' ? 'user' : 'post'}</Text>
             <TouchableOpacity onPress={handleClose} accessibilityRole="button" accessibilityLabel="Close report modal">
               <Ionicons name="close" size={24} color={colors.textSecondary} />
             </TouchableOpacity>

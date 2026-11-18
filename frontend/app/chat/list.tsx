@@ -18,6 +18,7 @@ import { chatService } from '../../src/services/chat.service';
 import { Conversation } from '../../src/types';
 import { withAuthGate, ProfileAvatar, VerifiedBadge } from '../../src/components/common';
 import { screenCache } from '../../src/utils/screenCache';
+import { useBlockedUsers } from '../../src/hooks/useBlockedUsers';
 
 export default withAuthGate(ChatList, {
   icon: 'chatbubbles-outline',
@@ -31,6 +32,9 @@ function ChatList() {
   const [conversations, setConversations] = useState<Conversation[]>(() => screenCache.get<Conversation[]>('chat-list') || []);
   const [loading, setLoading] = useState(() => !screenCache.get('chat-list'));
   const [refreshing, setRefreshing] = useState(false);
+  const { isBlocked } = useBlockedUsers();
+  // Conversations with people the user has blocked are hidden.
+  const visibleConversations = conversations.filter((item) => !isBlocked(item.counterpart_auth_id));
 
   const loadConversations = useCallback(async (isPullToRefresh = false) => {
     if (isPullToRefresh) setRefreshing(true);
@@ -72,7 +76,7 @@ function ChatList() {
         <View style={styles.centerState}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
-      ) : conversations.length === 0 ? (
+      ) : visibleConversations.length === 0 ? (
         <View style={styles.centerState}>
           <Ionicons name="chatbubbles-outline" size={48} color={colors.textMuted} />
           <Text style={[styles.emptyText, { color: colors.textSecondary }]}>No conversations yet</Text>
@@ -80,7 +84,7 @@ function ChatList() {
         </View>
       ) : (
         <FlatList
-          data={conversations}
+          data={visibleConversations}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.primary} />}
           keyExtractor={(item) => `${item.conversation_type || 'booking'}-${item.conversation_id || item.booking_id}`}
           renderItem={({ item }) => (

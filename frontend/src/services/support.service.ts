@@ -35,6 +35,30 @@ export const supportService = {
     }
     return await apiService.post<Report>('/reports', data);
   },
+
+  // Report a person (e.g. abusive chat messages). The production API has no
+  // user-report endpoint, so this goes through the verified support-ticket
+  // endpoint under the "abuse_report" category, where moderators will see it.
+  async reportUser(data: {
+    target_auth_id: string;
+    reason: string;
+    description?: string;
+    reporter: { name?: string; email?: string; auth_id?: string };
+  }): Promise<{ status?: string; message?: string }> {
+    const details = (data.description || '').trim();
+    return await apiService.post('/support/tickets', {
+      name: data.reporter.name || 'App User',
+      email: data.reporter.email || '',
+      category: 'abuse_report',
+      subject: `User report: ${data.reason}`,
+      message: [
+        `Reported user (auth id): ${data.target_auth_id}`,
+        `Reported by (auth id): ${data.reporter.auth_id || 'unknown'}`,
+        `Reason: ${data.reason}`,
+        details ? `Details: ${details}` : '',
+      ].filter(Boolean).join('\n'),
+    });
+  },
 };
 
 export const kycService = {

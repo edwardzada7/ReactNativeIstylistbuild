@@ -2795,6 +2795,48 @@ def get_conversation_messages(conversation_id: int, authorization: Optional[str]
     return {"conversation": conversation[0], "messages": [_normalize_chat_row(m) for m in messages]}
 
 
+def _chat_blocked_between(first_auth_id: str, second_auth_id: str) -> bool:
+    """True when either person has blocked the other (public.user_blocks).
+
+    Fails open on purpose: if the table has not been created yet or Supabase is
+    unreachable, chat keeps working instead of every message failing.
+    """
+    try:
+        first = str(uuid.UUID(str(first_auth_id)))
+        second = str(uuid.UUID(str(second_auth_id)))
+    except (ValueError, AttributeError, TypeError):
+        # Not a valid id; also guarantees nothing unsafe reaches the filter below.
+        return False
+    try:
+        resp = requests.get(
+            f"{SUPABASE_URL}/rest/v1/user_blocks",
+            headers=_supabase_headers(),
+            params={
+                "or": (
+                    f"(and(blocker_auth_id.eq.{first},blocked_auth_id.eq.{second}),"
+                    f"and(blocker_auth_id.eq.{second},blocked_auth_id.eq.{first}))"
+                ),
+                "select": "id",
+                "limit": "1",
+            },
+            timeout=5,
+        )
+        if resp.status_code != 200:
+            logger.warning("[blocks] could not check user_blocks (status %s); allowing message", resp.status_code)
+            return False
+        return bool(resp.json())
+    except Exception as exc:  # network errors, bad JSON, ...
+        logger.warning("[blocks] block check failed, allowing message: %s", exc)
+        return False
+
+
+def _assert_chat_allowed(sender_auth_id: str, receiver_auth_id: str) -> None:
+    """Refuse to deliver a message between two people when either blocked the other.
+    The wording is deliberately generic so a blocked person is not told they were blocked."""
+    if _chat_blocked_between(sender_auth_id, receiver_auth_id):
+        raise HTTPException(status_code=403, detail="This message could not be delivered.")
+
+
 @api_router.post("/conversations/{conversation_id}/messages")
 def send_conversation_message(conversation_id: int, payload: SendMessageInput, authorization: Optional[str] = Header(None)):
     auth_id = _verify_supabase_user(authorization)
@@ -2809,6 +2851,7 @@ def send_conversation_message(conversation_id: int, payload: SendMessageInput, a
         if not consultation:
             raise HTTPException(status_code=403, detail="Consultation payment is required before chatting")
     receiver = row["provider_auth_id"] if auth_id == row["customer_auth_id"] else row["customer_auth_id"]
+    _assert_chat_allowed(auth_id, receiver)
     if payload.message_type == MessageType.PROVIDER_RECOMMENDATION:
         recommendation = payload.recommendation_data or {}
         recommended_provider_auth_id = recommendation.get("recommended_provider_auth_id")
@@ -2885,6 +2928,7 @@ def send_chat_message(payload: SendMessageInput, authorization: Optional[str] = 
     """Privileged chat send. RLS blocks a direct client insert into `chats`
     (verified 42501). Reuses the existing `chats` table as-is."""
     auth_id = _verify_supabase_user(authorization)
+    _assert_chat_allowed(auth_id, payload.receiver_auth_id)
     if payload.message_type == MessageType.TEXT:
         sanitized = sanitizeMessagePayload(payload.message)
         message = sanitized["content"]
@@ -3110,6 +3154,38 @@ def update_user_by_auth_id(auth_id: str, payload: UpdateUserInput, authorization
         raise HTTPException(status_code=500, detail="Internal server error") from exc
 
 
+def _anonymize_user_profile(auth_id: str) -> bool:
+    """Blank out personal details on a profile row that cannot be deleted outright."""
+    placeholder_email = f"deleted+{auth_id}@deleted.invalid"
+    attempts = (
+        {
+            "name": "Deleted user",
+            "email": placeholder_email,
+            "phone": None,
+            "gender": None,
+            "country": None,
+            "city": None,
+            "state": None,
+            "location_address": None,
+            "latitude": None,
+            "longitude": None,
+        },
+        # Some columns may be NOT NULL; fall back to the two that matter most.
+        {"name": "Deleted user", "email": placeholder_email},
+    )
+    for fields in attempts:
+        resp = requests.patch(
+            f"{SUPABASE_URL}/rest/v1/users?auth_id=eq.{auth_id}",
+            headers=_supabase_headers(),
+            json=fields,
+            timeout=10,
+        )
+        if resp.status_code in (200, 201, 204):
+            return True
+        logger.warning("[anonymize_user_profile] attempt failed: status=%s body=%s", resp.status_code, (resp.text or "")[:300])
+    return False
+
+
 @api_router.delete("/users/by-auth/{auth_id}")
 def delete_user_by_auth_id(auth_id: str, authorization: Optional[str] = Header(None)):
     """Delete the authenticated user's profile and Supabase auth record."""
@@ -3124,15 +3200,33 @@ def delete_user_by_auth_id(auth_id: str, authorization: Optional[str] = Header(N
         raise HTTPException(status_code=401, detail="Invalid or expired session") from exc
 
     try:
+        # 1. Remove the person's data. A provider's public stylist profile goes first
+        #    (best effort: it may not exist, e.g. for customers).
+        stylist_resp = requests.delete(
+            f"{SUPABASE_URL}/rest/v1/stylists?auth_id=eq.{auth_id}",
+            headers=_supabase_headers(),
+            timeout=10,
+        )
+        if stylist_resp.status_code not in (200, 201, 204):
+            logger.warning("[delete_user_by_auth_id] stylist profile delete failed: status=%s body=%s", stylist_resp.status_code, (stylist_resp.text or "")[:300])
+
         delete_user_resp = requests.delete(
             f"{SUPABASE_URL}/rest/v1/users?auth_id=eq.{auth_id}",
             headers=_supabase_headers(),
             timeout=10,
         )
+        anonymized = False
         if delete_user_resp.status_code not in (200, 201, 204):
-            logger.error("[delete_user_by_auth_id] users delete failed: status=%s body=%s", delete_user_resp.status_code, delete_user_resp.text)
-            raise HTTPException(status_code=502, detail="Could not delete profile")
+            # Usually a foreign key: bookings, payments or wallet rows still point at this
+            # profile and have to be kept for financial records. Strip the personal details
+            # instead so nothing identifiable remains, then still close the login below.
+            logger.warning("[delete_user_by_auth_id] users delete failed (%s), anonymizing instead: %s", delete_user_resp.status_code, (delete_user_resp.text or "")[:300])
+            anonymized = _anonymize_user_profile(auth_id)
+            if not anonymized:
+                raise HTTPException(status_code=502, detail="We could not remove your account data. Please try again or contact support.")
 
+        # 2. Close the login. This must succeed: reporting "deleted" while the person can
+        #    still sign in is exactly what store review checks for. 404 means it is already gone.
         admin_delete_resp = requests.delete(
             f"{SUPABASE_URL}/auth/v1/admin/users/{auth_id}",
             headers={
@@ -3142,10 +3236,11 @@ def delete_user_by_auth_id(auth_id: str, authorization: Optional[str] = Header(N
             },
             timeout=10,
         )
-        if admin_delete_resp.status_code not in (200, 201, 202, 204):
-            logger.warning("[delete_user_by_auth_id] auth user delete failed: status=%s body=%s", admin_delete_resp.status_code, admin_delete_resp.text)
+        if admin_delete_resp.status_code not in (200, 201, 202, 204, 404):
+            logger.error("[delete_user_by_auth_id] auth user delete failed: status=%s body=%s", admin_delete_resp.status_code, (admin_delete_resp.text or "")[:300])
+            raise HTTPException(status_code=502, detail="Your data was removed but we could not close your login. Please try again.")
 
-        return {"status": "deleted", "auth_id": auth_id}
+        return {"status": "deleted", "auth_id": auth_id, "profile_anonymized": anonymized}
     except HTTPException:
         raise
     except Exception as exc:
