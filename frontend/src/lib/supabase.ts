@@ -16,11 +16,17 @@ if (!supabaseUrl || !supabaseAnonKey) {
 // Mobile needs an encrypted persistent storage adapter and must not try to
 // parse sessions out of redirect URLs. Web can safely fall back to the
 // browser's own localStorage-backed default and URL detection.
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+// createClient throws on an empty URL, which closes the app at launch. Fall back to
+// inert placeholders so the app still opens; sign-in then shows an error instead.
+export const supabase = createClient(
+  supabaseUrl || 'https://missing-config.invalid',
+  supabaseAnonKey || 'missing-config',
+  {
   auth: {
     storage: Platform.OS === 'web' ? undefined : new LargeSecureStore(),
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: Platform.OS === 'web',
   },
-});
+  }
+);
