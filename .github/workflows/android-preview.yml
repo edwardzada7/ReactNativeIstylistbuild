@@ -1,0 +1,25 @@
+# Starts an installable Android test build (.apk) on Expo's servers.
+# Run it from GitHub: Actions > "Android preview build" > Run workflow.
+# Needs a repository secret named EXPO_TOKEN (Expo > Account settings > Access tokens).
+name: Android preview build
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+      - run: npm ci --legacy-peer-deps
+      - run: eas build --platform android --profile preview --non-interactive --no-wait
