@@ -79,7 +79,7 @@ export default function Home() {
       setCategories(screenCache.set('home-categories', categoryList));
       setBookings(bookingList);
       if (bookingList.length) peopleService.enrichBookingProviders(bookingList).then(setBookings).catch(() => undefined);
-      if (isAuthenticated) await refreshUnreadCount();
+      if (isAuthenticated) refreshUnreadCount(); // don't block first paint
     } catch (err: any) {
       console.error('[home] failed to load data', err);
       setError(err?.friendlyMessage || 'Could not load providers. Pull down to retry.');

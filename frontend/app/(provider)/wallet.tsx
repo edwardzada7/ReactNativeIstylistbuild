@@ -21,6 +21,7 @@ export default function ProviderWallet() {
 
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [earningsYear, setEarningsYear] = useState(new Date().getFullYear());
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -81,17 +82,19 @@ export default function ProviderWallet() {
     const totalEarnings = releasedEarnings + inEscrow;
     const availableBalance = wallet?.balance ?? 0;
 
-    const monthly = new Map<string, number>();
+    // Always 12 rows (Jan-Dec) for the selected year; months without earnings show 0.
+    const monthTotals = new Array<number>(12).fill(0);
     completed.forEach((b) => {
       const d = new Date(b.scheduled_at || b.created_at);
-      if (isNaN(d.getTime())) return;
-      const key = d.toLocaleDateString('en-NG', { month: 'short', year: 'numeric' });
-      monthly.set(key, (monthly.get(key) || 0) + netAmount(b));
+      if (isNaN(d.getTime()) || d.getFullYear() !== earningsYear) return;
+      monthTotals[d.getMonth()] += netAmount(b);
     });
-    const monthlyEarnings = Array.from(monthly.entries())
-      .slice(-6)
-      .reverse();
-    const maxMonthly = Math.max(1, ...monthlyEarnings.map(([, v]) => v));
+    const monthlyEarnings: [string, number][] = monthTotals.map((amount, i) => [
+      new Date(earningsYear, i, 1).toLocaleDateString('en-NG', { month: 'short' }),
+      amount,
+    ]);
+    const yearTotal = monthTotals.reduce((a, b) => a + b, 0);
+    const maxMonthly = Math.max(1, ...monthTotals);
 
     return {
       availableBalance,
@@ -101,13 +104,9 @@ export default function ProviderWallet() {
       totalEarnings,
       monthlyEarnings,
       maxMonthly,
+      yearTotal,
     };
-  }, [wallet, bookings, transactions]);
-
-  const withdrawalHistory = useMemo(
-    () => transactions.filter((t) => t.type.includes('WITHDRAWAL')),
-    [transactions]
-  );
+  }, [wallet, bookings, transactions, earningsYear]);
 
   if (loading) {
     return (
@@ -174,64 +173,43 @@ export default function ProviderWallet() {
           service is marked completed and released.
         </Text>
 
-        {/* Monthly earnings */}
+        {/* Monthly earnings: every month of the selected year */}
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Monthly Earnings</Text>
-        {stats.monthlyEarnings.length === 0 ? (
-          <Text style={[styles.emptyInline, { color: colors.textSecondary }]}>No completed bookings yet.</Text>
-        ) : (
-          <View style={[styles.monthlyCard, { backgroundColor: colors.surface }]}>
-            {stats.monthlyEarnings.map(([month, amount]) => (
-              <View key={month} style={styles.monthlyRow}>
-                <Text style={[styles.monthlyLabel, { color: colors.text }]}>{month}</Text>
-                <View style={[styles.monthlyBarTrack, { backgroundColor: colors.surfaceLight }]}>
-                  <View
-                    style={[
-                      styles.monthlyBarFill,
-                      { width: `${Math.max(6, (amount / stats.maxMonthly) * 100)}%`, backgroundColor: Colors.primary },
-                    ]}
-                  />
-                </View>
-                <Text style={[styles.monthlyAmount, { color: colors.text }]}>{formatCurrency(amount)}</Text>
-              </View>
-            ))}
+        <View style={[styles.monthlyCard, { backgroundColor: colors.surface }]}>
+          <View style={styles.yearRow}>
+            <TouchableOpacity onPress={() => setEarningsYear((y) => y - 1)} accessibilityRole="button" accessibilityLabel="Previous year" hitSlop={10}>
+              <Ionicons name="chevron-back" size={20} color={colors.text} />
+            </TouchableOpacity>
+            <Text style={[styles.yearLabel, { color: colors.text }]}>
+              {earningsYear} · {formatCurrency(stats.yearTotal)}
+            </Text>
+            <TouchableOpacity
+              onPress={() => setEarningsYear((y) => Math.min(y + 1, new Date().getFullYear()))}
+              disabled={earningsYear >= new Date().getFullYear()}
+              accessibilityRole="button"
+              accessibilityLabel="Next year"
+              hitSlop={10}
+            >
+              <Ionicons name="chevron-forward" size={20} color={earningsYear >= new Date().getFullYear() ? colors.textMuted : colors.text} />
+            </TouchableOpacity>
           </View>
-        )}
-
-        {/* Withdrawal history */}
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Withdrawal History</Text>
-        {withdrawalHistory.length === 0 ? (
-          <Text style={[styles.emptyInline, { color: colors.textSecondary }]}>No withdrawals yet.</Text>
-        ) : (
-          withdrawalHistory.map((w) => (
-            <View key={w.id} style={[styles.withdrawalRow, { backgroundColor: colors.surface }]}>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.withdrawalDesc, { color: colors.text }]}>{w.description || 'Withdrawal'}</Text>
-                <Text style={[styles.withdrawalDate, { color: colors.textSecondary }]}>
-                  {new Date(w.created_at).toLocaleDateString('en-NG', {
-                    day: 'numeric',
-                    month: 'short',
-                    year: 'numeric',
-                  })}
-                </Text>
-              </View>
-              <View style={{ alignItems: 'flex-end' }}>
-                <Text style={[styles.withdrawalAmount, { color: colors.text }]}>{formatCurrency(w.amount)}</Text>
-                <Text
+          {stats.monthlyEarnings.map(([month, amount]) => (
+            <View key={month} style={styles.monthlyRow}>
+              <Text style={[styles.monthlyLabel, { color: colors.text }]}>{month}</Text>
+              <View style={[styles.monthlyBarTrack, { backgroundColor: colors.surfaceLight }]}>
+                <View
                   style={[
-                    styles.withdrawalStatus,
-                    { color: colors.textSecondary },
-                    w.status === 'completed' && { color: Colors.success },
-                    w.status === 'failed' && { color: Colors.error },
-                    w.status === 'pending' && { color: Colors.warning },
+                    styles.monthlyBarFill,
+                    { width: amount > 0 ? `${Math.max(6, (amount / stats.maxMonthly) * 100)}%` : '0%', backgroundColor: Colors.primary },
                   ]}
-                >
-                  {w.status}
-                </Text>
+                />
               </View>
+              <Text style={[styles.monthlyAmount, { color: amount > 0 ? colors.text : colors.textMuted }]}>{formatCurrency(amount)}</Text>
             </View>
-          ))
-        )}
+          ))}
+        </View>
 
+        {/* Every transaction (earnings, escrow, top-ups, refunds, withdrawals) */}
         <TransactionList transactions={transactions} />
       </ScrollView>
     </SafeAreaView>
@@ -294,6 +272,8 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.lg,
     gap: Spacing.sm,
   },
+  yearRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.xs },
+  yearLabel: { fontSize: FontSizes.sm, fontWeight: '700' },
   monthlyRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   monthlyLabel: { fontSize: FontSizes.xs, width: 64 },
   monthlyBarTrack: {

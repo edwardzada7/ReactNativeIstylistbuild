@@ -70,7 +70,7 @@ export const walletService = {
   // newest-first in production data).
   async getTransactions(authId: string): Promise<Transaction[]> {
     if (!authId) return [];
-    const raw = await apiService.get<any>('/wallet/transactions', { params: { auth_id: authId } });
+    const raw = await apiService.get<any>('/wallet/transactions', { params: { auth_id: authId, limit: 100 } });
     return asList(raw).map(normalizeTransaction);
   },
 

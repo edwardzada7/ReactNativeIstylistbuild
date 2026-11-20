@@ -222,6 +222,8 @@ export const chatService = {
     if (!authId) return [];
 
     try {
+      // Start the shared-conversations request in parallel with bookings.
+      const sharedPromise = apiService.get<any[]>('/conversations').catch(() => [] as any[]);
       // Get bookings where user is participant
       const bookings = await apiService.get(`/bookings?auth_id=${authId}`);
 
@@ -234,7 +236,7 @@ export const chatService = {
       const bookingResults = await Promise.all(activeBookings.map(async (booking: any): Promise<Conversation | null> => {
         try {
           const chatData: BookingChatResponse = await apiService.get(
-            `/bookings/${booking.id}/chat?auth_id=${authId}&limit=200`
+            `/bookings/${booking.id}/chat?auth_id=${authId}&limit=30`
           );
           if (!chatData.messages || chatData.messages.length === 0) return null;
           const rawProviderId = booking.provider_id != null && !/^\d+$/.test(String(booking.provider_id)) ? String(booking.provider_id) : undefined;
@@ -268,7 +270,7 @@ export const chatService = {
       const conversations = bookingResults.filter(Boolean) as Conversation[];
 
       // Sort by latest message
-      const shared = await apiService.get<any[]>('/conversations').catch(() => []);
+      const shared = await sharedPromise;
       const sharedConversations: Conversation[] = await Promise.all(shared.map(async (item: any) => {
         const counterpartAuthId = authId === item.customer_auth_id ? item.provider_auth_id : item.customer_auth_id;
         const person = await peopleService.getByAuthId(counterpartAuthId).catch(() => null);
