@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { chatService } from '../../src/services/chat.service';
@@ -19,6 +19,7 @@ import { Conversation } from '../../src/types';
 import { withAuthGate, ProfileAvatar, VerifiedBadge } from '../../src/components/common';
 import { screenCache } from '../../src/utils/screenCache';
 import { useBlockedUsers } from '../../src/hooks/useBlockedUsers';
+import { useUnreadMessages } from '../../src/contexts/UnreadMessagesContext';
 
 export default withAuthGate(ChatList, {
   icon: 'chatbubbles-outline',
@@ -51,9 +52,19 @@ function ChatList() {
 
   const handleRefresh = () => loadConversations(true);
 
+  const { refreshUnreadCount } = useUnreadMessages();
+
   useEffect(() => {
     loadConversations();
   }, [loadConversations]);
+
+  // Coming back from a thread: re-read the list and the global badge.
+  useFocusEffect(
+    useCallback(() => {
+      void loadConversations();
+      void refreshUnreadCount();
+    }, [loadConversations, refreshUnreadCount])
+  );
 
   const getInitials = (name?: string) => {
     if (!name) return '?';
