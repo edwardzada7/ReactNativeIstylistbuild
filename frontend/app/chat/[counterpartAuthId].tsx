@@ -23,6 +23,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { Button, Input, ReportModal } from '../../src/components/common';
 import { useBlockedUsers } from '../../src/hooks/useBlockedUsers';
+import { useUnreadMessages } from '../../src/contexts/UnreadMessagesContext';
 import { confirmBlock } from '../../src/utils/confirmBlock';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
@@ -86,6 +87,7 @@ export default function ChatThread() {
   const [recommendationLoading, setRecommendationLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const { isBlocked, block, unblock } = useBlockedUsers();
+  const { refreshUnreadCount } = useUnreadMessages();
   const [reportVisible, setReportVisible] = useState(false);
   const counterpartBlocked = isBlocked(counterpartAuthId);
 
@@ -202,8 +204,10 @@ export default function ChatThread() {
     } finally {
       setLoading(false);
       setRefreshing(false);
+      // Messages were just marked read on the server; update the Messages badge.
+      void refreshUnreadCount();
     }
-  }, [activeChatId, conversationId, counterpartAuthId, conversationType, isBookingConversation, isSharedConversation, legacyBookingId, resolvedCounterpartName]);
+  }, [activeChatId, conversationId, counterpartAuthId, conversationType, isBookingConversation, isSharedConversation, legacyBookingId, resolvedCounterpartName, refreshUnreadCount]);
 
   const handleRefresh = () => loadData(true);
 

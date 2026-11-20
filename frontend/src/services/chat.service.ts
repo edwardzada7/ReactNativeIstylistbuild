@@ -1,3 +1,4 @@
+import { parseServerDate } from '../utils/date';
 import apiService from './api';
 import { peopleService } from './people.service';
 import { Conversation } from '../types';
@@ -233,13 +234,15 @@ export const chatService = {
       const bookingResults = await Promise.all(activeBookings.map(async (booking: any): Promise<Conversation | null> => {
         try {
           const chatData: BookingChatResponse = await apiService.get(
-            `/bookings/${booking.id}/chat?auth_id=${authId}&limit=1`
+            `/bookings/${booking.id}/chat?auth_id=${authId}&limit=200`
           );
           if (!chatData.messages || chatData.messages.length === 0) return null;
           const rawProviderId = booking.provider_id != null && !/^\d+$/.test(String(booking.provider_id)) ? String(booking.provider_id) : undefined;
           const providerAuthId = booking.provider_auth_id || booking.stylist_auth_id || rawProviderId;
           const counterpartAuthId = authId === booking.customer_auth_id ? providerAuthId : booking.customer_auth_id;
           if (!counterpartAuthId) return null;
+          // The API returns oldest-first, so the newest message is the last one and the
+          // unread count must cover every message, not just one.
           const unreadCount = chatData.messages.filter(
             (msg: ChatMessage) => msg.receiver_auth_id === authId && !msg.read
           ).length;
@@ -254,7 +257,7 @@ export const chatService = {
             counterpart_profile_image_url: person?.avatar || null,
             counterpart_verified: person?.verified === true,
             user: { avatarUrl: person?.avatar || undefined } as any,
-            last_message: chatData.messages[0],
+            last_message: chatData.messages[chatData.messages.length - 1],
             unread_count: unreadCount,
           };
         } catch (err) {
@@ -283,7 +286,7 @@ export const chatService = {
         };
       }));
       return [...conversations, ...sharedConversations].sort((a, b) =>
-        new Date(b.last_message.created_at).getTime() - new Date(a.last_message.created_at).getTime()
+        parseServerDate(b.last_message.created_at).getTime() - parseServerDate(a.last_message.created_at).getTime()
       );
     } catch (err) {
       console.error('[chat] failed to load conversations', err);
