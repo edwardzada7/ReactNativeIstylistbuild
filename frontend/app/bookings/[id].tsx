@@ -12,6 +12,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { Button } from '../../src/components/common';
+import apiService from '../../src/services/api';
 import { bookingService } from '../../src/services/booking.service';
 import { peopleService } from '../../src/services/people.service';
 import { walletService } from '../../src/services/wallet.service';
@@ -155,7 +156,14 @@ export default function BookingDetails() {
 
     setUpdating(true);
     try {
-      await bookingService.updateBookingStatus(booking.id, status, role, authId);
+      if (status === 'provider_no_show') {
+        // Not a plain status change: it opens a report with a grace period
+        // (POST /bookings/{id}/no-show/report) and the booking becomes no_show_pending.
+        await apiService.post(`/bookings/${booking.id}/no-show/report`, { auth_id: authId });
+        Alert.alert('No-show reported', 'The customer has been notified and can respond before the booking is finalised.');
+      } else {
+        await bookingService.updateBookingStatus(booking.id, status, role, authId);
+      }
       await fetchBooking();
     } catch (err: any) {
       Alert.alert('Error', err?.friendlyMessage || 'Failed to update booking');

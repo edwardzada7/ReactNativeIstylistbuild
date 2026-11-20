@@ -93,6 +93,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     void useCartStore.getState().setSession(user?.id ?? null, user?.role ?? null);
   }, [user?.id, user?.role]);
 
+  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scheduleProfileRetry = (retrySession: Session, attempt: number) => {
+    if (attempt >= 4) return;
+    if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+    retryTimerRef.current = setTimeout(async () => {
+      if (userRef.current && userRef.current.auth_id !== retrySession.user.id) return;
+      try {
+        const profile = await authService.ensureProfile(retrySession.user);
+        setUser(profile);
+        void writeCachedProfile(profile);
+      } catch {
+        scheduleProfileRetry(retrySession, attempt + 1);
+      }
+    }, 3000 * (attempt + 1));
+  };
+
   const loadProfileForSession = async (nextSession: Session | null): Promise<User | null> => {
     setSession(nextSession);
     if (!nextSession?.user) {
@@ -139,6 +155,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         location_address: undefined,
       };
       setUser(fallbackProfile);
+      // The metadata guess can be wrong (it has no role for many accounts), which is how a
+      // provider ended up in the customer app. Keep trying for the real profile.
+      scheduleProfileRetry(nextSession, 0);
       return fallbackProfile;
     }
   };

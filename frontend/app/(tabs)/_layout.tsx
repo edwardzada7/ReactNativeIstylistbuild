@@ -1,11 +1,18 @@
-import { Tabs } from 'expo-router';
+import { Redirect, Tabs } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../src/contexts/ThemeContext';
+import { useAuth } from '../../src/contexts/AuthContext';
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
   const { colors } = useTheme();
+  const { user, isAuthenticated } = useAuth();
+
+  // A signed-in provider (or admin) must never land in the customer app; any stray
+  // link or default route that points here is sent to their own home instead.
+  if (isAuthenticated && user?.role === 'provider') return <Redirect href="/(provider)/dashboard" />;
+  if (isAuthenticated && user?.role === 'admin') return <Redirect href="/(admin)/feed-moderation" />;
 
   return (
     <Tabs

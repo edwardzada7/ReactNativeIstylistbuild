@@ -17,6 +17,7 @@ import { withAuthGate } from '../src/components/common';
 import { notificationService } from '../src/services/notification.service';
 import { Notification } from '../src/types';
 import { useTheme } from '../src/contexts/ThemeContext';
+import { useAuth } from '../src/contexts/AuthContext';
 import { formatRelativeTime } from '../src/utils/date';
 
 const TYPE_ICON: Record<string, string> = {
@@ -42,6 +43,7 @@ export default withAuthGate(Notifications, {
 
 function Notifications() {
   const router = useRouter();
+  const { user } = useAuth();
   const { colors } = useTheme();
   const [items, setItems] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
@@ -152,12 +154,12 @@ function Notifications() {
         return;
       }
       if (item.type === 'booking') {
-        router.push('/(tabs)/bookings');
+        router.push(user?.role === 'provider' ? '/(provider)/bookings' : '/(tabs)/bookings');
         return;
       }
-      router.push('/(tabs)');
+      router.push(user?.role === 'provider' ? '/(provider)/dashboard' : '/(tabs)');
     },
-    [router]
+    [router, user?.role]
   );
 
   const handlePressItem = async (item: Notification) => {

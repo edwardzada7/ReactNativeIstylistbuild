@@ -14,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { bookingService } from '../../src/services/booking.service';
+import apiService from '../../src/services/api';
 import { walletService } from '../../src/services/wallet.service';
 import { peopleService } from '../../src/services/people.service';
 import { screenCache } from '../../src/utils/screenCache';
@@ -148,8 +149,16 @@ export default function ProviderBookings() {
 
       setUpdatingId(booking.id);
       try {
-        const updated = await bookingService.updateBookingStatus(booking.id, status, 'provider', authId);
-        setBookings((prev) => prev.map((b) => (b.id === booking.id ? updated : b)));
+        if (status === 'provider_no_show') {
+          // "No-show" is not a plain status change: it opens a report with a grace period
+          // (POST /bookings/{id}/no-show/report), which sets the booking to no_show_pending.
+          await apiService.post(`/bookings/${booking.id}/no-show/report`, { auth_id: authId });
+          setBookings((prev) => prev.map((b) => (b.id === booking.id ? { ...b, status: 'no_show_pending' as any } : b)));
+          Alert.alert('No-show reported', 'The customer has been notified and can respond before the booking is finalised.');
+        } else {
+          const updated = await bookingService.updateBookingStatus(booking.id, status, 'provider', authId);
+          setBookings((prev) => prev.map((b) => (b.id === booking.id ? updated : b)));
+        }
       } catch (err: any) {
         Alert.alert('Error', err?.friendlyMessage || 'Could not update this booking.');
       } finally {
