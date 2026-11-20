@@ -24,7 +24,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/app-icon.png",
-        "backgroundColor": "#F54FBF"
+        "backgroundColor": "#120F2A"
       },
       "edgeToEdgeEnabled": true,
       "package": "com.istylist.app",
