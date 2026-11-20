@@ -25,13 +25,26 @@ export const supportService = {
     target_type: 'POST' | 'PRODUCT';
     reason: string;
     description?: string;
+    reporter?: { name?: string; email?: string; auth_id?: string };
   }): Promise<Report> {
     if (data.target_type === 'PRODUCT') {
-      return await apiService.post<Report>('/products/report', {
-        productId: Number(data.target_id),
-        reason: data.reason,
-        description: (data.description || '').trim(),
+      // The production API has no product-report route (it answered "Not Found"),
+      // so product reports go to the support-ticket queue that moderators read.
+      const reporterAuthId = data.reporter?.auth_id || (await apiService.getAuthId());
+      await apiService.post('/support/tickets', {
+        name: data.reporter?.name || 'App User',
+        // The ticket API requires a valid email address.
+        email: data.reporter?.email || 'no-email@istylist.app',
+        category: 'abuse_report',
+        subject: `Product report: ${data.reason}`,
+        message: [
+          `Reported product id: ${data.target_id}`,
+          `Reported by (auth id): ${reporterAuthId || 'unknown'}`,
+          `Reason: ${data.reason}`,
+          (data.description || '').trim() ? `Details: ${(data.description || '').trim()}` : '',
+        ].filter(Boolean).join('\n'),
       });
+      return { status: 'received' } as unknown as Report;
     }
     return await apiService.post<Report>('/reports', data);
   },

@@ -26,6 +26,7 @@ import { useAuth } from '../../src/contexts/AuthContext';
 import { formatCurrency } from '../../src/utils/currency';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { ReportModal } from '../../src/components/common';
+import { useBlockedUsers } from '../../src/hooks/useBlockedUsers';
 
 interface SharedShopScreenProps {
   showManageButton?: boolean;
@@ -35,7 +36,9 @@ export function SharedShopScreen({ showManageButton = false }: SharedShopScreenP
   const router = useRouter();
   const { isProvider } = useAuth();
   const { colors } = useTheme();
-  const [products, setProducts] = useState<Product[]>(() => screenCache.get<Product[]>('shop-products') || []);
+  const { isBlocked } = useBlockedUsers();
+  const [rawProducts, setProducts] = useState<Product[]>(() => screenCache.get<Product[]>('shop-products') || []);
+  const products = useMemo(() => rawProducts.filter((p) => !isBlocked(p.stylist_auth_id)), [rawProducts, isBlocked]);
   const [providerNames, setProviderNames] = useState<Record<string, string>>(() => screenCache.get<Record<string, string>>('shop-provider-names') || {});
   const [loading, setLoading] = useState(() => !screenCache.get('shop-products'));
   const [refreshing, setRefreshing] = useState(false);

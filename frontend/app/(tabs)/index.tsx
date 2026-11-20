@@ -29,6 +29,7 @@ import { peopleService } from '../../src/services/people.service';
 import { RebookReminder } from '../../src/components/booking/RebookReminder';
 
 import { screenCache } from '../../src/utils/screenCache';
+import { useBlockedUsers } from '../../src/hooks/useBlockedUsers';
 
 export default function Home() {
   const router = useRouter();
@@ -36,7 +37,9 @@ export default function Home() {
   const { colors } = useTheme();
 
   const [categories, setCategories] = useState<Category[]>(() => screenCache.get<Category[]>('home-categories') || []);
-  const [providers, setProviders] = useState<Provider[]>(() => screenCache.get<Provider[]>('home-providers') || []);
+  const { isBlocked } = useBlockedUsers();
+  const [rawProviders, setProviders] = useState<Provider[]>(() => screenCache.get<Provider[]>('home-providers') || []);
+  const providers = useMemo(() => rawProviders.filter((p) => !isBlocked(p.user_id)), [rawProviders, isBlocked]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(() => !screenCache.get('home-providers'));
   const [refreshing, setRefreshing] = useState(false);

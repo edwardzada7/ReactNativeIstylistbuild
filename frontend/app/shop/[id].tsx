@@ -5,6 +5,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius, Shadows } from '../../src/constants/theme';
 import { Button } from '../../src/components/common';
+import { useBlockedUsers } from '../../src/hooks/useBlockedUsers';
+import { BlockedNotice } from '../../src/components/common/BlockedNotice';
 import { shopService, Product } from '../../src/services/shop.service';
 import { useCartStore } from '../../src/store/cartStore';
 import { formatCurrency } from '../../src/utils/currency';
@@ -22,6 +24,7 @@ export default function ProductDetail() {
   const sellerListingId = Number(Array.isArray(listingId) ? listingId[0] : listingId);
   const { user, isAuthenticated, isProvider } = useAuth();
   const { colors } = useTheme();
+  const { isBlocked, unblock } = useBlockedUsers();
   const [product, setProduct] = useState<Product | null>(null);
   const [reviews, setReviews] = useState<ProductReview[]>([]);
   const [averageRating, setAverageRating] = useState(0);
@@ -234,6 +237,10 @@ export default function ProductDetail() {
       return <Ionicons key={`${rating}-${index}`} name={filled ? 'star' : 'star-outline'} size={size} color={activeColor} />;
     });
   };
+
+  if (product?.stylist_auth_id && isBlocked(product.stylist_auth_id)) {
+    return <BlockedNotice label="seller" onBack={() => router.back()} onUnblock={() => unblock(product.stylist_auth_id as string)} />;
+  }
 
   if (loading) {
     return (

@@ -55,6 +55,21 @@ const ALL_DAY_NAMES: DayAvailability['day'][] = [
   'sunday',
 ];
 
+// Provider routes (availability, slots, staff) need the numeric user id. Links from
+// bookings, rebook buttons and notifications can carry the auth UUID instead.
+const numericProviderIdCache = new Map<string, string>();
+async function toNumericProviderId(providerId: string): Promise<string> {
+  const raw = String(providerId ?? '').trim();
+  if (/^\d+$/.test(raw)) return raw;
+  const cached = numericProviderIdCache.get(raw);
+  if (cached) return cached;
+  const stylist = await apiService.get<any>(`/stylists/by-auth/${encodeURIComponent(raw)}`);
+  const resolved = String(stylist?.user_id ?? '');
+  if (!/^\d+$/.test(resolved)) throw Object.assign(new Error('Provider not found'), { friendlyMessage: 'Provider not found.' });
+  numericProviderIdCache.set(raw, resolved);
+  return resolved;
+}
+
 export const providerService = {
   // Browse providers with their services embedded (Home + Search use this).
   async getProvidersWithServices(): Promise<Provider[]> {
@@ -129,7 +144,8 @@ export const providerService = {
   // Real Manage Staff contract: public provider staff list is served at
   // `/providers/{provider_id}/staff` and includes active/inactive rows.
   async getProviderStaff(providerId: string, activeOnly = true): Promise<StaffMember[]> {
-    const raw = await apiService.get<any>(`/providers/${providerId}/staff`, {
+    const numericId = await toNumericProviderId(providerId);
+    const raw = await apiService.get<any>(`/providers/${numericId}/staff`, {
       params: { active_only: activeOnly },
     });
     const list = Array.isArray(raw?.staff) ? raw.staff : asList(raw);
@@ -214,7 +230,8 @@ export const providerService = {
     date: string,
     durationMinutes: number
   ): Promise<string[]> {
-    const raw = await apiService.get<any>(`/providers/${providerId}/available-slots`, {
+    const numericId = await toNumericProviderId(providerId);
+    const raw = await apiService.get<any>(`/providers/${numericId}/available-slots`, {
       params: { date, service_duration: durationMinutes },
     });
     // Accepts string[] as well as { slots | available_slots | times | data } and
@@ -228,7 +245,8 @@ export const providerService = {
   //   rules: {...} } - not the { days, blocked_dates } shape this used to assume.
   async getProviderAvailability(providerId: string): Promise<ProviderAvailability | null> {
     try {
-      const raw = await apiService.get<any>(`/providers/${providerId}/availability`);
+      const numericId = await toNumericProviderId(providerId);
+      const raw = await apiService.get<any>(`/providers/${numericId}/availability`);
       if (!raw) return null;
       const weekly = Array.isArray(raw.weekly) ? raw.weekly : [];
       const byDayNumber = new Map<number, any>(weekly.map((w: any) => [Number(w.day_of_week), w]));
