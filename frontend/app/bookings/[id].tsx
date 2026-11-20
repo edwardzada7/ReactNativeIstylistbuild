@@ -6,7 +6,7 @@
 // anywhere - it was verified absent in the source, so none is invented
 // here either.
 import React, { useCallback, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Linking } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Alert, Linking, Modal, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
@@ -20,6 +20,7 @@ import { useAuth } from '../../src/contexts/AuthContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { formatCurrency } from '../../src/utils/currency';
 import { formatStatusLabel } from '../../src/utils/walletHelpers';
+import { parseServerDate } from '../../src/utils/date';
 import { Booking } from '../../src/types';
 
 // Matches web's formatDate exactly (booking_date is "YYYY-MM-DD").
@@ -111,6 +112,8 @@ export default function BookingDetails() {
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [processingPayment, setProcessingPayment] = useState(false);
+  const [disputeOpen, setDisputeOpen] = useState(false);
+  const [disputeReason, setDisputeReason] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const fetchBooking = useCallback(async () => {
@@ -138,6 +141,45 @@ export default function BookingDetails() {
 
   const handleBack = () => {
     router.replace(isProvider ? '/(provider)/bookings' : '/(tabs)/bookings');
+  };
+
+  // The party who did NOT report the no-show can accept it or dispute it with a reason.
+  const respondToNoShow = async (action: 'confirm' | 'dispute', reason?: string) => {
+    if (!booking) return;
+    const authId = String(user?.auth_id ?? '').trim();
+    if (!authId) return;
+    setUpdating(true);
+    try {
+      await apiService.post(`/bookings/${booking.id}/no-show/${action}`, { auth_id: authId, ...(reason ? { reason } : {}) });
+      setDisputeOpen(false);
+      setDisputeReason('');
+      Alert.alert(
+        action === 'confirm' ? 'No-show accepted' : 'Dispute sent',
+        action === 'confirm'
+          ? 'The booking has been finalised.'
+          : 'Your reason was sent. An admin will review the dispute and the booking is on hold until then.'
+      );
+      await fetchBooking();
+    } catch (err: any) {
+      Alert.alert('Could not send your response', err?.friendlyMessage || err?.message || 'Please try again.');
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const confirmAcceptNoShow = () =>
+    Alert.alert('Accept no-show?', 'You agree you did not attend. This finalises the booking and cannot be undone.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Accept', style: 'destructive', onPress: () => void respondToNoShow('confirm') },
+    ]);
+
+  const submitDispute = () => {
+    const reason = disputeReason.trim();
+    if (reason.length < 5) {
+      Alert.alert('Add a reason', 'Please explain why you are disputing the no-show (at least a few words).');
+      return;
+    }
+    void respondToNoShow('dispute', reason);
   };
 
   const handleStatusUpdate = async (newStatus: string) => {
@@ -232,6 +274,17 @@ export default function BookingDetails() {
   const canProviderComplete = isProvider && booking.status === 'confirmed';
   const canProviderCancel = isProvider && ['pending', 'confirmed'].includes(booking.status) && booking.status !== 'pending';
   const canProviderMarkNoShow = isProvider && booking.status === 'confirmed';
+  const noShowPending = booking.status === 'no_show_pending';
+  const iReportedNoShow = booking.no_show_reporter_role
+    ? booking.no_show_reporter_role === role
+    : booking.no_show_reported_by === user?.auth_id;
+  const canRespondNoShow = noShowPending && !iReportedNoShow;
+  const noShowDeadline = booking.no_show_deadline ? parseServerDate(booking.no_show_deadline) : null;
+  const noShowDeadlineText =
+    noShowDeadline && !Number.isNaN(noShowDeadline.getTime())
+      ? noShowDeadline.toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
+      : null;
+  const reporterLabel = booking.no_show_reporter_role === 'provider' ? 'The provider' : booking.no_show_reporter_role === 'customer' ? 'The customer' : 'The other party';
   const canRebook = !isProvider && ['completed', 'canceled', 'declined'].includes(booking.status);
 
   const services = booking.services && booking.services.length > 0 ? booking.services : null;
@@ -500,6 +553,29 @@ export default function BookingDetails() {
             />
           )}
 
+          {noShowPending && (
+            <View style={[styles.noShowBox, { borderColor: Colors.warning, backgroundColor: colors.surface }]}>
+              <Text style={[styles.noShowTitle, { color: colors.text }]}>
+                {iReportedNoShow ? 'You reported a no-show' : `${reporterLabel} reported you as a no-show`}
+              </Text>
+              {!!booking.no_show_reason && (
+                <Text style={[styles.rowText, { color: colors.textSecondary }]}>Reason: {booking.no_show_reason}</Text>
+              )}
+              <Text style={[styles.rowText, { color: colors.textSecondary }]}>
+                {iReportedNoShow
+                  ? 'Waiting for the other party to accept or dispute.'
+                  : 'Accept it, or dispute it with your reason.'}
+                {noShowDeadlineText ? ` It is finalised automatically after ${noShowDeadlineText} if there is no response.` : ''}
+              </Text>
+              {canRespondNoShow && (
+                <>
+                  <Button title="Accept no-show" onPress={confirmAcceptNoShow} loading={updating} fullWidth style={styles.actionSpacing} />
+                  <Button title="Dispute with a reason" variant="outline" onPress={() => setDisputeOpen(true)} disabled={updating} fullWidth />
+                </>
+              )}
+            </View>
+          )}
+
           {canProviderMarkNoShow && (
             <Button
               title="Mark as No-Show"
@@ -518,9 +594,31 @@ export default function BookingDetails() {
             !canProviderDecline &&
             !canProviderComplete &&
             !canProviderCancel &&
-            !canProviderMarkNoShow && <Text style={[styles.rowText, { color: colors.text }]}>No actions available for this booking.</Text>}
+            !canProviderMarkNoShow &&
+            !noShowPending && <Text style={[styles.rowText, { color: colors.text }]}>No actions available for this booking.</Text>}
         </View>
       </ScrollView>
+      <Modal visible={disputeOpen} transparent animationType="fade" onRequestClose={() => setDisputeOpen(false)}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modalBackdrop}>
+          <View style={[styles.modalCard, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.noShowTitle, { color: colors.text }]}>Dispute this no-show</Text>
+            <Text style={[styles.rowText, { color: colors.textSecondary, marginBottom: Spacing.sm }]}>
+              Tell us what happened. An admin will review your reason.
+            </Text>
+            <TextInput
+              value={disputeReason}
+              onChangeText={setDisputeReason}
+              placeholder="Write your reason here"
+              placeholderTextColor={colors.textMuted}
+              multiline
+              maxLength={500}
+              style={[styles.disputeInput, { color: colors.text, borderColor: colors.border, backgroundColor: colors.background }]}
+            />
+            <Button title="Submit dispute" onPress={submitDispute} loading={updating} fullWidth style={styles.actionSpacing} />
+            <Button title="Cancel" variant="outline" onPress={() => setDisputeOpen(false)} disabled={updating} fullWidth />
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -581,4 +679,9 @@ const styles = StyleSheet.create({
   totalLabel: { fontSize: FontSizes.sm, fontWeight: '700' },
   totalValue: { fontSize: FontSizes.lg, fontWeight: '800' },
   actionSpacing: { marginBottom: Spacing.sm },
+  noShowBox: { borderWidth: 1, borderRadius: BorderRadius.md, padding: Spacing.md, marginBottom: Spacing.md, gap: Spacing.sm },
+  noShowTitle: { fontSize: FontSizes.lg, fontWeight: '700' },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: Spacing.lg },
+  modalCard: { borderRadius: BorderRadius.lg, padding: Spacing.lg },
+  disputeInput: { minHeight: 110, borderWidth: 1, borderRadius: BorderRadius.md, padding: Spacing.md, textAlignVertical: 'top', marginBottom: Spacing.md, fontSize: FontSizes.md },
 });
