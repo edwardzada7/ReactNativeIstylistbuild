@@ -20,6 +20,7 @@ import { Provider, Category } from '../../src/types';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { ProfileAvatar, RatingStars, VerifiedBadge, isVerifiedProfile } from '../../src/components/common';
 import { peopleService } from '../../src/services/people.service';
+import { useBlockedUsers } from '../../src/hooks/useBlockedUsers';
 
 const PAGE_SIZE = 10;
 
@@ -31,7 +32,9 @@ export default function Search() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedFilter, setSelectedFilter] = useState('All');
   const [categories, setCategories] = useState<Category[]>([]);
-  const [allProviders, setAllProviders] = useState<Provider[]>([]);
+  const { isBlocked } = useBlockedUsers();
+  const [rawProviders, setAllProviders] = useState<Provider[]>([]);
+  const allProviders = useMemo(() => rawProviders.filter((p) => !isBlocked(p.user_id)), [rawProviders, isBlocked]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);

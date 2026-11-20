@@ -70,6 +70,7 @@ export function ReportModal({ visible, targetId, targetType, onClose, onSubmitte
           target_type: targetType,
           reason: REASONS.find((r) => r.value === reason)?.label || reason,
           description: description.trim(),
+          reporter: { name: user?.full_name, email: user?.email, auth_id: user?.auth_id },
         });
       }
       reset();

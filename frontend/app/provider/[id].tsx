@@ -27,12 +27,15 @@ import { formatCurrency, formatPriceRange } from '../../src/utils/currency';
 import { Provider, Review, Post, StaffMember } from '../../src/types';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useAuth } from '../../src/contexts/AuthContext';
+import { useBlockedUsers } from '../../src/hooks/useBlockedUsers';
+import { BlockedNotice } from '../../src/components/common/BlockedNotice';
 import { chatService } from '../../src/services/chat.service';
 
 export default function ProviderProfile() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { colors } = useTheme();
+  const { isBlocked, unblock } = useBlockedUsers();
   const { user } = useAuth();
 
   const [provider, setProvider] = useState<Provider | null>(() => screenCache.get<Provider>(`provider-${id}`) || null);
@@ -183,6 +186,10 @@ export default function ProviderProfile() {
       setContacting(false);
     }
   };
+
+  if (provider?.user_id && isBlocked(provider.user_id)) {
+    return <BlockedNotice label="provider" onBack={() => router.back()} onUnblock={() => unblock(provider.user_id)} />;
+  }
 
   if (loading) {
     return (
