@@ -5,6 +5,8 @@ import { useTheme } from '../../src/contexts/ThemeContext';
 
 export default function ProviderTabsLayout() {
   const insets = useSafeAreaInsets();
+  // Some phones report 0 for the bottom inset, which left the bar touching the screen edge.
+  const bottomInset = Math.max(insets.bottom, 24);
   const { colors } = useTheme();
 
   return (
@@ -14,9 +16,9 @@ export default function ProviderTabsLayout() {
         tabBarStyle: {
           backgroundColor: colors.surface,
           borderTopColor: colors.border,
-          paddingBottom: 8 + insets.bottom,
+          paddingBottom: 8 + bottomInset,
           paddingTop: 8,
-          height: 60 + insets.bottom,
+          height: 60 + bottomInset,
         },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,

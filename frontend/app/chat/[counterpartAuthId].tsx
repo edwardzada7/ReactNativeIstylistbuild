@@ -21,7 +21,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
-import { Button, Input, ReportModal } from '../../src/components/common';
+import { Button, ReportModal } from '../../src/components/common';
 import { useBlockedUsers } from '../../src/hooks/useBlockedUsers';
 import { useUnreadMessages } from '../../src/contexts/UnreadMessagesContext';
 import { confirmBlock } from '../../src/utils/confirmBlock';
@@ -436,7 +436,9 @@ export default function ChatThread() {
             </TouchableOpacity>
           </View>
         ) : (
-        <View style={[styles.inputRow, { borderTopColor: colors.border }]}>
+        <View style={[styles.composer, { borderTopColor: colors.border }]}>
+          {/* Action icons get their own row so the text box can use the full width. */}
+          <View style={styles.actionsRow}>
           {isSharedConversation && <TouchableOpacity onPress={openRecommendation} accessibilityRole="button" accessibilityLabel="Recommend provider"><Ionicons name="person-add-outline" size={22} color={colors.primary} /></TouchableOpacity>}
           {isSharedConversation && user?.role === 'provider' && <TouchableOpacity onPress={openInvoiceMenu} accessibilityRole="button" accessibilityLabel="Create invoice"><Ionicons name="add-circle-outline" size={23} color={colors.primary} /></TouchableOpacity>}
           {isSharedConversation && <TouchableOpacity onPress={handleSharePhoto} accessibilityRole="button" accessibilityLabel="Attach photo"><Ionicons name="image-outline" size={22} color={colors.primary} /></TouchableOpacity>}
@@ -454,12 +456,20 @@ export default function ChatThread() {
               {locationLoading ? <ActivityIndicator size="small" color={colors.primary} /> : <Ionicons name="location-outline" size={22} color={colors.primary} />}
             </TouchableOpacity>
           </View>
-          <View style={{ flex: 1 }}>
-            <Input value={text} onChangeText={setText} placeholder="Type a message..." />
           </View>
-          <TouchableOpacity style={[styles.sendBtn, { backgroundColor: colors.primary }]} onPress={handleSend} disabled={sending || !text.trim()} accessibilityRole="button" accessibilityLabel="Send message">
-            {sending ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="send" size={18} color="#fff" />}
-          </TouchableOpacity>
+          <View style={styles.inputLine}>
+            <TextInput
+              value={text}
+              onChangeText={setText}
+              placeholder="Type a message..."
+              placeholderTextColor={colors.textMuted}
+              multiline
+              style={[styles.messageInput, { color: colors.text, backgroundColor: colors.surface, borderColor: colors.border }]}
+            />
+            <TouchableOpacity style={[styles.sendBtn, { backgroundColor: colors.primary }]} onPress={handleSend} disabled={sending || !text.trim()} accessibilityRole="button" accessibilityLabel="Send message">
+              {sending ? <ActivityIndicator size="small" color="#fff" /> : <Ionicons name="send" size={18} color="#fff" />}
+            </TouchableOpacity>
+          </View>
         </View>
         )}
       </KeyboardAvoidingView>
@@ -540,7 +550,11 @@ const styles = StyleSheet.create({
     borderRightColor: 'transparent',
   },
   inputRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, borderTopWidth: 1 },
-  sendBtn: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center' },
+  composer: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.sm, paddingBottom: Spacing.sm, borderTopWidth: 1, gap: Spacing.sm },
+  actionsRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.lg },
+  inputLine: { flexDirection: 'row', alignItems: 'flex-end', gap: Spacing.sm },
+  messageInput: { flex: 1, minHeight: 48, maxHeight: 140, borderWidth: 1, borderRadius: BorderRadius.lg, paddingHorizontal: Spacing.md, paddingTop: 12, paddingBottom: 12, fontSize: FontSizes.md, textAlignVertical: 'top' },
+  sendBtn: { width: 48, height: 48, borderRadius: 24, justifyContent: 'center', alignItems: 'center' },
   blockedBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.md, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, borderTopWidth: 1 },
   blockedText: { flex: 1, fontSize: FontSizes.sm },
   blockedAction: { fontSize: FontSizes.sm, fontWeight: '700' },

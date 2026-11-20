@@ -216,6 +216,11 @@ export interface Booking {
   time: string; // derived, e.g. "10:00" - sourced from booking_time when present
   total_duration?: number; // minutes, matches web's booking.total_duration
   services?: BookingServiceLine[]; // real `services` array from the booking response
+  no_show_reported_by?: string;
+  no_show_reporter_role?: string;
+  no_show_reason?: string;
+  no_show_deadline?: string;
+  dispute_reason?: string;
   status: string; // GROUND TRUTH (web STATUS_CONFIG): pending_payment | pending | confirmed | completed | canceled | declined | no_show_pending | user_no_show | provider_no_show | disputed
   total_amount: number;
   platform_fee_amount?: number;

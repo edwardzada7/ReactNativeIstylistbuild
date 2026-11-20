@@ -6,6 +6,8 @@ import { useAuth } from '../../src/contexts/AuthContext';
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
+  // Some phones report 0 for the bottom inset, which left the bar touching the screen edge.
+  const bottomInset = Math.max(insets.bottom, 24);
   const { colors } = useTheme();
   const { user, isAuthenticated } = useAuth();
 
@@ -21,9 +23,9 @@ export default function TabsLayout() {
         tabBarStyle: {
           backgroundColor: colors.surface,
           borderTopColor: colors.border,
-          paddingBottom: 8 + insets.bottom,
+          paddingBottom: 8 + bottomInset,
           paddingTop: 8,
-          height: 60 + insets.bottom,
+          height: 60 + bottomInset,
         },
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
