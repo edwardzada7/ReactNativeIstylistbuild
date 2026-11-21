@@ -9,6 +9,14 @@ export function RatingStars({ rating, count, size = 14, testID }: { rating?: num
   const { colors } = useTheme();
   const value = Math.max(0, Math.min(5, Number(rating) || 0));
   const total = Number(count) || 0;
+  if (total === 0 && value === 0) {
+    return (
+      <View style={styles.row} testID={testID} accessibilityLabel="New provider, no reviews yet">
+        <Ionicons name="sparkles" size={size} color={colors.primary} />
+        <Text style={[styles.text, { color: colors.primary, fontSize: size < 14 ? FontSizes.xs : FontSizes.sm }]}>New on iStylist</Text>
+      </View>
+    );
+  }
   return (
     <View style={styles.row} testID={testID} accessibilityLabel={`Rated ${value.toFixed(1)} out of 5 from ${total} reviews`}>
       {[1, 2, 3, 4, 5].map((i) => (
