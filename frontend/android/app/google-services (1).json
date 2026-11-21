@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "634089783513",
+    "project_id": "istylist-a8656",
+    "storage_bucket": "istylist-a8656.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:634089783513:android:b4a550fa58c314b939bec8",
+        "android_client_info": {
+          "package_name": "com.iStylist.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDtzePx6l1nyEXBTHK0VouGRbIyrRUQj8w"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:634089783513:android:ca4a84a90aca8feb39bec8",
+        "android_client_info": {
+          "package_name": "com.istylist.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDtzePx6l1nyEXBTHK0VouGRbIyrRUQj8w"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
