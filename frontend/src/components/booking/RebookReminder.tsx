@@ -90,7 +90,7 @@ export function RebookReminder({ bookings }: { bookings: Booking[] }) {
       <View style={styles.body}>
         <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>Time for a refresh?</Text>
         <Text style={[styles.text, { color: colors.textSecondary }]} numberOfLines={2}>
-          It's been {weeks} weeks since your {candidate.service_name || 'visit'} with {candidate.provider_name}.
+          It's been {weeks} weeks since your {candidate.service_name && candidate.service_name !== 'Service' ? candidate.service_name : 'last visit'} with {candidate.provider_name}.
         </Text>
         <TouchableOpacity testID="rebook-reminder-book" style={[styles.cta, { backgroundColor: Colors.primary }]} onPress={rebook} accessibilityRole="button">
           <Ionicons name="refresh" size={14} color="#fff" />

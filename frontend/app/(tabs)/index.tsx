@@ -22,7 +22,7 @@ import { useTheme } from '../../src/contexts/ThemeContext';
 import { providerService } from '../../src/services/provider.service';
 import { notificationService } from '../../src/services/notification.service';
 import { ChatIconWithBadge } from '../../src/components/chat/ChatIconWithBadge';
-import { formatPriceRange } from '../../src/utils/currency';
+import { formatCurrency, formatPriceRange } from '../../src/utils/currency';
 import { Booking, Category, Provider } from '../../src/types';
 import { bookingService } from '../../src/services/booking.service';
 import { peopleService } from '../../src/services/people.service';
@@ -108,18 +108,36 @@ export default function Home() {
     loadData();
   };
 
-  const featuredProviders = providers.slice(0, 5);
-  const popularProviders = [...providers]
-    .sort((a, b) => b.rating - a.rating)
+  // Rank so complete, trusted profiles come first (verified, photo, location, real reviews).
+  const providerScore = (p: Provider) => {
+    const count = Number(p.ratingCount ?? p.reviewsCount ?? p.review_count ?? 0);
+    const rating = Number(p.rating || p.avgRating || 0);
+    const hasPhoto = !!(p.avatarUrl || p.user?.avatarUrl || p.profileImage || p.user?.profileImage || p.profile_image_url || p.avatar);
+    const hasLocation = !!p.location && !/not set/i.test(p.location);
+    return (isVerifiedProfile(p) ? 3 : 0) + (hasPhoto ? 2 : 0) + (hasLocation ? 1 : 0) + (p.services?.length ? 1 : 0) + rating * Math.min(count, 10) / 5;
+  };
+  const rankedProviders = useMemo(() => [...providers].sort((a, b) => providerScore(b) - providerScore(a)), [providers]);
+  const featuredProviders = rankedProviders.slice(0, 5);
+  const featuredIds = new Set(featuredProviders.map((p) => p.id));
+  const topRatedProviders = [...providers]
+    .filter((p) => Number(p.ratingCount ?? p.reviewsCount ?? p.review_count ?? 0) > 0 && !featuredIds.has(p.id))
+    .sort((a, b) => Number(b.rating || b.avgRating || 0) - Number(a.rating || a.avgRating || 0))
     .slice(0, 8);
   const recentlyJoinedProviders = useMemo(
     () => [...providers].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()).slice(0, 8),
     [providers]
   );
-  const lastBooked = useMemo(
-    () => [...bookings].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())[0],
-    [bookings]
-  );
+  // Next confirmed/pending appointment that has not passed yet.
+  const upcoming = useMemo(() => {
+    const now = Date.now() - 2 * 60 * 60 * 1000;
+    const when = (b: Booking) => {
+      const t = new Date(b.date && b.time ? `${b.date}T${String(b.time).slice(0, 5)}:00` : String(b.date || '')).getTime();
+      return Number.isFinite(t) ? t : NaN;
+    };
+    return [...bookings]
+      .filter((b) => ['confirmed', 'pending'].includes(String(b.status).toLowerCase()) && Number.isFinite(when(b)) && when(b) >= now)
+      .sort((a, b) => when(a) - when(b))[0];
+  }, [bookings]);
 
   const goToProvider = (id: string) => router.push(`/provider/${id}`);
   const goToCategory = (categoryName: string) =>
@@ -148,7 +166,7 @@ export default function Home() {
 
     return (
       <TouchableOpacity
-        style={[styles.categoryCard, { backgroundColor: colors.surface }]}
+        style={styles.categoryCard}
         onPress={() => goToCategory(item.name)}
         accessibilityRole="button"
         accessibilityLabel={item.name}
@@ -156,7 +174,7 @@ export default function Home() {
         <View style={[styles.categoryIcon, { backgroundColor: `${colors.primary}20` }]}>
           <Ionicons name={iconName as any} size={28} color={colors.primary} />
         </View>
-        <Text style={[styles.categoryName, { color: colors.text }]} numberOfLines={1}>
+        <Text style={[styles.categoryName, { color: colors.text }]} numberOfLines={2}>
           {item.name}
         </Text>
       </TouchableOpacity>
@@ -180,17 +198,20 @@ export default function Home() {
       />
       <View style={styles.providerInfo}>
         <View style={styles.providerNameRow}>
-          <Text style={[styles.providerName, { color: colors.text }]} numberOfLines={1}>{item.business_name}</Text>
+          <Text style={[styles.providerName, { color: colors.text, flexShrink: 1, marginBottom: 0 }]} numberOfLines={1}>{item.business_name}</Text>
           <VerifiedBadge verified={isVerifiedProfile(item)} />
         </View>
         <Text style={[styles.providerCategory, { color: colors.textSecondary }]} numberOfLines={1}>
-          {typeof item.category === 'string' ? item.category : item.location}
+          {[typeof item.category === 'string' ? item.category : '', item.location && !/not set/i.test(item.location) ? item.location : ''].filter(Boolean).join(' · ') || 'Beauty professional'}
         </Text>
         <View style={styles.providerMeta}>
           <RatingStars rating={item.rating || item.avgRating} count={item.ratingCount ?? item.reviewsCount ?? item.review_count} size={13} testID={`provider-rating-${item.id}`} />
-          {!!String(item.price_range ?? '').replace(/[₦$\s]/g, '') && (
+          {!!String(item.price_range ?? '').replace(/[₦$\s]/g, '') ? (
             <Text style={[styles.price, { color: colors.textSecondary }]}>{formatPriceRange(item.price_range)}</Text>
-          )}
+          ) : (() => {
+            const prices = (item.services || []).map((s: any) => Number(s.price)).filter((n: number) => n > 0);
+            return prices.length ? <Text style={[styles.price, { color: colors.textSecondary }]}>From {formatCurrency(Math.min(...prices))}</Text> : null;
+          })()}
         </View>
       </View>
     </TouchableOpacity>
@@ -225,7 +246,7 @@ export default function Home() {
           <View style={styles.titleWrap}>
             <BrandLogo size={40} />
             <View style={{ flex: 1 }}>
-              <Text style={[styles.greeting, { color: colors.text }]}>Hello {user?.full_name || 'there'}! 👋</Text>
+              <Text style={[styles.greeting, { color: colors.text }]} numberOfLines={1}>Hi, {user?.full_name?.trim().split(/\s+/)[0] || 'there'} 👋</Text>
               <Text style={[styles.subGreeting, { color: colors.textSecondary }]}>Find your perfect style today</Text>
             </View>
           </View>
@@ -281,39 +302,38 @@ export default function Home() {
           style={styles.banner}
         >
           <View style={styles.bannerContent}>
-            <Text style={[styles.bannerTitle, { color: '#fff' }]}>Special Offer!</Text>
+            <Text style={[styles.bannerTitle, { color: '#fff' }]}>Book with confidence</Text>
             <Text style={[styles.bannerSubtitle, { color: '#fff', opacity: 0.9 }]}>
-              Get 20% off on your first booking
+              Verified stylists and secure wallet payments
             </Text>
             <TouchableOpacity
               style={[styles.bannerButton, { backgroundColor: colors.surfaceLight }]}
               onPress={() => router.push('/(tabs)/search')}
               accessibilityRole="button"
-              accessibilityLabel="Book Now"
+              accessibilityLabel="Find a stylist"
             >
-              <Text style={[styles.bannerButtonText, { color: colors.primary }]}>Book Now</Text>
+              <Text style={[styles.bannerButtonText, { color: colors.primary }]}>Find a stylist</Text>
             </TouchableOpacity>
           </View>
           <BrandLogo size={56} />
         </LinearGradient>
 
-        {lastBooked && (
+        {upcoming && (
           <TouchableOpacity
             style={[styles.lastBookedCard, { backgroundColor: colors.surface }]}
-            onPress={() => {
-              const providerId = (lastBooked as Booking & { providerId?: string }).providerId || lastBooked.provider_id;
-              if (providerId) router.push(`/provider/${providerId}`);
-            }}
+            onPress={() => router.push('/(tabs)/bookings')}
             accessibilityRole="button"
-            accessibilityLabel="Last booked provider and service"
+            accessibilityLabel="Upcoming appointment"
           >
             <View style={[styles.lastBookedIcon, { backgroundColor: `${colors.primary}20` }]}>
-              <Ionicons name="repeat-outline" size={24} color={colors.primary} />
+              <Ionicons name="calendar-outline" size={24} color={colors.primary} />
             </View>
             <View style={styles.lastBookedInfo}>
-              <Text style={[styles.cardEyebrow, { color: colors.textSecondary }]}>Last Booked Provider & Service</Text>
-              <Text style={[styles.lastBookedName, { color: colors.text }]} numberOfLines={1}>{lastBooked.provider_name}</Text>
-              <Text style={[styles.lastBookedService, { color: colors.textSecondary }]} numberOfLines={1}>{lastBooked.service_name}</Text>
+              <Text style={[styles.cardEyebrow, { color: colors.textSecondary }]}>Your next appointment</Text>
+              <Text style={[styles.lastBookedName, { color: colors.text }]} numberOfLines={1}>{upcoming.provider_name}</Text>
+              <Text style={[styles.lastBookedService, { color: colors.textSecondary }]} numberOfLines={1}>
+                {[upcoming.service_name && upcoming.service_name !== 'Service' ? upcoming.service_name : '', upcoming.date, upcoming.time].filter(Boolean).join(' · ')}
+              </Text>
             </View>
             <Ionicons name="chevron-forward" size={20} color={colors.textMuted} />
           </TouchableOpacity>
@@ -439,19 +459,19 @@ export default function Home() {
         </View>
 
         {/* Popular Providers */}
-        {popularProviders.length > 0 && (
+        {topRatedProviders.length > 0 && (
           <View style={styles.section}>
             <View style={styles.sectionHeader}>
-              <Text style={[styles.sectionTitle, { color: colors.text }]}>Popular Near You</Text>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>Top Rated</Text>
               <TouchableOpacity
                 onPress={() => router.push('/(tabs)/search')}
                 accessibilityRole="button"
-                accessibilityLabel="See all popular providers"
+                accessibilityLabel="See all top rated providers"
               >
                 <Text style={[styles.seeAll, { color: colors.primary }]}>See All</Text>
               </TouchableOpacity>
             </View>
-            {popularProviders.map(renderProviderCard)}
+            {topRatedProviders.map(renderProviderCard)}
           </View>
         )}
       </ScrollView>
@@ -608,7 +628,7 @@ const styles = StyleSheet.create({
     gap: Spacing.md,
   },
   categoryCard: {
-    width: 80,
+    width: 92,
     alignItems: 'center',
   },
   categoryIcon: {
@@ -629,7 +649,7 @@ const styles = StyleSheet.create({
   cardEyebrow: { fontSize: FontSizes.xs, fontWeight: '600' },
   lastBookedName: { fontSize: FontSizes.md, fontWeight: '700', marginTop: 3 },
   lastBookedService: { fontSize: FontSizes.sm, marginTop: 2 },
-  recentProviderCard: { width: 150, padding: Spacing.md, marginRight: Spacing.sm, borderRadius: BorderRadius.lg },
+  recentProviderCard: { width: 172, padding: Spacing.md, marginRight: Spacing.sm, borderRadius: BorderRadius.lg },
   recentProviderName: { fontSize: FontSizes.sm, fontWeight: '700', marginTop: Spacing.sm },
   recentProviderLocation: { fontSize: FontSizes.xs, marginTop: 3 },
   providerCard: {
@@ -650,7 +670,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: 4,
   },
-  providerNameRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, flexShrink: 1 },
+  providerNameRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, paddingRight: 34, marginBottom: 4 },
   providerCategory: {
     fontSize: FontSizes.sm,
     marginBottom: Spacing.sm,
