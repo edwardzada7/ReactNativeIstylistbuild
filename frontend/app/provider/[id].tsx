@@ -278,7 +278,7 @@ export default function ProviderProfile() {
               </View>
             </View>
             <View style={styles.titleActions}>
-              <TouchableOpacity onPress={() => Share.share({ title: provider.business_name, message: `${provider.business_name} on iStylist\n${provider.bio || ''}`, url: `https://istylist.app/provider/${provider.id}` })} accessibilityRole="button" accessibilityLabel="Share provider profile">
+              <TouchableOpacity onPress={() => Share.share({ title: provider.business_name, message: `${provider.business_name} on iStylist\n${provider.bio || ''}`, url: `https://app.istylist.online/provider/${provider.id}` })} accessibilityRole="button" accessibilityLabel="Share provider profile">
                 <Ionicons name="share-social-outline" size={22} color={colors.text} />
               </TouchableOpacity>
               {!!String(provider.price_range ?? '').replace(/[₦$\s]/g, '') && (
