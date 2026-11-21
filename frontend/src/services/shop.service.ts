@@ -289,12 +289,42 @@ export const shopService = {
 
     const { data: listingRows, error: listingError } = await supabase
       .from("product_listings")
-      .select("id, product_id, price, stock")
+      .select("id, product_id, price, stock, status")
       .eq("seller_id", seller.id);
     if (listingError) throw listingError;
 
     const listings = (listingRows || []) as ProductListing[];
     if (listings.length === 0) return ownProducts;
+
+    // Resolve the original (source) seller name for each listed product.
+    const sourceNames = new Map<number, string>();
+    try {
+      const { data: sourceListings } = await supabase
+        .from("product_listings")
+        .select("product_id, seller_id")
+        .in("product_id", listings.map((listing) => listing.product_id))
+        .neq("seller_id", seller.id);
+      const sourceSellerIds = Array.from(
+        new Set((sourceListings || []).map((row: any) => Number(row.seller_id))),
+      );
+      if (sourceSellerIds.length) {
+        const { data: sourceSellers } = await supabase
+          .from("shop_sellers")
+          .select("*")
+          .in("id", sourceSellerIds);
+        const nameBySeller = new Map<number, string>();
+        (sourceSellers || []).forEach((row: any) => {
+          const name = row.display_name || row.business_name || row.seller_name || row.name;
+          if (name) nameBySeller.set(Number(row.id), name);
+        });
+        (sourceListings || []).forEach((row: any) => {
+          const name = nameBySeller.get(Number(row.seller_id));
+          if (name && !sourceNames.has(Number(row.product_id))) sourceNames.set(Number(row.product_id), name);
+        });
+      }
+    } catch {
+      // Source seller name is cosmetic; ignore failures.
+    }
 
     const { data: products, error: productsError } = await supabase
       .from("products")
@@ -320,6 +350,8 @@ export const shopService = {
           price: Number(listing.price),
           stock: Number(listing.stock),
           seller_listing_id: listing.id,
+          seller_name: sourceNames.get(Number(listing.product_id)) || null,
+          listing_status: listing.status,
           isMarketplaceListing: true,
         }),
       ];
@@ -506,6 +538,11 @@ export const shopService = {
         .eq("id", id);
       if (fallbackError) throw fallbackError;
     }
+  },
+
+  async removeListing(listingId: number): Promise<void> {
+    const { error } = await supabase.from("product_listings").delete().eq("id", listingId);
+    if (error) throw error;
   },
 
   async deleteProduct(id: number): Promise<void> {
