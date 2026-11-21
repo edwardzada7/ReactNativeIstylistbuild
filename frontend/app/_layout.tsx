@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from '@/src/contexts/AuthContext';
 import { ThemeProvider } from '@/src/contexts/ThemeContext';
 import { useIconFonts } from '@/src/hooks/use-icon-fonts';
+import { usePushNotifications } from '@/src/hooks/usePushNotifications';
 import { UnreadMessagesProvider } from '@/src/contexts/UnreadMessagesContext';
 import '@/src/utils/androidTextFix';
 
@@ -39,7 +40,8 @@ function AppShell() {
   const [loaded, error] = useIconFonts();
   const router = useRouter();
   const segments = useSegments();
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, user } = useAuth();
+  usePushNotifications(user?.auth_id);
 
   useEffect(() => {
     if (loaded || error) {
