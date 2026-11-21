@@ -1,3 +1,4 @@
+import { screenCache } from '../../src/utils/screenCache';
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   View,
@@ -28,8 +29,8 @@ export default function Feed() {
   const router = useRouter();
   const { user, isProvider } = useAuth();
   const { colors } = useTheme();
-  const [feedData, setFeedData] = useState<Post[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [feedData, setFeedData] = useState<Post[]>(() => screenCache.get<Post[]>('feed-posts') || []);
+  const [loading, setLoading] = useState(() => !screenCache.get('feed-posts'));
   const [refreshing, setRefreshing] = useState(false);
   const [reportTargetId, setReportTargetId] = useState<string | null>(null);
   const [commentsPostId, setCommentsPostId] = useState<string | null>(null);
@@ -46,13 +47,13 @@ export default function Feed() {
 
   const loadFeed = useCallback(async () => {
     try {
-      setLoading(true);
+      if (!screenCache.get('feed-posts')) setLoading(true);
       const response = await feedService.getFeed({ page: 1, per_page: 20 });
-      setFeedData(response.data || []);
+      setFeedData(screenCache.set('feed-posts', response.data || []));
     } catch (err) {
       console.error('[feed] failed to load', err);
-      // If API fails (503 - migration not applied), show empty state
-      setFeedData([]);
+      // If API fails (503 - migration not applied), keep whatever is already shown
+      setFeedData((prev) => prev);
     } finally {
       setLoading(false);
       setRefreshing(false);

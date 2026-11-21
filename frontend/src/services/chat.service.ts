@@ -222,52 +222,78 @@ export const chatService = {
     if (!authId) return [];
 
     try {
-      // Start the shared-conversations request in parallel with bookings.
+      // Start the shared-conversations request in parallel with the booking chats.
       const sharedPromise = apiService.get<any[]>('/conversations').catch(() => [] as any[]);
-      // Get bookings where user is participant
-      const bookings = await apiService.get(`/bookings?auth_id=${authId}`);
 
-      // Filter out canceled/declined bookings (matching web behavior)
-      const activeBookings = (bookings || []).filter(
-        (booking: any) => booking.status !== 'canceled' && booking.status !== 'declined'
-      );
+      // One call returns every booking chat with last message, unread count and the other
+      // person's name/photo. Older servers lack it, so fall back to the per-booking route.
+      let conversations: Conversation[] = [];
+      let summary: any[] | null = null;
+      try {
+        summary = await apiService.get<any[]>('/conversations/summary', { params: { auth_id: authId } });
+      } catch {
+        summary = null;
+      }
 
-      // Fetch each booking's latest message in parallel (was sequential: N round trips).
-      const bookingResults = await Promise.all(activeBookings.map(async (booking: any): Promise<Conversation | null> => {
-        try {
-          const chatData: BookingChatResponse = await apiService.get(
-            `/bookings/${booking.id}/chat?auth_id=${authId}&limit=30`
-          );
-          if (!chatData.messages || chatData.messages.length === 0) return null;
-          const rawProviderId = booking.provider_id != null && !/^\d+$/.test(String(booking.provider_id)) ? String(booking.provider_id) : undefined;
-          const providerAuthId = booking.provider_auth_id || booking.stylist_auth_id || rawProviderId;
-          const counterpartAuthId = authId === booking.customer_auth_id ? providerAuthId : booking.customer_auth_id;
-          if (!counterpartAuthId) return null;
-          // The API returns oldest-first, so the newest message is the last one and the
-          // unread count must cover every message, not just one.
-          const unreadCount = chatData.messages.filter(
-            (msg: ChatMessage) => msg.receiver_auth_id === authId && !msg.read
-          ).length;
-          // Cached per person, so repeated counterparts cost nothing.
-          const person = await peopleService.getByAuthId(counterpartAuthId).catch(() => null);
+      if (Array.isArray(summary)) {
+        conversations = await Promise.all(summary.map(async (item: any): Promise<Conversation> => {
+          const known = item.counterpart || {};
+          // Server already sent name/photo; only look up the person if it did not.
+          const person = known.name ? known : await peopleService.getByAuthId(item.counterpart_auth_id).catch(() => null);
           return {
-            id: booking.id,
-            booking_id: booking.id,
+            id: item.booking_id,
+            booking_id: item.booking_id,
             conversation_type: 'booking',
-            counterpart_auth_id: counterpartAuthId,
+            counterpart_auth_id: item.counterpart_auth_id,
             counterpart_name: person?.name,
             counterpart_profile_image_url: person?.avatar || null,
-            counterpart_verified: person?.verified === true,
+            counterpart_verified: (person as any)?.verified === true,
             user: { avatarUrl: person?.avatar || undefined } as any,
-            last_message: chatData.messages[chatData.messages.length - 1],
-            unread_count: unreadCount,
+            last_message: item.last_message,
+            unread_count: item.unread_count || 0,
           };
-        } catch (err) {
-          console.warn(`[chat] failed to load chat for booking ${booking.id}`, err);
-          return null;
-        }
-      }));
-      const conversations = bookingResults.filter(Boolean) as Conversation[];
+        }));
+      } else {
+        // Fallback (old server): only this user's bookings (role filter keeps it from loading everyone's).
+        const [asCustomer, asProvider] = await Promise.all([
+          apiService.get<any[]>(`/bookings?auth_id=${authId}&role=customer`).catch(() => [] as any[]),
+          apiService.get<any[]>(`/bookings?auth_id=${authId}&role=provider`).catch(() => [] as any[]),
+        ]);
+        const seen = new Set<string>();
+        const activeBookings = [...(asCustomer || []), ...(asProvider || [])].filter((booking: any) => {
+          if (booking.status === 'canceled' || booking.status === 'declined' || seen.has(String(booking.id))) return false;
+          seen.add(String(booking.id));
+          return true;
+        });
+        const bookingResults = await Promise.all(activeBookings.map(async (booking: any): Promise<Conversation | null> => {
+          try {
+            const chatData: BookingChatResponse = await apiService.get(`/bookings/${booking.id}/chat?auth_id=${authId}&limit=30`);
+            if (!chatData.messages || chatData.messages.length === 0) return null;
+            const rawProviderId = booking.provider_id != null && !/^\d+$/.test(String(booking.provider_id)) ? String(booking.provider_id) : undefined;
+            const providerAuthId = booking.provider_auth_id || booking.stylist_auth_id || rawProviderId;
+            const counterpartAuthId = authId === booking.customer_auth_id ? providerAuthId : booking.customer_auth_id;
+            if (!counterpartAuthId) return null;
+            const unreadCount = chatData.messages.filter((msg: ChatMessage) => msg.receiver_auth_id === authId && !msg.read).length;
+            const person = await peopleService.getByAuthId(counterpartAuthId).catch(() => null);
+            return {
+              id: booking.id,
+              booking_id: booking.id,
+              conversation_type: 'booking',
+              counterpart_auth_id: counterpartAuthId,
+              counterpart_name: person?.name,
+              counterpart_profile_image_url: person?.avatar || null,
+              counterpart_verified: person?.verified === true,
+              user: { avatarUrl: person?.avatar || undefined } as any,
+              last_message: chatData.messages[chatData.messages.length - 1],
+              unread_count: unreadCount,
+            };
+          } catch (err) {
+            console.warn(`[chat] failed to load chat for booking ${booking.id}`, err);
+            return null;
+          }
+        }));
+        conversations = bookingResults.filter(Boolean) as Conversation[];
+      }
 
       // Sort by latest message
       const shared = await sharedPromise;

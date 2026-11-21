@@ -1,13 +1,14 @@
 import React from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { LogBox } from 'react-native';
 import * as Sentry from '@sentry/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from '@/src/contexts/AuthContext';
 import { ThemeProvider } from '@/src/contexts/ThemeContext';
 import { useIconFonts } from '@/src/hooks/use-icon-fonts';
+import { screenCache } from '@/src/utils/screenCache';
 import { usePushNotifications } from '@/src/hooks/usePushNotifications';
 import { UnreadMessagesProvider } from '@/src/contexts/UnreadMessagesContext';
 import '@/src/utils/androidTextFix';
@@ -49,6 +50,10 @@ export const queryClient = new QueryClient({
 
 function AppShell() {
   const [loaded, error] = useIconFonts();
+  const [cacheReady, setCacheReady] = useState(false);
+  useEffect(() => {
+    screenCache.hydrate().finally(() => setCacheReady(true));
+  }, []);
   const router = useRouter();
   const segments = useSegments();
   const { isAuthenticated, isLoading, user } = useAuth();
@@ -73,7 +78,7 @@ function AppShell() {
 
   // If the CDN is unreachable we fall through on error rather than wedging
   // the app — icons will tofu, but the app still boots.
-  if (!loaded && !error) return null;
+  if ((!loaded && !error) || !cacheReady) return null;
 
   return (
     <UnreadMessagesProvider>

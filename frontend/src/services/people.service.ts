@@ -217,6 +217,7 @@ function getRatingSummary(authId?: string | null): Promise<{ rating: number; cou
 async function withProviderRatings<T extends Record<string, any>>(list: T[]): Promise<T[]> {
   return Promise.all(
     list.map(async (p) => {
+      if ((p as any)._ratingsLoaded) return p;
       const authId = p.user_id && !/^\d+$/.test(String(p.user_id)) ? p.user_id : await getProviderAuthId(p.id);
       const summary = await getRatingSummary(authId);
       if (!summary) return p;
@@ -226,6 +227,7 @@ async function withProviderRatings<T extends Record<string, any>>(list: T[]): Pr
 }
 
 export const peopleService = {
+  warmDirectory: () => getStylistDirectory().then(() => undefined, () => undefined),
   getRatingSummary,
   withProviderRatings,
   getByAuthId,

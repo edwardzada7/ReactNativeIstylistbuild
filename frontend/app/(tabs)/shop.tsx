@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
   Alert,
   View,
@@ -49,21 +49,23 @@ export function SharedShopScreen({ showManageButton = false }: SharedShopScreenP
   const cartCount = useCartStore((s) => s.lines.reduce((n, l) => n + l.quantity, 0));
   const addItem = useCartStore((s) => s.addItem);
 
+  const lastLoadedAt = useRef(0);
   const loadData = useCallback(async () => {
     try {
-      const [list, providerList] = await Promise.all([
-        shopService.getProducts(),
-        providerService.getProvidersWithServices().catch(() => []),
-      ]);
+      // Show products as soon as they arrive; provider names (from the heavier providers list) fill in after.
+      providerService.getProvidersWithServices().catch(() => []).then((providerList) => {
+        setProviderNames(
+          screenCache.set('shop-provider-names', Object.fromEntries(
+            providerList.flatMap((provider) => {
+              const name = provider.business_name || provider.businessName;
+              return name ? [[provider.user_id, name], [provider.id, name]] : [];
+            })
+          ))
+        );
+      });
+      const list = await shopService.getProducts();
       setProducts(screenCache.set('shop-products', list));
-      setProviderNames(
-        screenCache.set('shop-provider-names', Object.fromEntries(
-          providerList.flatMap((provider) => {
-            const name = provider.business_name || provider.businessName;
-            return name ? [[provider.user_id, name], [provider.id, name]] : [];
-          })
-        ))
-      );
+      lastLoadedAt.current = Date.now();
     } catch (err) {
       console.error('[shop] failed to load products', err);
     } finally {
@@ -74,6 +76,8 @@ export function SharedShopScreen({ showManageButton = false }: SharedShopScreenP
 
   useFocusEffect(
     useCallback(() => {
+      // Cached products show instantly; only refetch when they are over a minute old.
+      if (screenCache.get('shop-products') && Date.now() - lastLoadedAt.current < 60_000) return;
       loadData();
     }, [loadData])
   );
