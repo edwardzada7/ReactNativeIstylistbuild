@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Share,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -22,6 +23,8 @@ import { providerService } from '../../src/services/provider.service';
 import { notificationService } from '../../src/services/notification.service';
 import { ChatIconWithBadge } from '../../src/components/chat/ChatIconWithBadge';
 import { shopService, Order } from '../../src/services/shop.service';
+import { walletService } from '../../src/services/wallet.service';
+import { isVerifiedProfile } from '../../src/components/common';
 import { formatCurrency } from '../../src/utils/currency';
 import { Booking, Provider } from '../../src/types';
 import { formatRating } from '../../src/utils/display';
@@ -38,6 +41,17 @@ const isSameDay = (isoDate: string) => {
   );
 };
 
+const serviceModes = (description?: string | null) => {
+  const text = (description || '').trim();
+  if (!/^modes:/i.test(text)) return text;
+  const labels: Record<string, string> = { in_store: 'In store', home: 'Home visit', travel: 'Travel' };
+  return text.replace(/^modes:/i, '').split(',').map((m) => labels[m.trim()] || m.trim()).filter(Boolean).join(' · ');
+};
+
+const bookingTitle = (b: Booking) => (b.service_name && b.service_name !== 'Service' ? b.service_name : b.services?.[0]?.service_name || 'Booking');
+const bookingAmount = (b: Booking) => b.total_amount || (b.services || []).reduce((sum: number, line: any) => sum + Number(line.price || 0), 0);
+const bookingWhen = (b: Booking) => [b.date, b.time].filter(Boolean).join(' · ');
+
 export default function ProviderDashboard() {
   const router = useRouter();
   const { user } = useAuth();
@@ -52,6 +66,7 @@ export default function ProviderDashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [walletBalance, setWalletBalance] = useState<number | null>(null);
 
   const refreshUnreadCount = useCallback(async () => {
     try {
@@ -77,6 +92,7 @@ export default function ProviderDashboard() {
       setProfile(providerProfile);
       screenCache.set('provider-dashboard', { bookingList, providerProfile, providerOrders });
       refreshUnreadCount();
+      if (user?.auth_id) walletService.getWallet(user.auth_id).then((w) => setWalletBalance(Number(w?.balance ?? 0))).catch(() => undefined);
     } catch (err: any) {
       console.error('[provider-dashboard] failed to load', err);
       setError(err?.friendlyMessage || 'Could not load your dashboard.');
@@ -102,14 +118,17 @@ export default function ProviderDashboard() {
     loadData();
   };
 
+  // Statuses that mean the booking did not go ahead (used to hide them from today's schedule).
   const cancelledStatuses = ['canceled', 'cancelled', 'declined', 'rejected', 'no_show_pending', 'user_no_show', 'provider_no_show', 'disputed'];
+  // Truly cancelled/declined bookings only - no-shows and disputes are counted separately.
+  const cancelledOnly = ['canceled', 'cancelled', 'declined', 'rejected'];
   const { todays, pending, upcoming, completed, cancelled, totalEarnings, pendingPayout } = useMemo(() => {
     const todays = bookings.filter((b) => isSameDay(b.scheduled_at) && !cancelledStatuses.includes((b.status || '').toLowerCase()));
     const pending = bookings.filter((b) => b.status === 'pending');
     const upcoming = bookings.filter((b) => ['confirmed', 'arrived'].includes((b.status || '').toLowerCase()));
     const completed = bookings.filter((b) => b.status === 'completed');
-    const cancelled = bookings.filter((b) => cancelledStatuses.includes((b.status || '').toLowerCase()));
-    const totalEarnings = completed.reduce((sum, b) => sum + (b.total_amount || 0), 0);
+    const cancelled = bookings.filter((b) => cancelledOnly.includes((b.status || '').toLowerCase()));
+    const totalEarnings = completed.reduce((sum, b) => sum + bookingAmount(b), 0);
     // Real earnings still tied up in active (unfinished) bookings - a
     // best-effort "pending" figure derived from real booking data since the
     // API has no dedicated earnings/escrow endpoint.
@@ -119,11 +138,13 @@ export default function ProviderDashboard() {
 
   const analytics = useMemo(() => {
     const total = bookings.length;
-    const pendingCount = bookings.filter((b) => ['pending', 'pending_payment'].includes((b.status || '').toLowerCase())).length;
+    const pendingCount = bookings.filter((b) => (b.status || '').toLowerCase() === 'pending').length;
+    const unpaidCount = bookings.filter((b) => (b.status || '').toLowerCase() === 'pending_payment').length;
     const completedCount = bookings.filter((b) => (b.status || '').toLowerCase() === 'completed').length;
-    const cancelledCount = bookings.filter((b) => cancelledStatuses.includes((b.status || '').toLowerCase())).length;
+    const cancelledCount = bookings.filter((b) => cancelledOnly.includes((b.status || '').toLowerCase())).length;
     const noShowCount = bookings.filter((b) => ['no_show_pending', 'user_no_show', 'provider_no_show'].includes((b.status || '').toLowerCase())).length;
-    return { total, pendingCount, completedCount, cancelledCount, noShowCount };
+    const cancelRate = total ? Math.round((cancelledCount / total) * 100) : 0;
+    return { total, pendingCount, unpaidCount, completedCount, cancelledCount, noShowCount, cancelRate };
   }, [bookings]);
 
   const servicePreview = useMemo(() => (profile?.services || []).slice(0, 3), [profile?.services]);
@@ -136,6 +157,19 @@ export default function ProviderDashboard() {
     return { total, pending, processing, delivered };
   }, [shopOrders]);
 
+  const actionItems = [
+    { key: 'bookings', count: pending.length, label: pending.length === 1 ? 'booking waiting for you' : 'bookings waiting for you', onPress: () => router.push('/(provider)/bookings') },
+    { key: 'noshow', count: analytics.noShowCount, label: analytics.noShowCount === 1 ? 'no-show to review' : 'no-shows to review', onPress: () => router.push('/(provider)/bookings') },
+    { key: 'orders', count: orderStats.pending, label: orderStats.pending === 1 ? 'shop order to process' : 'shop orders to process', onPress: () => router.push('/(provider)/orders') },
+  ].filter((item) => item.count > 0);
+
+  const checklist = [
+    { key: 'kyc', done: isVerifiedProfile(profile) || isVerifiedProfile(user), label: 'Verify your identity', onPress: () => router.push('/(provider)/kyc') },
+    { key: 'photo', done: !!(user?.profile_image_url || user?.avatar), label: 'Add a profile photo', onPress: () => router.push('/(provider)/profile') },
+    { key: 'services', done: (profile?.services?.length ?? 0) > 0, label: 'Add your services', onPress: () => router.push('/(provider)/services') },
+  ];
+  const checklistOpen = checklist.filter((item) => !item.done);
+
   const quickActions = [
     { icon: 'time-outline', label: 'Availability', onPress: () => router.push('/(provider)/availability') },
     { icon: 'people-outline', label: 'Manage Staff', onPress: () => router.push('/(provider)/staff') },
@@ -144,8 +178,9 @@ export default function ProviderDashboard() {
     { icon: 'wallet-outline', label: 'Wallet', onPress: () => router.push('/(provider)/wallet') },
     { icon: 'person-outline', label: 'Profile', onPress: () => router.push('/(provider)/profile') },
     { icon: 'settings-outline', label: 'Settings', onPress: () => router.push('/settings') },
-    { icon: 'cash-outline', label: 'Earnings', onPress: () => router.push('/(provider)/wallet') },
-    { icon: 'trending-up-outline', label: 'Referral Earnings', onPress: () => router.push('/(provider)/referral-earnings' as any) },
+    { icon: 'add-circle-outline', label: 'Create Post', onPress: () => router.push('/(provider)/create-post') },
+    { icon: 'share-social-outline', label: 'Share Profile', onPress: () => { Share.share({ message: `Book me on iStylist: https://app.istylist.online/provider/${providerId}` }).catch(() => undefined); } },
+    { icon: 'trending-up-outline', label: 'Referrals', onPress: () => router.push('/(provider)/referral-earnings' as any) },
   ];
 
   if (loading) {
@@ -171,8 +206,8 @@ export default function ProviderDashboard() {
           <View style={styles.titleWrap}>
             <BrandLogo size={36} />
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={[styles.greeting, { color: colors.text }]} numberOfLines={1}>Welcome back, {user?.full_name?.split(' ')[0] || 'there'} 👋</Text>
-              <Text style={[styles.subGreeting, { color: colors.textSecondary }]} numberOfLines={1}>Here is how your business is doing</Text>
+              <Text style={[styles.greeting, { color: colors.text }]} numberOfLines={1}>Hi, {user?.full_name?.split(' ')[0] || 'there'} 👋</Text>
+              <Text style={[styles.subGreeting, { color: colors.textSecondary }]} numberOfLines={1}>Your business today</Text>
             </View>
           </View>
           <View style={styles.headerActions}>
@@ -241,6 +276,70 @@ export default function ProviderDashboard() {
           </View>
         </View>
 
+        {/* Wallet */}
+        {walletBalance !== null && (
+          <View style={[styles.walletCard, { backgroundColor: colors.surface }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Wallet balance</Text>
+              <Text style={[styles.statValue, { color: colors.text }]}>{formatCurrency(walletBalance)}</Text>
+            </View>
+            <TouchableOpacity style={[styles.walletButton, { backgroundColor: colors.primary }]} onPress={() => router.push('/(provider)/withdraw')} accessibilityRole="button" accessibilityLabel="Withdraw">
+              <Text style={styles.walletButtonText}>Withdraw</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Needs your attention */}
+        {actionItems.length > 0 && (
+          <View style={styles.section}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Needs your attention</Text>
+            {actionItems.map((item) => (
+              <TouchableOpacity key={item.key} style={[styles.bookingRow, { backgroundColor: colors.surface }]} onPress={item.onPress} accessibilityRole="button">
+                <View style={[styles.attentionCount, { backgroundColor: colors.error }]}><Text style={styles.badgeText}>{item.count}</Text></View>
+                <Text style={[styles.bookingService, { color: colors.text, flex: 1, marginLeft: Spacing.md }]}>{item.count} {item.label}</Text>
+                <Ionicons name="chevron-forward-outline" size={18} color={colors.textSecondary} />
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
+        {/* Today */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Today</Text>
+            <Text style={[styles.sectionCount, { color: colors.primary, backgroundColor: colors.surface }]}>{todays.length}</Text>
+          </View>
+          {todays.length === 0 ? (
+            <TouchableOpacity onPress={() => router.push('/(provider)/availability')}>
+              <Text style={[styles.emptyInline, { color: colors.textSecondary }]}>No appointments today. Tap to review your availability.</Text>
+            </TouchableOpacity>
+          ) : (
+            todays.slice(0, 3).map((booking) => (
+              <TouchableOpacity key={booking.id} style={[styles.bookingRow, { backgroundColor: colors.surface }]} onPress={() => router.push('/(provider)/bookings')} accessibilityRole="button">
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.bookingService, { color: colors.text }]}>{booking.time || 'Today'} · {bookingTitle(booking)}</Text>
+                  <Text style={[styles.bookingMeta, { color: colors.textSecondary }]}>{booking.customer_name || 'Customer'}</Text>
+                </View>
+                <Text style={[styles.bookingAmount, { color: colors.text }]}>{formatCurrency(bookingAmount(booking))}</Text>
+              </TouchableOpacity>
+            ))
+          )}
+        </View>
+
+        {/* Setup checklist (hidden once everything is done) */}
+        {checklistOpen.length > 0 && (
+          <View style={[styles.analyticsCard, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Finish setting up</Text>
+            {checklist.map((item) => (
+              <TouchableOpacity key={item.key} style={styles.checkRow} onPress={item.onPress} disabled={item.done} accessibilityRole="button">
+                <Ionicons name={item.done ? 'checkmark-circle' : 'ellipse-outline'} size={22} color={item.done ? Colors.success : colors.textSecondary} />
+                <Text style={[styles.bookingService, { color: item.done ? colors.textSecondary : colors.text, marginLeft: Spacing.md, flex: 1, textDecorationLine: item.done ? 'line-through' : 'none' }]}>{item.label}</Text>
+                {!item.done && <Ionicons name="chevron-forward-outline" size={18} color={colors.textSecondary} />}
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+
         {/* Quick Actions */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.text }]}>Quick Actions</Text>
@@ -288,7 +387,14 @@ export default function ProviderDashboard() {
               <Text style={[styles.analyticsValue, { color: colors.text }]}>{analytics.noShowCount}</Text>
               <Text style={[styles.analyticsLabel, { color: colors.textSecondary }]}>No-Show</Text>
             </View>
+            {analytics.unpaidCount > 0 && (
+              <View style={styles.analyticsMetric}>
+                <Text style={[styles.analyticsValue, { color: colors.text }]}>{analytics.unpaidCount}</Text>
+                <Text style={[styles.analyticsLabel, { color: colors.textSecondary }]}>Unpaid</Text>
+              </View>
+            )}
           </View>
+          <Text style={[styles.bookingMeta, { color: colors.textSecondary, marginTop: Spacing.sm }]}>Cancellation rate: {analytics.cancelRate}%</Text>
         </View>
 
         <View style={[styles.trayCard, { backgroundColor: colors.surface }]}> 
@@ -306,8 +412,8 @@ export default function ProviderDashboard() {
               >
                 <View style={styles.trayItemDetails}>
                   <Text style={[styles.bookingService, { color: colors.text }]}>{service.name}</Text>
-                  {!!service.description && (
-                    <Text style={[styles.bookingMeta, { color: colors.textSecondary }]} numberOfLines={2}>{service.description}</Text>
+                  {!!serviceModes(service.description) && (
+                    <Text style={[styles.bookingMeta, { color: colors.textSecondary }]} numberOfLines={2}>{serviceModes(service.description)}</Text>
                   )}
                 </View>
                 <Text style={[styles.bookingAmount, { color: colors.text }]}>{formatCurrency(service.price)}</Text>
@@ -368,15 +474,15 @@ export default function ProviderDashboard() {
                   style={[styles.bookingRow, { backgroundColor: colors.surface }]}
                   onPress={() => router.push('/(provider)/bookings')}
                   accessibilityRole="button"
-                  accessibilityLabel={`${booking.service_name} booking`}
+                  accessibilityLabel={`${bookingTitle(booking)} booking`}
                 >
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.bookingService, { color: colors.text }]}>{booking.service_name}</Text>
-                    <Text style={[styles.bookingMeta, { color: colors.textSecondary }]}>
-                      {booking.date} {booking.time ? `· ${booking.time}` : ''}
+                    <Text style={[styles.bookingService, { color: colors.text }]}>{bookingTitle(booking)}</Text>
+                    <Text style={[styles.bookingMeta, { color: colors.textSecondary }]} numberOfLines={1}>
+                      {[booking.customer_name, bookingWhen(booking)].filter(Boolean).join(' · ')}
                     </Text>
                   </View>
-                  <Text style={[styles.bookingAmount, { color: colors.text }]}>{formatCurrency(booking.total_amount)}</Text>
+                  <Text style={[styles.bookingAmount, { color: colors.text }]}>{formatCurrency(bookingAmount(booking))}</Text>
                 </TouchableOpacity>
               ))
             )}
@@ -554,8 +660,8 @@ const styles = StyleSheet.create({
     borderRadius: BorderRadius.full,
   },
   emptyInline: { fontSize: FontSizes.sm },
-  actionsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.md },
-  actionButton: { alignItems: 'center', width: 68 },
+  actionsRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: Spacing.md },
+  actionButton: { alignItems: 'center', justifyContent: 'flex-start', width: '31%', minHeight: 104, paddingVertical: Spacing.md, paddingHorizontal: 4, borderRadius: BorderRadius.lg },
   actionIcon: {
     width: 52,
     height: 52,
@@ -564,7 +670,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 6,
   },
-  actionLabel: { fontSize: FontSizes.xs, textAlign: 'center' },
+  actionLabel: { fontSize: FontSizes.xs, textAlign: 'center', marginTop: 6 },
+  walletCard: { flexDirection: 'row', alignItems: 'center', marginHorizontal: Spacing.lg, marginBottom: Spacing.md, padding: Spacing.lg, borderRadius: BorderRadius.lg },
+  walletButton: { paddingHorizontal: 18, paddingVertical: 10, borderRadius: 22 },
+  walletButtonText: { color: '#fff', fontWeight: '700' },
+  attentionCount: { minWidth: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6 },
+  checkRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.sm },
   bookingRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
