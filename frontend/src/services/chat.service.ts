@@ -198,11 +198,9 @@ export const chatService = {
     });
   },
 
-  async payServiceInvoice(invoiceId: number, paymentReference: string, transactionId?: string | null) {
-    return apiService.post(`/invoices/${invoiceId}/pay-service`, {
-      payment_reference: paymentReference,
-      transaction_id: transactionId,
-    });
+  // Service invoices are paid from the wallet, like every other booking payment.
+  async payServiceInvoice(invoiceId: number) {
+    return apiService.post(`/invoices/${invoiceId}/pay-service`, {});
   },
 
   async completeProductInvoice(invoiceId: number, orderId: number, paymentReference?: string | null) {
