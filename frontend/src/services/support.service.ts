@@ -34,7 +34,7 @@ export const supportService = {
       await apiService.post('/support/tickets', {
         name: data.reporter?.name || 'App User',
         // The ticket API requires a valid email address.
-        email: data.reporter?.email || 'no-email@istylist.app',
+        email: data.reporter?.email || 'no-email@istylist.online',
         category: 'abuse_report',
         subject: `Product report: ${data.reason}`,
         message: [

@@ -113,7 +113,7 @@ export default function Feed() {
     try {
       const message = post.caption || '';
       await Share.share({
-        message: `${message}${message ? '\n' : ''}View this post on iStylist: https://istylist.app/feed/${post.id}`,
+        message: `${message}${message ? '\n' : ''}View this post on iStylist: https://app.istylist.online/feed/${post.id}`,
         url: post.video_url || post.image_url,
       });
     } catch (error) {
