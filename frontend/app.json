@@ -24,7 +24,7 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/app-icon.png",
-        "backgroundColor": "#120F2A"
+        "backgroundColor": "#A83AD6"
       },
       "edgeToEdgeEnabled": true,
       "package": "com.istylist.app",
@@ -54,7 +54,7 @@
           "image": "./assets/images/splash-image.png",
           "imageWidth": 240,
           "resizeMode": "contain",
-          "backgroundColor": "#120F2A"
+          "backgroundColor": "#FFFFFF"
         }
       ],
       "expo-notifications"
