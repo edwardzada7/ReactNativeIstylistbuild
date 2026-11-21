@@ -76,30 +76,14 @@ export default function ProviderProfile() {
         providerService.getAvailableSlots(pid, today, defaultDuration).catch(() => []),
         providerService.getProviderPortfolio(pid).catch(() => []),
         providerService.getProviderStaff(pid).catch(() => []),
-        feedService.getFeed({ page: 1, per_page: 100 }).catch(() => ({ data: [] })),
+        feedService.getProviderPosts(pid).catch(() => [] as Post[]),
       ]);
       setCoverImageError(false);
       setReviews(reviewList);
       setSlots(slotList);
       setPortfolio(portfolioList);
       setStaff(staffList);
-      // Filter posts by this provider
-      console.log('[customer-provider-profile] profile.user_id:', profile.user_id, 'id param:', id);
-      console.log('[customer-provider-profile] total posts from API:', feedResponse.data?.length);
-      const providerPosts = (feedResponse.data || []).filter(
-        (post: Post) => {
-          const matches = 
-            post.provider_auth_id === profile.user_id ||
-            post.provider?.id === id ||
-            post.user_id === profile.user_id ||
-            post.provider?.auth_id === profile.user_id;
-          if (matches) {
-            console.log('[customer-provider-profile] matched post:', post.id, 'provider_auth_id:', post.provider_auth_id, 'provider.id:', post.provider?.id);
-          }
-          return matches;
-        }
-      );
-      console.log('[customer-provider-profile] filtered posts:', providerPosts.length);
+      const providerPosts = feedResponse as Post[];
       setPosts(providerPosts);
       if (profile.services.length > 0) {
         setSelectedServiceId((prev) => {

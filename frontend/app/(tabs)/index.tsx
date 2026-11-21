@@ -67,18 +67,22 @@ export default function Home() {
   const loadData = useCallback(async () => {
     try {
       setError(null);
-      const [providerList, categoryList, bookingList] = await Promise.all([
+      // Bookings only feed the "recent providers" strip, so they must not delay the main list.
+      if (isAuthenticated) {
+        bookingService.getBookings({ role: 'customer' }).catch(() => [] as any[]).then((bookingList) => {
+          setBookings(bookingList);
+          if (bookingList.length) peopleService.enrichBookingProviders(bookingList).then(setBookings).catch(() => undefined);
+        });
+      }
+      const [providerList, categoryList] = await Promise.all([
         providerService.getProvidersWithServices(),
         providerService.getCategories(),
-        isAuthenticated ? bookingService.getBookings({ role: 'customer' }).catch(() => []) : Promise.resolve([]),
       ]);
       setProviders(screenCache.set('home-providers', providerList));
       peopleService.withProviderRatings(providerList)
         .then((rated) => setProviders(screenCache.set('home-providers', rated)))
         .catch(() => undefined);
       setCategories(screenCache.set('home-categories', categoryList));
-      setBookings(bookingList);
-      if (bookingList.length) peopleService.enrichBookingProviders(bookingList).then(setBookings).catch(() => undefined);
       if (isAuthenticated) refreshUnreadCount(); // don't block first paint
     } catch (err: any) {
       console.error('[home] failed to load data', err);

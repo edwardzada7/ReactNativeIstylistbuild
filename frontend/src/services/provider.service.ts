@@ -73,8 +73,15 @@ async function toNumericProviderId(providerId: string): Promise<string> {
 export const providerService = {
   // Browse providers with their services embedded (Home + Search use this).
   async getProvidersWithServices(): Promise<Provider[]> {
-    const raw = await apiService.get<any>('/providers/with-services');
-    return peopleService.withProviderAvatars(asList(raw).map(normalizeProvider));
+    const [raw] = await Promise.all([
+      apiService.get<any>('/providers/with-services'),
+      peopleService.warmDirectory(), // fetch the photo directory in parallel, not after
+    ]);
+    const rawList = asList(raw);
+    // Newer servers send rating + review_count in this response, so no per-provider /reviews calls are needed.
+    const serverRated = rawList.length > 0 && rawList[0]?.review_count !== undefined;
+    const list = rawList.map((item: any) => ({ ...normalizeProvider(item), ...(serverRated ? { _ratingsLoaded: true } : {}) }));
+    return peopleService.withProviderAvatars(list as any);
   },
 
   // Full provider profile: bio, services, ratings, portfolio.

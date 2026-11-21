@@ -48,6 +48,13 @@ export const feedService = {
     };
   },
 
+  // Only this provider's posts (the profile used to download 100 feed posts and filter them).
+  async getProviderPosts(providerId: string | number, limit = 12): Promise<Post[]> {
+    const response = await apiService.get<any>(`/feed/posts/by-provider/${providerId}`, { params: { limit } });
+    const posts = Array.isArray(response?.posts) ? response.posts : [];
+    return posts.filter(isPubliclyVisiblePost);
+  },
+
   async getModerationPosts(params?: { page?: number; per_page?: number }): Promise<PaginatedResponse<Post>> {
     const response = await apiService.get<any>('/feed/posts', { params });
     const posts = Array.isArray(response?.posts) ? response.posts : Array.isArray(response?.data) ? response.data : [];
