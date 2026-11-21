@@ -18,7 +18,7 @@ import { Share } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
-import { Button, ProfileAvatar, RatingStars, VerifiedBadge, isVerifiedProfile } from '../../src/components/common';
+import { Button, FavoriteButton, ProfileAvatar, RatingStars, VerifiedBadge, isVerifiedProfile } from '../../src/components/common';
 import { providerService } from '../../src/services/provider.service';
 import { peopleService } from '../../src/services/people.service';
 import { screenCache } from '../../src/utils/screenCache';
@@ -255,6 +255,7 @@ export default function ProviderProfile() {
               <View style={styles.nameRow}>
                 <Text style={[styles.name, { color: colors.text }]}>{provider.business_name}</Text>
                 <VerifiedBadge verified={isVerifiedProfile(provider)} size={18} />
+                <FavoriteButton providerAuthId={provider.user_id} size={24} style={{ marginLeft: 10 }} />
               </View>
               {!!categoryLabel && <Text style={[styles.category, { color: colors.textSecondary }]}>{categoryLabel}</Text>}
               <View style={{ marginTop: 6 }}>

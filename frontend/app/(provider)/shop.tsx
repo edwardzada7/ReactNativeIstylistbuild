@@ -15,6 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { WebView } from "react-native-webview";
 import { useFocusEffect, useRouter } from "expo-router";
 import * as ImagePicker from "expo-image-picker";
+import { mediaService } from "../../src/services/media.service";
 import { Button, Input } from "../../src/components/common";
 import { useAuth } from "../../src/contexts/AuthContext";
 import { useTheme } from "../../src/contexts/ThemeContext";
@@ -58,7 +59,7 @@ export default function ProviderShop() {
     description: "",
     price: "",
     stock: "",
-    image: "",
+    images: [] as string[],
   });
   const [marketplaceSearch, setMarketplaceSearch] = useState("");
   const [selectedCategory, setSelectedCategory] =
@@ -118,7 +119,7 @@ export default function ProviderShop() {
       description: product?.description || "",
       price: product ? String(product.price) : "",
       stock: product ? String(product.stock) : "",
-      image: product?.image_urls?.[0] || "",
+      images: (product?.image_urls || []).slice(0, 5),
     });
     setModalVisible(true);
   };
@@ -132,18 +133,19 @@ export default function ProviderShop() {
       );
       return;
     }
+    const room = Math.max(1, 5 - form.images.length);
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
-      allowsEditing: true,
       quality: 0.7,
-      base64: true,
+      allowsMultipleSelection: true,
+      selectionLimit: room,
+      orderedSelection: true,
     });
-    const asset = result.assets?.[0];
-    if (!result.canceled && asset?.base64)
-      setForm((current) => ({
-        ...current,
-        image: `data:image/jpeg;base64,${asset.base64}`,
-      }));
+    if (result.canceled || !result.assets?.length) return;
+    setForm((current) => ({
+      ...current,
+      images: [...current.images, ...result.assets.map((a) => a.uri)].slice(0, 5),
+    }));
   };
 
   const saveProduct = async () => {
@@ -169,7 +171,7 @@ export default function ProviderShop() {
         description: form.description.trim(),
         price,
         stock,
-        image_urls: form.image ? [form.image] : undefined,
+        image_urls: form.images.length ? await mediaService.uploadMany(form.images, String(user?.auth_id), 'products') : undefined,
       };
       if (editing) await shopService.updateProduct(editing.id, input);
       else await shopService.createProduct(input);
@@ -955,23 +957,27 @@ export default function ProviderShop() {
             <View style={{ width: 24 }} />
           </View>
           <ScrollView contentContainerStyle={styles.content}>
-            <TouchableOpacity
-              style={[styles.imagePicker, { borderColor: colors.border }]}
-              onPress={pickImage}
-            >
-              {form.image ? (
-                <Image
-                  source={{ uri: form.image }}
-                  style={styles.imagePickerPreview}
-                />
-              ) : (
-                <Ionicons
-                  name="camera-outline"
-                  size={28}
-                  color={colors.primary}
-                />
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
+              {form.images.map((uri, i) => (
+                <View key={uri + i} style={{ marginRight: 10 }}>
+                  <Image source={{ uri }} style={{ width: 96, height: 96, borderRadius: 10 }} />
+                  <TouchableOpacity
+                    style={{ position: "absolute", top: 4, right: 4, backgroundColor: "rgba(0,0,0,0.6)", borderRadius: 12 }}
+                    onPress={() => setForm((c) => ({ ...c, images: c.images.filter((_, idx) => idx !== i) }))}
+                    accessibilityLabel="Remove photo"
+                  >
+                    <Ionicons name="close" size={20} color="#fff" />
+                  </TouchableOpacity>
+                  {i === 0 && <Text style={{ position: "absolute", bottom: 4, left: 6, color: "#fff", fontSize: 11, fontWeight: "700" }}>Cover</Text>}
+                </View>
+              ))}
+              {form.images.length < 5 && (
+                <TouchableOpacity style={[styles.imagePicker, { borderColor: colors.border, width: 96, height: 96 }]} onPress={pickImage}>
+                  <Ionicons name="camera-outline" size={28} color={colors.primary} />
+                  <Text style={{ color: colors.primary, fontSize: 11 }}>{form.images.length}/5</Text>
+                </TouchableOpacity>
               )}
-            </TouchableOpacity>
+            </ScrollView>
             <Input
               label="Product Name"
               value={form.name}

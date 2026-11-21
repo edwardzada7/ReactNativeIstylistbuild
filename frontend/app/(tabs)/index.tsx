@@ -16,7 +16,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { BrandColors } from '../../src/constants/brand';
 import { BrandLogo } from '../../src/components/branding';
-import { ProfileAvatar, RatingStars, VerifiedBadge, isVerifiedProfile } from '../../src/components/common';
+import { FavoriteButton, ProfileAvatar, RatingStars, VerifiedBadge, isVerifiedProfile } from '../../src/components/common';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { providerService } from '../../src/services/provider.service';
@@ -171,6 +171,7 @@ export default function Home() {
       accessibilityRole="button"
       accessibilityLabel={item.business_name}
     >
+      <FavoriteButton providerAuthId={item.user_id} style={{ position: 'absolute', top: 10, right: 10, zIndex: 2 }} />
       <ProfileAvatar 
         uri={item.avatarUrl || item.user?.avatarUrl || item.profileImage || item.user?.profileImage || item.profile_image_url || item.avatar}
         name={item.business_name} 
