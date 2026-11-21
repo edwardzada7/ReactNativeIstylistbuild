@@ -8,6 +8,7 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -42,6 +43,12 @@ const slides = [
     title: 'Rate & Review',
     description: 'Share your experience and help others make informed decisions',
   },
+  {
+    id: '5',
+    icon: 'storefront-outline' as const,
+    title: 'Grow Your Business',
+    description: 'Are you a stylist or beauty professional? List your services, get booked and get paid securely',
+  },
 ];
 
 export default function Onboarding() {
@@ -49,16 +56,21 @@ export default function Onboarding() {
   const flatListRef = useRef<FlatList>(null);
   const [currentIndex, setCurrentIndex] = useState(0);
 
+  const markSeen = () => AsyncStorage.setItem('onboarding_seen', '1').catch(() => undefined);
+
   const handleNext = () => {
     if (currentIndex < slides.length - 1) {
       flatListRef.current?.scrollToIndex({ index: currentIndex + 1 });
     } else {
+      void markSeen();
       router.replace('/(auth)/login');
     }
   };
 
+  // Skip lets people browse as a guest straight away.
   const handleSkip = () => {
-    router.replace('/(auth)/login');
+    void markSeen();
+    router.replace('/(tabs)');
   };
 
   const renderItem = ({ item }: { item: typeof slides[0] }) => (

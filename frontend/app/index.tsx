@@ -1,11 +1,10 @@
 import React, { useEffect } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { View, StyleSheet, Image } from 'react-native';
 import { useRouter } from 'expo-router';
-import { LinearGradient } from 'expo-linear-gradient';
 import Animated, { FadeIn, FadeOut } from 'react-native-reanimated';
-import { BrandColors, BrandAssets } from '../src/constants/brand';
+import { BrandAssets } from '../src/constants/brand';
 import { useAuth } from '../src/contexts/AuthContext';
-import { Loading } from '../src/components/common';
 
 export default function Index() {
   const router = useRouter();
@@ -25,26 +24,19 @@ export default function Index() {
       return;
     }
 
-    // Public tabs remain browsable in guest mode. Individual booking,
-    // payment, messaging, review, and reporting actions enforce auth.
-    router.replace('/(tabs)');
+    // First-time visitors see the short welcome tour once; everyone else browses as a guest.
+    // Individual booking, payment, messaging, review and reporting actions enforce auth.
+    AsyncStorage.getItem('onboarding_seen')
+      .then((seen) => router.replace(seen ? '/(tabs)' : '/(onboarding)'))
+      .catch(() => router.replace('/(tabs)'));
   }, [isLoading, isAuthenticated, user?.role, router]);
 
-  if (isLoading) {
-    return <Loading />;
-  }
-
   return (
-    <LinearGradient
-      colors={[BrandColors.primaryPink, BrandColors.primaryPurple, BrandColors.accentCyan]}
-      style={styles.container}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 1 }}
-    >
-      <Animated.View entering={FadeIn.duration(600)} exiting={FadeOut.duration(200)} style={styles.content}>
-        <Image source={BrandAssets.appImage} style={styles.brandImage} resizeMode="contain" />
+    <View style={styles.container}>
+      <Animated.View entering={FadeIn.duration(300)} exiting={FadeOut.duration(200)} style={styles.content}>
+        <Image source={BrandAssets.logo} style={styles.brandImage} resizeMode="contain" />
       </Animated.View>
-    </LinearGradient>
+    </View>
   );
 }
 
@@ -53,6 +45,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: '#FFFFFF',
   },
   content: {
     width: '100%',
@@ -61,8 +54,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   brandImage: {
-    width: '100%',
-    maxWidth: 420,
-    height: 480,
+    width: 138,
+    height: 138,
   },
 });

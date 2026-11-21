@@ -32,6 +32,8 @@ export default function Feed() {
   const [feedData, setFeedData] = useState<Post[]>(() => screenCache.get<Post[]>('feed-posts') || []);
   const [loading, setLoading] = useState(() => !screenCache.get('feed-posts'));
   const [refreshing, setRefreshing] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const retryCount = React.useRef(0);
   const [reportTargetId, setReportTargetId] = useState<string | null>(null);
   const [commentsPostId, setCommentsPostId] = useState<string | null>(null);
   const { isBlocked, block } = useBlockedUsers();
@@ -50,10 +52,17 @@ export default function Feed() {
       if (!screenCache.get('feed-posts')) setLoading(true);
       const response = await feedService.getFeed({ page: 1, per_page: 20 });
       setFeedData(screenCache.set('feed-posts', response.data || []));
+      setLoadFailed(false);
+      retryCount.current = 0;
     } catch (err) {
       console.error('[feed] failed to load', err);
-      // If API fails (503 - migration not applied), keep whatever is already shown
-      setFeedData((prev) => prev);
+      // Keep whatever is already on screen; with nothing to show, offer a retry instead of a blank page.
+      setLoadFailed(true);
+      if (retryCount.current < 3) {
+        const delay = 2000 * Math.pow(2, retryCount.current);
+        retryCount.current += 1;
+        setTimeout(() => loadFeed(), delay);
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -300,6 +309,23 @@ export default function Feed() {
       {loading ? (
         <View style={styles.centerState}>
           <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      ) : visiblePosts.length === 0 && loadFailed ? (
+        <View style={styles.centerState}>
+          <Ionicons name="cloud-offline-outline" size={48} color={colors.textMuted} />
+          <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+            Couldn't load the feed. Check your connection and try again.
+          </Text>
+          <TouchableOpacity
+            style={{ marginTop: 16, paddingHorizontal: 24, paddingVertical: 10, borderRadius: 24, backgroundColor: colors.primary }}
+            onPress={() => {
+              retryCount.current = 0;
+              setLoading(true);
+              loadFeed();
+            }}
+          >
+            <Text style={{ color: '#fff', fontWeight: '600' }}>Try again</Text>
+          </TouchableOpacity>
         </View>
       ) : visiblePosts.length === 0 ? (
         <View style={styles.centerState}>
