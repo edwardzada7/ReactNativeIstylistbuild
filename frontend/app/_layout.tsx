@@ -3,6 +3,7 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { useEffect } from 'react';
 import { LogBox } from 'react-native';
+import * as Sentry from '@sentry/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from '@/src/contexts/AuthContext';
 import { ThemeProvider } from '@/src/contexts/ThemeContext';
@@ -26,6 +27,16 @@ if (!__DEV__) {
 // Font.loadAsync against a broken vendor path if any <Icon> mounts before
 // the family is registered — which throws on Android Expo Go.
 SplashScreen.preventAutoHideAsync();
+
+// Crash and error reporting. The DSN is a public key (it can only send reports).
+Sentry.init({
+  dsn:
+    process.env.EXPO_PUBLIC_SENTRY_DSN ||
+    'https://c80a3945be5f13612ea1870fedb9766e@o4512467677216768.ingest.us.sentry.io/4512467697139712',
+  enabled: !__DEV__,
+  tracesSampleRate: 0,
+  sendDefaultPii: false,
+});
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -80,7 +91,7 @@ function AppShell() {
   );
 }
 
-export default function RootLayout() {
+function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
@@ -89,3 +100,4 @@ export default function RootLayout() {
     </QueryClientProvider>
   );
 }
+export default Sentry.wrap(RootLayout);

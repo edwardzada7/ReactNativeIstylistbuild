@@ -22,5 +22,5 @@ jobs:
           eas-version: latest
           packager: npm
           token: ${{ secrets.EXPO_TOKEN }}
-      - run: npm ci --legacy-peer-deps
+      - run: npm install --legacy-peer-deps
       - run: eas build --platform android --profile preview --non-interactive --no-wait
