@@ -7,4 +7,4 @@ export { ReportModal } from './ReportModal';
 export { FeedCommentsModal } from './FeedCommentsModal';
 export { GuestPrompt, withAuthGate } from './GuestGate';
 export { RatingStars } from './RatingStars';
-export { VerifiedBadge, isVerifiedProfile } from './VerifiedBadge';
+export { VerifiedBadge, isVerifiedProfile } from './VerifiedBadge';export { FavoriteButton } from './FavoriteButton';

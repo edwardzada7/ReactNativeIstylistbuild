@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Image, Alert, Modal, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, Image, Alert, Modal, TextInput, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -281,7 +281,13 @@ export default function ProductDetail() {
         )}
       </View>
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {product.image_urls?.[0] ? (
+        {(product.image_urls?.length || 0) > 1 ? (
+          <ScrollView horizontal pagingEnabled showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -Spacing.lg }}>
+            {product.image_urls!.map((u: string, i: number) => (
+              <Image key={u + i} source={{ uri: u }} style={[styles.image, { width: Dimensions.get('window').width - Spacing.lg * 2, marginHorizontal: Spacing.lg }]} />
+            ))}
+          </ScrollView>
+        ) : product.image_urls?.[0] ? (
           <Image source={{ uri: product.image_urls[0] }} style={styles.image} />
         ) : (
           <View style={[styles.image, styles.imagePlaceholder, { backgroundColor: colors.surface }]}>

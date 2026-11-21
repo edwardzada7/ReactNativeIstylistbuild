@@ -20,13 +20,15 @@ import { Button, Input } from '../../src/components/common';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { feedService } from '../../src/services/feed.service';
+import { MAX_PHOTOS, mediaService } from '../../src/services/media.service';
 
 export default function CreatePost() {
   const router = useRouter();
   const { user } = useAuth();
   const { colors } = useTheme();
   const [caption, setCaption] = useState('');
-  const [image, setImage] = useState<string | null>(null);
+  const [images, setImages] = useState<string[]>([]);
+  const [videoUri, setVideoUri] = useState<string | null>(null);
   const [mediaType, setMediaType] = useState<'photo' | 'video'>('photo');
   const [videoDuration, setVideoDuration] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
@@ -40,27 +42,33 @@ export default function CreatePost() {
     }
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ['images', 'videos'],
-      quality: 0.8,
-      base64: true,
-      allowsEditing: true,
-      aspect: [1, 1],
+      quality: 0.7,
+      allowsMultipleSelection: true,
+      selectionLimit: MAX_PHOTOS - images.length > 0 ? MAX_PHOTOS - images.length : 1,
+      orderedSelection: true,
     });
-    const asset = result.assets?.[0];
-    if (result.canceled || !asset?.base64) return;
-    const selectedType = asset.type === 'video' ? 'video' : 'photo';
-    const duration = asset.duration ? asset.duration / 1000 : null;
-    if (selectedType === 'video' && (!duration || duration <= 0 || duration > 10)) {
-      Alert.alert('Video too long', 'Feed videos must be between 1 and 10 seconds.');
+    if (result.canceled || !result.assets?.length) return;
+    const video = result.assets.find((a) => a.type === 'video');
+    if (video) {
+      const duration = video.duration ? video.duration / 1000 : null;
+      if (!duration || duration <= 0 || duration > 10) {
+        Alert.alert('Video too long', 'Feed videos must be between 1 and 10 seconds.');
+        return;
+      }
+      setMediaType('video');
+      setVideoDuration(duration);
+      setVideoUri(video.uri);
+      setImages([]);
       return;
     }
-    setMediaType(selectedType);
-    setVideoDuration(duration);
-    setImage(`data:${selectedType === 'video' ? 'video/mp4' : 'image/jpeg'};base64,${asset.base64}`);
+    setMediaType('photo');
+    setVideoUri(null);
+    setImages((current) => [...current, ...result.assets.map((a) => a.uri)].slice(0, MAX_PHOTOS));
   };
 
   const handleCreate = async () => {
-    if (!image) {
-      Alert.alert('Photo required', 'Please add a photo to your post.');
+    if (!images.length && !videoUri) {
+      Alert.alert('Photo required', 'Please add at least one photo or a short video to your post.');
       return;
     }
     if (!user?.auth_id) {
@@ -69,15 +77,18 @@ export default function CreatePost() {
     }
     setSaving(true);
     try {
-      await feedService.createPost(caption.trim(), image, { type: mediaType, url: image, durationSeconds: videoDuration || undefined });
+      if (videoUri) {
+        const url = await mediaService.upload(videoUri, user.auth_id, 'posts', 'video');
+        await feedService.createPost(caption.trim(), undefined, { type: 'video', url, durationSeconds: videoDuration || undefined });
+      } else {
+        const urls = await mediaService.uploadMany(images, user.auth_id, 'posts');
+        await feedService.createPost(caption.trim(), urls[0], { type: 'photo', urls });
+      }
       Alert.alert('Success', 'Your post has been published!', [
-        { text: 'OK', onPress: () => {
-          // Navigate back to Provider Feed
-          router.replace('/(provider)/feed');
-        }},
+        { text: 'OK', onPress: () => router.replace('/(provider)/feed') },
       ]);
     } catch (err: any) {
-      Alert.alert('Error', err?.friendlyMessage || 'Could not create post.');
+      Alert.alert('Error', err?.friendlyMessage || err?.message || 'Could not create post.');
     } finally {
       setSaving(false);
     }
@@ -95,16 +106,36 @@ export default function CreatePost() {
 
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-          <TouchableOpacity style={[styles.imagePicker, { borderColor: colors.border }]} onPress={pickImage}>
-            {image ? (
-              <Image source={{ uri: image }} style={styles.imagePreview} />
-            ) : (
-              <>
-                <Ionicons name="camera-outline" size={48} color={colors.primary} />
-                <Text style={[styles.imagePickerText, { color: colors.primary }]}>Add Photo</Text>
-              </>
-            )}
-          </TouchableOpacity>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: Spacing.md }}>
+            {images.map((uri, i) => (
+              <View key={uri + i} style={{ marginRight: 10 }}>
+                <Image source={{ uri }} style={{ width: 110, height: 110, borderRadius: BorderRadius.md }} />
+                <TouchableOpacity
+                  style={{ position: 'absolute', top: 4, right: 4, backgroundColor: 'rgba(0,0,0,0.6)', borderRadius: 12 }}
+                  onPress={() => setImages((c) => c.filter((_, idx) => idx !== i))}
+                  accessibilityLabel="Remove photo"
+                >
+                  <Ionicons name="close" size={20} color="#fff" />
+                </TouchableOpacity>
+              </View>
+            ))}
+            {videoUri ? (
+              <View style={[styles.imagePicker, { borderColor: colors.border, width: 150, height: 110, marginRight: 10 }]}>
+                <Ionicons name="videocam" size={36} color={colors.primary} />
+                <Text style={{ color: colors.textSecondary, marginTop: 4 }}>Video ready</Text>
+                <TouchableOpacity style={{ position: 'absolute', top: 4, right: 4 }} onPress={() => { setVideoUri(null); setMediaType('photo'); }} accessibilityLabel="Remove video">
+                  <Ionicons name="close-circle" size={22} color={colors.textSecondary} />
+                </TouchableOpacity>
+              </View>
+            ) : images.length < MAX_PHOTOS ? (
+              <TouchableOpacity style={[styles.imagePicker, { borderColor: colors.border, width: 110, height: 110 }]} onPress={pickImage}>
+                <Ionicons name="camera-outline" size={32} color={colors.primary} />
+                <Text style={[styles.imagePickerText, { color: colors.primary, fontSize: 12 }]}>
+                  {images.length ? `Add more (${images.length}/${MAX_PHOTOS})` : `Add photos (up to ${MAX_PHOTOS}) or a 10s video`}
+                </Text>
+              </TouchableOpacity>
+            ) : null}
+          </ScrollView>
 
           <Input
             label="Caption (optional)"

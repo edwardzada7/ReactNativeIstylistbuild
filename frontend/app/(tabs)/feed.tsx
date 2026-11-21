@@ -25,6 +25,29 @@ import { confirmBlock } from '../../src/utils/confirmBlock';
 import { Post } from '../../src/types';
 import { FeedCommentsModal, ProfileAvatar, ReportModal, VerifiedBadge, isVerifiedProfile } from '../../src/components/common';
 
+function PhotoCarousel({ urls, style }: { urls: string[]; style: any }) {
+  const [w, setW] = React.useState(0);
+  const [i, setI] = React.useState(0);
+  return (
+    <View onLayout={(e) => setW(e.nativeEvent.layout.width)}>
+      <FlatList
+        data={urls}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        keyExtractor={(u, idx) => u + idx}
+        onMomentumScrollEnd={(e) => w && setI(Math.round(e.nativeEvent.contentOffset.x / w))}
+        renderItem={({ item }) => <RNImage source={{ uri: item }} style={[style, { width: w || undefined }]} />}
+      />
+      <View style={{ position: 'absolute', bottom: 8, alignSelf: 'center', flexDirection: 'row', gap: 5 }}>
+        {urls.map((_, idx) => (
+          <View key={idx} style={{ width: 7, height: 7, borderRadius: 4, backgroundColor: idx === i ? '#fff' : 'rgba(255,255,255,0.5)' }} />
+        ))}
+      </View>
+    </View>
+  );
+}
+
 export default function Feed() {
   const router = useRouter();
   const { user, isProvider } = useAuth();
@@ -245,6 +268,8 @@ export default function Feed() {
           allowsInlineMediaPlayback
           mediaPlaybackRequiresUserAction
         />
+      ) : (item as any).image_urls?.length > 1 ? (
+        <PhotoCarousel urls={(item as any).image_urls as string[]} style={styles.postImage} />
       ) : item.image_url && (
         <RNImage source={{ uri: item.image_url }} style={styles.postImage} />
       )}

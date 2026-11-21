@@ -18,7 +18,7 @@ import { SERVICE_CATALOG } from '../../src/constants/serviceCatalog';
 import { formatPriceRange } from '../../src/utils/currency';
 import { Provider, Category } from '../../src/types';
 import { useTheme } from '../../src/contexts/ThemeContext';
-import { ProfileAvatar, RatingStars, VerifiedBadge, isVerifiedProfile } from '../../src/components/common';
+import { FavoriteButton, ProfileAvatar, RatingStars, VerifiedBadge, isVerifiedProfile } from '../../src/components/common';
 import { peopleService } from '../../src/services/people.service';
 import { useBlockedUsers } from '../../src/hooks/useBlockedUsers';
 
@@ -161,6 +161,7 @@ export default function Search() {
       accessibilityRole="button"
       accessibilityLabel={item.business_name}
     >
+      <FavoriteButton providerAuthId={item.user_id} style={{ position: 'absolute', top: 10, right: 10, zIndex: 2 }} />
       <View style={styles.resultPhotoContainer}>
         <ProfileAvatar 
           uri={item.avatarUrl || item.profileImage || item.profile_image_url || item.avatar}

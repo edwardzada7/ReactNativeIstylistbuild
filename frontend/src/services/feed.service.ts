@@ -68,7 +68,7 @@ export const feedService = {
   },
 
   // Create post
-  async createPost(caption: string, image_url?: string, media?: { type?: 'photo' | 'video'; url?: string; durationSeconds?: number }): Promise<Post> {
+  async createPost(caption: string, image_url?: string, media?: { type?: 'photo' | 'video'; url?: string; urls?: string[]; durationSeconds?: number }): Promise<Post> {
     const authId = await apiService.getAuthId();
     if (!authId) throw new Error('Not authenticated');
     const duration = media?.durationSeconds;
@@ -78,6 +78,7 @@ export const feedService = {
     return await apiService.post<Post>(`/feed/posts?auth_id=${authId}`, {
       caption,
       image_url: media?.type === 'video' ? undefined : image_url,
+      image_urls: media?.type === 'video' ? undefined : media?.urls,
       video_url: media?.type === 'video' ? media.url || image_url : undefined,
       media_type: media?.type || 'photo',
       video_duration_seconds: media?.type === 'video' ? duration : undefined,
