@@ -211,6 +211,25 @@ export default function ProviderShop() {
       },
     ]);
 
+  const removeListing = (product: Product) =>
+    Alert.alert("Remove listing", `Remove "${product.name}" from your shop? You can add it again from the marketplace.`, [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Remove",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await shopService.removeListing(Number(product.seller_listing_id));
+            setMyProducts((items) => items.filter((item) => !(item.id === product.id && item.seller_listing_id === product.seller_listing_id)));
+          } catch (error: any) {
+            Alert.alert("Error", error?.friendlyMessage || "Could not remove this listing.");
+          }
+        },
+      },
+    ]);
+
+  const [showHowItWorks, setShowHowItWorks] = useState(false);
+
   const handleAddToShop = async (product: Product) => {
     if (!user?.auth_id) {
       Alert.alert(
@@ -380,7 +399,10 @@ export default function ProviderShop() {
     selectedSubcategory,
   ]);
 
-  const products = view === "my-products" ? myProducts : filteredMarketplace;
+  const sortedMarketplace = [...filteredMarketplace].sort(
+    (a, b) => Number(myProductIds.has(a.id)) - Number(myProductIds.has(b.id)),
+  );
+  const products = view === "my-products" ? myProducts : sortedMarketplace;
   const myProductIds = useMemo(
     () => new Set(myProducts.map((product) => product.id)),
     [myProducts],
@@ -432,16 +454,23 @@ export default function ProviderShop() {
           <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
             {product.name}
           </Text>
-          {isMarketplaceListing && (
+          {isMarketplaceListing && !!product.seller_name && (
             <Text
               style={[styles.source, { color: colors.textSecondary }]}
               numberOfLines={1}
             >
-              Source seller: {product.seller_name || "Marketplace seller"}
+              Source seller: {product.seller_name}
             </Text>
           )}
           <Text style={[styles.meta, { color: colors.textSecondary }]}>
-            {formatCurrency(product.price)} · {product.stock} in stock
+            {formatCurrency(product.price)} ·{" "}
+            {Number(product.stock) <= 0 ? (
+              <Text style={{ color: colors.error, fontWeight: "700" }}>Out of stock</Text>
+            ) : Number(product.stock) <= 3 ? (
+              <Text style={{ color: Colors.warning, fontWeight: "700" }}>Low stock: {product.stock} left</Text>
+            ) : (
+              `${product.stock} in stock`
+            )}
           </Text>
           {view === "my-products" && (
             <Text
@@ -457,15 +486,21 @@ export default function ProviderShop() {
               ]}
             >
               {isMarketplaceListing
-                ? "Marketplace listing"
+                ? "From marketplace"
                 : product.approved
-                  ? "Live"
-                  : "Pending Approval"}
+                  ? "Your product · Live"
+                  : "Your product · Pending approval"}
             </Text>
           )}
         </View>
         {view === "my-products" ? (
-          isMarketplaceListing ? null : (
+          isMarketplaceListing ? (
+            <View style={styles.cardActions}>
+              <TouchableOpacity onPress={() => removeListing(product)} accessibilityRole="button" accessibilityLabel={`Remove ${product.name} from my shop`}>
+                <Ionicons name="close-circle-outline" size={22} color={colors.error} />
+              </TouchableOpacity>
+            </View>
+          ) : (
             <View style={styles.cardActions}>
               <TouchableOpacity onPress={() => openEditor(product)}>
                 <Ionicons
@@ -755,6 +790,12 @@ export default function ProviderShop() {
               </Text>
             </TouchableOpacity>
           ) : null}
+          <TouchableOpacity onPress={() => setShowHowItWorks((v) => !v)} accessibilityRole="button" style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: Spacing.sm }}>
+            <Ionicons name="information-circle-outline" size={16} color={colors.primary} />
+            <Text style={{ color: colors.primary, fontSize: FontSizes.sm, fontWeight: "600" }}>How does adding products work?</Text>
+            <Ionicons name={showHowItWorks ? "chevron-up" : "chevron-down"} size={14} color={colors.primary} />
+          </TouchableOpacity>
+          {showHowItWorks ? (
           <View
             style={{
               borderWidth: 1,
@@ -796,6 +837,7 @@ export default function ProviderShop() {
               Purchased inventory stays private until you list it.
             </Text>
           </View>
+          ) : null}
         </View>
       )}
       {loading ? (
