@@ -23,9 +23,9 @@ import { useTheme } from '../../src/contexts/ThemeContext';
 import { useBlockedUsers } from '../../src/hooks/useBlockedUsers';
 import { confirmBlock } from '../../src/utils/confirmBlock';
 import { Post } from '../../src/types';
-import { FeedCommentsModal, ProfileAvatar, ReportModal, VerifiedBadge, isVerifiedProfile } from '../../src/components/common';
+import { FeedCommentsModal, PhotoViewer, ProfileAvatar, ReportModal, VerifiedBadge, isVerifiedProfile } from '../../src/components/common';
 
-function PhotoCarousel({ urls, style }: { urls: string[]; style: any }) {
+function PhotoCarousel({ urls, style, onOpen }: { urls: string[]; style: any; onOpen?: (index: number) => void }) {
   const [w, setW] = React.useState(0);
   const [i, setI] = React.useState(0);
   return (
@@ -37,7 +37,11 @@ function PhotoCarousel({ urls, style }: { urls: string[]; style: any }) {
         showsHorizontalScrollIndicator={false}
         keyExtractor={(u, idx) => u + idx}
         onMomentumScrollEnd={(e) => w && setI(Math.round(e.nativeEvent.contentOffset.x / w))}
-        renderItem={({ item }) => <RNImage source={{ uri: item }} style={[style, { width: w || undefined }]} />}
+        renderItem={({ item, index }) => (
+          <TouchableOpacity activeOpacity={0.9} onPress={() => onOpen?.(index)} accessibilityLabel="Open photo full screen">
+            <RNImage source={{ uri: item }} style={[style, { width: w || undefined }]} />
+          </TouchableOpacity>
+        )}
       />
       <View style={{ position: 'absolute', bottom: 8, alignSelf: 'center', flexDirection: 'row', gap: 5 }}>
         {urls.map((_, idx) => (
@@ -56,6 +60,7 @@ export default function Feed() {
   const [loading, setLoading] = useState(() => !screenCache.get('feed-posts'));
   const [refreshing, setRefreshing] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
+  const [viewer, setViewer] = useState<{ urls: string[]; index: number } | null>(null);
   const retryCount = React.useRef(0);
   const [reportTargetId, setReportTargetId] = useState<string | null>(null);
   const [commentsPostId, setCommentsPostId] = useState<string | null>(null);
@@ -278,9 +283,11 @@ export default function Feed() {
           mediaPlaybackRequiresUserAction
         />
       ) : (item as any).image_urls?.length > 1 ? (
-        <PhotoCarousel urls={(item as any).image_urls as string[]} style={styles.postImage} />
+        <PhotoCarousel urls={(item as any).image_urls as string[]} style={styles.postImage} onOpen={(i) => setViewer({ urls: (item as any).image_urls as string[], index: i })} />
       ) : item.image_url && (
-        <RNImage source={{ uri: item.image_url }} style={styles.postImage} />
+        <TouchableOpacity activeOpacity={0.9} onPress={() => setViewer({ urls: [item.image_url as string], index: 0 })} accessibilityLabel="Open photo full screen">
+          <RNImage source={{ uri: item.image_url }} style={styles.postImage} />
+        </TouchableOpacity>
       )}
 
       {item.caption && (
@@ -378,6 +385,7 @@ export default function Feed() {
           }
         />
       )}
+      <PhotoViewer urls={viewer?.urls || []} startIndex={viewer?.index || 0} visible={!!viewer} onClose={() => setViewer(null)} />
       <ReportModal
         visible={reportTargetId !== null}
         targetId={reportTargetId}
@@ -486,7 +494,7 @@ const styles = StyleSheet.create({
   },
   postImage: {
     width: '100%',
-    height: 300,
+    height: 420,
     borderRadius: BorderRadius.md,
     marginBottom: Spacing.md,
   },
