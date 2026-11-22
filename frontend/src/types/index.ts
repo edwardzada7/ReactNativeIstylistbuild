@@ -26,6 +26,9 @@ export interface User {
   address?: string | null;
   location?: string | null;
   location_address?: string | null;
+  area_id?: number | null;
+  region?: string | null;
+  country_code?: string | null;
   latitude?: number | null;
   longitude?: number | null;
   gender?: string | null;
@@ -91,6 +94,11 @@ export interface Provider {
   price_range: string;
   location: string;
   location_address?: string | null;
+  area_name?: string;
+  distance_km?: number | null;
+  travel_radius_km?: number | null;
+  travel_fee_per_km?: number | null;
+  home_service_in_range?: boolean | null;
   latitude?: number;
   longitude?: number;
   images: string[];

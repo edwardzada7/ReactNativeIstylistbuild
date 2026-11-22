@@ -72,9 +72,10 @@ async function toNumericProviderId(providerId: string): Promise<string> {
 
 export const providerService = {
   // Browse providers with their services embedded (Home + Search use this).
-  async getProvidersWithServices(): Promise<Provider[]> {
+  async getProvidersWithServices(coords?: { lat: number; lng: number } | null): Promise<Provider[]> {
+    const query = coords ? `?lat=${coords.lat}&lng=${coords.lng}` : '';
     const [raw] = await Promise.all([
-      apiService.get<any>('/providers/with-services'),
+      apiService.get<any>(`/providers/with-services${query}`),
       peopleService.warmDirectory(), // fetch the photo directory in parallel, not after
     ]);
     const rawList = asList(raw);
