@@ -399,14 +399,14 @@ export default function ProviderShop() {
     selectedSubcategory,
   ]);
 
-  const sortedMarketplace = [...filteredMarketplace].sort(
-    (a, b) => Number(myProductIds.has(a.id)) - Number(myProductIds.has(b.id)),
-  );
-  const products = view === "my-products" ? myProducts : sortedMarketplace;
   const myProductIds = useMemo(
     () => new Set(myProducts.map((product) => product.id)),
     [myProducts],
   );
+  const sortedMarketplace = [...filteredMarketplace].sort(
+    (a, b) => Number(myProductIds.has(a.id)) - Number(myProductIds.has(b.id)),
+  );
+  const products = view === "my-products" ? myProducts : sortedMarketplace;
   const hasMarketplaceFilters = Boolean(
     marketplaceSearch.trim() || selectedCategory || selectedSubcategory,
   );

@@ -24,8 +24,10 @@ import { formatCurrency } from '../../src/utils/currency';
 import { derivePaymentStatus, getPaymentStatusMeta, formatStatusLabel } from '../../src/utils/walletHelpers';
 import { Booking, Transaction } from '../../src/types';
 import { ProfileAvatar } from '../../src/components/common';
+import { CANCELLED_STATUSES, isNoShowStatus, noShowResolution } from '../../src/utils/noShow';
+import { BookingSupportButton } from '../../src/components/booking/BookingSupportButton';
 
-const FILTERS = ['Pending', 'Upcoming', 'Completed', 'Cancelled'] as const;
+const FILTERS = ['Pending', 'Upcoming', 'Completed', 'Cancelled', 'No-Show'] as const;
 
 const STATUS_COLOR: Record<string, string> = {
   pending_payment: Colors.warning,
@@ -123,11 +125,9 @@ export default function ProviderBookings() {
       case 'Completed':
         return bookings.filter((b) => b.status === 'completed');
       case 'Cancelled':
-        return bookings.filter((b) =>
-          ['canceled', 'declined', 'no_show_pending', 'user_no_show', 'provider_no_show', 'disputed'].includes(
-            b.status
-          )
-        );
+        return bookings.filter((b) => CANCELLED_STATUSES.includes(String(b.status).toLowerCase()));
+      case 'No-Show':
+        return bookings.filter((b) => isNoShowStatus(b.status));
       default:
         return bookings;
     }
@@ -180,6 +180,7 @@ export default function ProviderBookings() {
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
       <View style={styles.header}>
         <Text style={[styles.title, { color: colors.text }]}>Bookings</Text>
+        <BookingSupportButton compact />
       </View>
 
       <ScrollView
@@ -254,6 +255,16 @@ export default function ProviderBookings() {
                   <Text style={[styles.meta, { color: colors.textSecondary }]}>
                     {booking.date} {booking.time ? `· ${booking.time}` : ''}
                   </Text>
+                  {isNoShowStatus(booking.status) && (() => {
+                    const res = noShowResolution(booking, 'provider');
+                    return (
+                      <View style={{ backgroundColor: `${res.color}18`, borderRadius: 10, padding: 10, marginTop: 8 }}>
+                        <Text style={{ color: res.color, fontWeight: '700' }}>{res.label}</Text>
+                        <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 2 }}>{res.detail}</Text>
+                        <BookingSupportButton booking={booking} />
+                      </View>
+                    );
+                  })()}
                   <View style={styles.customerRow}>
                     <ProfileAvatar uri={booking.customer_profile_image_url} name={booking.customer_name || 'Customer'} size={34} type="customer" />
                     <View style={styles.customerInfo}>
@@ -329,7 +340,7 @@ export default function ProviderBookings() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md },
+  header: { paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   title: { fontSize: FontSizes.xxl, fontWeight: 'bold' },
   filtersScroller: { flexGrow: 0, flexShrink: 0, height: 56 },
   filtersRow: { paddingHorizontal: Spacing.lg, alignItems: 'center', gap: Spacing.sm },

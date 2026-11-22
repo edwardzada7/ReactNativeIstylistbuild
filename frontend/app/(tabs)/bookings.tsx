@@ -28,8 +28,10 @@ import { useTheme } from '../../src/contexts/ThemeContext';
 import { formatCurrency } from '../../src/utils/currency';
 import { derivePaymentStatus, getPaymentStatusMeta, formatStatusLabel } from '../../src/utils/walletHelpers';
 import { Booking, Transaction, Wallet } from '../../src/types';
+import { CANCELLED_STATUSES, isNoShowStatus, noShowResolution } from '../../src/utils/noShow';
+import { BookingSupportButton } from '../../src/components/booking/BookingSupportButton';
 
-const tabs = ['Upcoming', 'Completed', 'Cancelled'];
+const tabs = ['Upcoming', 'Completed', 'Cancelled', 'No-Show'];
 
 const statusColors: Record<string, string> = {
   pending_payment: Colors.warning,
@@ -120,10 +122,8 @@ function Bookings() {
     return bookings.filter((b) => {
       if (selectedTab === 'Upcoming') return ['pending_payment', 'pending', 'confirmed'].includes(b.status);
       if (selectedTab === 'Completed') return b.status === 'completed';
-      if (selectedTab === 'Cancelled')
-        return ['canceled', 'declined', 'no_show_pending', 'user_no_show', 'provider_no_show', 'disputed'].includes(
-          b.status
-        );
+      if (selectedTab === 'Cancelled') return CANCELLED_STATUSES.includes(String(b.status).toLowerCase());
+      if (selectedTab === 'No-Show') return isNoShowStatus(b.status);
       return true;
     });
   }, [bookings, selectedTab]);
@@ -226,6 +226,7 @@ function Bookings() {
         <View style={styles.titleWrap}>
           <Text style={[styles.title, { color: colors.text }]}>My Bookings</Text>
         </View>
+        <BookingSupportButton compact />
       </View>
 
       <View style={styles.tabs}>
@@ -237,7 +238,7 @@ function Bookings() {
             accessibilityRole="button"
             accessibilityLabel={tab}
           >
-            <Text style={[styles.tabText, { color: colors.textSecondary }, selectedTab === tab && { color: colors.text }]}>{tab}</Text>
+            <Text numberOfLines={1} adjustsFontSizeToFit style={[styles.tabText, { color: colors.textSecondary }, selectedTab === tab && { color: colors.text }]}>{tab}</Text>
           </TouchableOpacity>
         ))}
       </View>
@@ -311,6 +312,17 @@ function Bookings() {
                     <Text style={[styles.detailText, { color: colors.text }]}>{formatCurrency(item.total_amount)}</Text>
                   </View>
                 </View>
+
+                {isNoShowStatus(item.status) && (() => {
+                  const res = noShowResolution(item, 'customer');
+                  return (
+                    <View style={[styles.paymentBadge, { backgroundColor: `${res.color}18`, flexDirection: 'column', alignItems: 'flex-start', gap: 2 }]}>
+                      <Text style={[styles.paymentBadgeText, { color: res.color, fontWeight: '700' }]}>{res.label}</Text>
+                      <Text style={[styles.paymentBadgeText, { color: colors.textSecondary }]}>{res.detail}</Text>
+                      <BookingSupportButton booking={item} />
+                    </View>
+                  );
+                })()}
 
                 {(() => {
                   const paymentKey = derivePaymentStatus(item, transactions);
@@ -507,6 +519,9 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   titleWrap: {
     flexDirection: 'row',
