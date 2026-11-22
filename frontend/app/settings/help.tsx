@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { Button, Input } from '../../src/components/common';
 import { useAuth } from '../../src/contexts/AuthContext';
@@ -35,8 +35,9 @@ export default function Help() {
   const router = useRouter();
   const { user } = useAuth();
   const { colors } = useTheme();
-  const [category, setCategory] = useState(CATEGORIES[0]);
-  const [subject, setSubject] = useState('');
+  const params = useLocalSearchParams<{ category?: string; subject?: string }>();
+  const [category, setCategory] = useState(CATEGORIES.includes(String(params.category)) ? String(params.category) : CATEGORIES[0]);
+  const [subject, setSubject] = useState(typeof params.subject === 'string' ? params.subject : '');
   const [message, setMessage] = useState('');
   const [sending, setSending] = useState(false);
 
