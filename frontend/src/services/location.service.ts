@@ -1,4 +1,5 @@
 import * as Location from 'expo-location';
+import apiService from './api';
 
 export type LocationResolutionError = 'permission-denied' | 'service-unavailable' | 'reverse-geocode-failed' | 'network-error' | 'unknown';
 
@@ -77,3 +78,32 @@ export async function resolveCurrentLocation(): Promise<LocationResolutionResult
     };
   }
 }
+
+export interface ServiceArea {
+  id: number;
+  country_code: string;
+  region: string;
+  city: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+}
+
+/** The areas people can pick from (Lagos for now). */
+export async function fetchAreas(): Promise<ServiceArea[]> {
+  const res = await apiService.get<any>('/locations/areas');
+  return res?.areas || [];
+}
+
+/** Nearest supported area for a GPS point, or null when the person is outside our launch area. */
+export async function resolveArea(latitude: number, longitude: number): Promise<ServiceArea | null> {
+  try {
+    const res = await apiService.post<any>('/locations/resolve', { latitude, longitude });
+    return res?.area || null;
+  } catch {
+    return null;
+  }
+}
+
+/** The fields to save on the user record for a chosen area. */
+export const areaFields = (a: ServiceArea) => ({ area_id: a.id, country_code: a.country_code, region: a.region, city: a.city });

@@ -18,7 +18,8 @@ import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/th
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { bookingService } from '../../src/services/booking.service';
-import { resolveCurrentLocation } from '../../src/services/location.service';
+import { resolveCurrentLocation, resolveArea, areaFields, ServiceArea } from '../../src/services/location.service';
+import { AreaPickerModal } from '../../src/components/common/AreaPickerModal';
 import { supabase } from '../../src/lib/supabase';
 import { Booking } from '../../src/types';
 import { withCacheBuster, bumpAvatarVersion } from '../../src/utils/display';
@@ -89,6 +90,7 @@ function Profile() {
   const [locationLoading, setLocationLoading] = useState(false);
   const [locationStatus, setLocationStatus] = useState<'idle' | 'detecting' | 'updated' | 'permission-required' | 'unavailable'>('idle');
   const [locationLabel, setLocationLabel] = useState('');
+  const [areaPickerOpen, setAreaPickerOpen] = useState(false);
 
   useEffect(() => {
     setAvatarUrl(withCacheBuster(user?.profile_image_url || user?.avatar));
@@ -219,6 +221,28 @@ function Profile() {
     ]);
   };
 
+  const handlePickArea = async (area: ServiceArea) => {
+    if (!user?.auth_id) return;
+    try {
+      const keepGps = user?.latitude != null && user?.longitude != null && user?.area_id === area.id;
+      const patch = {
+        ...areaFields(area),
+        latitude: keepGps ? user.latitude : area.latitude,
+        longitude: keepGps ? user.longitude : area.longitude,
+      };
+      const { error } = await supabase.from('users').update(patch).eq('auth_id', user.auth_id);
+      if (error) throw error;
+      updateUser(patch as any);
+      setLocationLabel((prev) => prev || area.name);
+      setLocationStatus('updated');
+      await refreshUser();
+      Alert.alert('Area saved', `Your area is now ${area.name}.`);
+    } catch (err) {
+      console.error('[profile-area] save failed', err);
+      Alert.alert('Could not save', 'We could not save your area right now. Please try again.');
+    }
+  };
+
   const handleDetectLocation = async () => {
     if (!user?.auth_id) return;
 
@@ -233,12 +257,15 @@ function Profile() {
         return;
       }
 
+      const area = await resolveArea(result.latitude as number, result.longitude as number);
+      if (!area) Alert.alert('Not in our area yet', "iStylist is starting in Lagos. We've saved your location and will tell you when we reach you.");
       const nextLocationLabel = result.location_address || 'Location updated';
       setLocationLabel(nextLocationLabel);
       const { error } = await supabase.from('users').update({
         location_address: result.location_address || null,
         latitude: result.latitude ?? null,
         longitude: result.longitude ?? null,
+        ...(area ? areaFields(area) : {}),
       }).eq('auth_id', user.auth_id);
 
       if (error) throw error;
@@ -247,7 +274,8 @@ function Profile() {
         location_address: result.location_address || null,
         latitude: result.latitude ?? null,
         longitude: result.longitude ?? null,
-      });
+        ...(area ? areaFields(area) : {}),
+      } as any);
       await refreshUser();
       setLocationStatus('updated');
       Alert.alert('Location updated', 'Your current location has been saved to your profile.');
@@ -327,6 +355,11 @@ function Profile() {
             {locationLoading ? <ActivityIndicator color={colors.primary} /> : <Ionicons name="locate-outline" size={18} color={colors.primary} />}
             <Text style={[styles.locationButtonText, { color: colors.primary }]}>{locationLoading ? 'Detecting...' : locationStatus === 'permission-required' || locationStatus === 'unavailable' ? 'Retry' : 'Use My Current Location'}</Text>
           </TouchableOpacity>
+          <TouchableOpacity testID="choose-area" style={[styles.locationButton, { borderColor: colors.border, marginTop: 8 }]} onPress={() => setAreaPickerOpen(true)} accessibilityRole="button">
+            <Ionicons name="map-outline" size={18} color={colors.text} />
+            <Text style={[styles.locationButtonText, { color: colors.text }]}>{user?.area_id ? 'Change my area' : 'Choose my area'}</Text>
+          </TouchableOpacity>
+          <AreaPickerModal visible={areaPickerOpen} onClose={() => setAreaPickerOpen(false)} onSelect={handlePickArea} selectedId={(user as any)?.area_id ?? null} />
         </View>
 
         {/* Stats - customer-relevant only (booking activity, not provider metrics) */}

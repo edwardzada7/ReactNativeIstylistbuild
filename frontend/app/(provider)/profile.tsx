@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useFocusEffect } from 'expo-router';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, FlatList, Image as RNImage, ActivityIndicator, Switch } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, FlatList, Image as RNImage, ActivityIndicator, Switch, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -10,7 +10,8 @@ import { useAuth } from '../../src/contexts/AuthContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { providerService } from '../../src/services/provider.service';
 import { feedService } from '../../src/services/feed.service';
-import { resolveCurrentLocation } from '../../src/services/location.service';
+import { resolveCurrentLocation, resolveArea, areaFields, ServiceArea } from '../../src/services/location.service';
+import { AreaPickerModal } from '../../src/components/common/AreaPickerModal';
 import { supabase } from '../../src/lib/supabase';
 import { Provider, Post, Review } from '../../src/types';
 import apiService from '../../src/services/api';
@@ -31,6 +32,34 @@ export default function ProviderProfile() {
   const [locationLoading, setLocationLoading] = useState(false);
   const [locationStatus, setLocationStatus] = useState<'idle' | 'detecting' | 'updated' | 'permission-required' | 'unavailable'>('idle');
   const [locationLabel, setLocationLabel] = useState('');
+  const [areaPickerOpen, setAreaPickerOpen] = useState(false);
+  const [radiusKm, setRadiusKm] = useState('');
+  const [feePerKm, setFeePerKm] = useState('');
+  const [rangeSaving, setRangeSaving] = useState(false);
+
+  useEffect(() => {
+    if (!user?.auth_id) return;
+    supabase.from('stylists').select('travel_radius_km, travel_fee_per_km').eq('auth_id', user.auth_id).single().then(({ data }) => {
+      if (data) {
+        setRadiusKm(data.travel_radius_km != null ? String(data.travel_radius_km) : '');
+        setFeePerKm(data.travel_fee_per_km != null ? String(data.travel_fee_per_km) : '');
+      }
+    });
+  }, [user?.auth_id]);
+
+  const saveHomeServiceRange = async () => {
+    if (!user?.auth_id) return;
+    const radius = radiusKm.trim() === '' ? null : Number(radiusKm);
+    const fee = feePerKm.trim() === '' ? null : Number(feePerKm);
+    if ((radius !== null && !(radius >= 0 && radius <= 200)) || (fee !== null && !(fee >= 0))) {
+      Alert.alert('Check the numbers', 'Enter a range between 0 and 200 km and a fee of 0 or more.');
+      return;
+    }
+    setRangeSaving(true);
+    const { error } = await supabase.from('stylists').update({ travel_radius_km: radius, travel_fee_per_km: fee }).eq('auth_id', user.auth_id);
+    setRangeSaving(false);
+    Alert.alert(error ? 'Could not save' : 'Saved', error ? 'Please try again.' : 'Your home service range has been updated.');
+  };
   const [accountType, setAccountType] = useState<'individual' | 'business'>('individual');
   const [kycStatus, setKycStatus] = useState<'not_submitted' | 'pending' | 'verified' | 'rejected'>('not_submitted');
 
@@ -196,6 +225,28 @@ export default function ProviderProfile() {
     ]);
   };
 
+  const handlePickArea = async (area: ServiceArea) => {
+    if (!user?.auth_id) return;
+    try {
+      const keepGps = user?.latitude != null && user?.longitude != null && user?.area_id === area.id;
+      const patch = {
+        ...areaFields(area),
+        latitude: keepGps ? user.latitude : area.latitude,
+        longitude: keepGps ? user.longitude : area.longitude,
+      };
+      const { error } = await supabase.from('users').update(patch).eq('auth_id', user.auth_id);
+      if (error) throw error;
+      updateUser(patch as any);
+      setLocationLabel((prev) => prev || area.name);
+      setLocationStatus('updated');
+      await refreshUser();
+      Alert.alert('Area saved', `Your area is now ${area.name}.`);
+    } catch (err) {
+      console.error('[profile-area] save failed', err);
+      Alert.alert('Could not save', 'We could not save your area right now. Please try again.');
+    }
+  };
+
   const handleDetectLocation = async () => {
     if (!user?.auth_id) return;
 
@@ -210,6 +261,8 @@ export default function ProviderProfile() {
         return;
       }
 
+      const area = await resolveArea(result.latitude as number, result.longitude as number);
+      if (!area) Alert.alert('Not in our area yet', "iStylist is starting in Lagos. We've saved your location and will tell you when we reach you.");
       const nextLocationLabel = result.location_address || 'Location updated';
       setLocationLabel(nextLocationLabel);
       const { error } = await supabase.from('stylists').update({
@@ -219,12 +272,20 @@ export default function ProviderProfile() {
       }).eq('auth_id', user.auth_id);
 
       if (error) throw error;
+      // Area and coordinates also live on the user record (this is what search distance uses)
+      await supabase.from('users').update({
+        location_address: result.location_address || null,
+        latitude: result.latitude ?? null,
+        longitude: result.longitude ?? null,
+        ...(area ? areaFields(area) : {}),
+      }).eq('auth_id', user.auth_id);
 
       updateUser({
         location_address: result.location_address || null,
         latitude: result.latitude ?? null,
         longitude: result.longitude ?? null,
-      });
+        ...(area ? areaFields(area) : {}),
+      } as any);
       await refreshUser();
       await loadProfile();
       setLocationStatus('updated');
@@ -384,6 +445,22 @@ export default function ProviderProfile() {
           <TouchableOpacity style={[styles.locationButton, { borderColor: colors.primary }]} onPress={handleDetectLocation} disabled={locationLoading}>
             {locationLoading ? <ActivityIndicator color={colors.primary} /> : <Ionicons name="locate-outline" size={18} color={colors.primary} />}
             <Text style={[styles.locationButtonText, { color: colors.primary }]}>{locationLoading ? 'Detecting...' : locationStatus === 'permission-required' || locationStatus === 'unavailable' ? 'Retry' : 'Use My Current Location'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity testID="choose-area" style={[styles.locationButton, { borderColor: colors.border, marginTop: 8 }]} onPress={() => setAreaPickerOpen(true)} accessibilityRole="button">
+            <Ionicons name="map-outline" size={18} color={colors.text} />
+            <Text style={[styles.locationButtonText, { color: colors.text }]}>{user?.area_id ? 'Change my area' : 'Choose my area'}</Text>
+          </TouchableOpacity>
+          <AreaPickerModal visible={areaPickerOpen} onClose={() => setAreaPickerOpen(false)} onSelect={handlePickArea} selectedId={(user as any)?.area_id ?? null} />
+        </View>
+
+        <View style={[styles.locationCard, { backgroundColor: colors.surface }]}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Home Service Range</Text>
+          <Text style={[styles.locationSummary, { color: colors.textSecondary }]}>How far you will travel to clients. Leave blank if you don't do home visits.</Text>
+          <TextInput testID="travel-radius" style={[styles.rangeInput, { color: colors.text, borderColor: colors.border }]} value={radiusKm} onChangeText={setRadiusKm} keyboardType="decimal-pad" placeholder="Range in km, e.g. 15" placeholderTextColor={colors.textSecondary} />
+          <TextInput testID="travel-fee" style={[styles.rangeInput, { color: colors.text, borderColor: colors.border }]} value={feePerKm} onChangeText={setFeePerKm} keyboardType="decimal-pad" placeholder="Travel fee per km (optional)" placeholderTextColor={colors.textSecondary} />
+          <TouchableOpacity style={[styles.locationButton, { borderColor: colors.primary }]} onPress={saveHomeServiceRange} disabled={rangeSaving} accessibilityRole="button">
+            {rangeSaving ? <ActivityIndicator color={colors.primary} /> : <Ionicons name="car-outline" size={18} color={colors.primary} />}
+            <Text style={[styles.locationButtonText, { color: colors.primary }]}>Save range</Text>
           </TouchableOpacity>
         </View>
 
@@ -617,6 +694,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     marginTop: Spacing.sm,
   },
+  rangeInput: { borderWidth: 1, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, height: 44, marginTop: Spacing.sm },
   locationButtonText: {
     fontSize: FontSizes.sm,
     fontWeight: '600',

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useAuth } from '../../src/contexts/AuthContext';
 import {
   View,
   Text,
@@ -38,6 +39,9 @@ export default function Search() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const { user } = useAuth();
+  const [nearestFirst, setNearestFirst] = useState(false);
+  const hasCoords = user?.latitude != null && user?.longitude != null;
 
   useEffect(() => {
     if (params.category) setSelectedFilter(params.category);
@@ -48,7 +52,7 @@ export default function Search() {
       try {
         setError(null);
         const [providerList, categoryList] = await Promise.all([
-          providerService.getProvidersWithServices(),
+          providerService.getProvidersWithServices(hasCoords ? { lat: Number(user?.latitude), lng: Number(user?.longitude) } : null),
           providerService.getCategories(),
         ]);
         setAllProviders(providerList);
@@ -61,7 +65,7 @@ export default function Search() {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [hasCoords]);
 
   const filters = useMemo(() => ['All', ...categories.map((c) => c.name)], [categories]);
 
@@ -127,8 +131,12 @@ export default function Search() {
     setVisibleCount(PAGE_SIZE);
   }, [selectedFilter, searchQuery]);
 
-  const visibleProviders = filteredProviders.slice(0, visibleCount);
-  const hasMore = visibleCount < filteredProviders.length;
+  const sortedProviders = useMemo(
+    () => (nearestFirst ? [...filteredProviders].sort((a: any, b: any) => (a.distance_km ?? Infinity) - (b.distance_km ?? Infinity)) : filteredProviders),
+    [filteredProviders, nearestFirst]
+  );
+  const visibleProviders = sortedProviders.slice(0, visibleCount);
+  const hasMore = visibleCount < sortedProviders.length;
 
   const renderFilterChip = (filter: string) => (
     <TouchableOpacity
@@ -185,7 +193,7 @@ export default function Search() {
           <View style={styles.metaItem}>
             <Ionicons name="location" size={14} color={colors.textSecondary} />
             <Text style={[styles.metaText, { color: colors.textSecondary }]} numberOfLines={1}>
-              {item.location}
+              {item.area_name || item.location}{item.distance_km != null ? ` · ${item.distance_km} km` : ''}
             </Text>
           </View>
           {!!String(item.price_range ?? '').replace(/[₦$\s]/g, '') && (
@@ -236,6 +244,17 @@ export default function Search() {
         style={styles.filtersScroller}
         contentContainerStyle={styles.filtersContainer}
       >
+        {hasCoords && (
+          <TouchableOpacity
+            testID="nearest-chip"
+            style={[styles.filterChip, { borderColor: colors.border }, nearestFirst && { backgroundColor: colors.primary, borderColor: colors.primary }]}
+            onPress={() => setNearestFirst((v) => !v)}
+            accessibilityRole="button"
+            accessibilityLabel="Nearest first"
+          >
+            <Text style={[styles.filterText, { color: colors.text }]}>Nearest</Text>
+          </TouchableOpacity>
+        )}
         {filters.map(renderFilterChip)}
       </ScrollView>
 
