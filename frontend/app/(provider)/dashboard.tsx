@@ -24,6 +24,7 @@ import { notificationService } from '../../src/services/notification.service';
 import { ChatIconWithBadge } from '../../src/components/chat/ChatIconWithBadge';
 import { shopService, Order } from '../../src/services/shop.service';
 import { walletService } from '../../src/services/wallet.service';
+import apiService from '../../src/services/api';
 import { isVerifiedProfile } from '../../src/components/common';
 import { formatCurrency } from '../../src/utils/currency';
 import { Booking, Provider } from '../../src/types';
@@ -67,6 +68,7 @@ export default function ProviderDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [walletBalance, setWalletBalance] = useState<number | null>(null);
+  const [promo, setPromo] = useState<{ plan?: string; planEnds?: string; boosts: number } | null>(null);
 
   const refreshUnreadCount = useCallback(async () => {
     try {
@@ -92,6 +94,11 @@ export default function ProviderDashboard() {
       setProfile(providerProfile);
       screenCache.set('provider-dashboard', { bookingList, providerProfile, providerOrders });
       refreshUnreadCount();
+      // Read-only plan/boost status. Plans and boosts are bought on the website, never in the app.
+      apiService.get<any>('/promo/me').then((r) => {
+        const sub = r?.subscription;
+        setPromo({ plan: sub?.plan_name, planEnds: sub?.ends_at, boosts: (r?.promotions || []).filter((p: any) => p.live).length });
+      }).catch(() => undefined);
       if (user?.auth_id) walletService.getWallet(user.auth_id).then((w) => setWalletBalance(Number(w?.balance ?? 0))).catch(() => undefined);
     } catch (err: any) {
       console.error('[provider-dashboard] failed to load', err);
@@ -286,6 +293,17 @@ export default function ProviderDashboard() {
             <TouchableOpacity style={[styles.walletButton, { backgroundColor: colors.primary }]} onPress={() => router.push('/(provider)/withdraw')} accessibilityRole="button" accessibilityLabel="Withdraw">
               <Text style={styles.walletButtonText}>Withdraw</Text>
             </TouchableOpacity>
+          </View>
+        )}
+
+        {promo && (promo.plan || promo.boosts > 0) && (
+          <View style={styles.section} testID="promo-status">
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>Your plan</Text>
+            <Text style={{ color: colors.textSecondary, marginTop: 4 }}>
+              {promo.plan ? `${promo.plan} active until ${new Date(promo.planEnds as string).toLocaleDateString()}.` : 'Free plan.'}
+              {promo.boosts > 0 ? ` ${promo.boosts} boost${promo.boosts > 1 ? 's' : ''} running.` : ''}
+            </Text>
+            <Text style={{ color: colors.textMuted, fontSize: FontSizes.xs, marginTop: 4 }}>Manage your plan at istylist.online</Text>
           </View>
         )}
 
