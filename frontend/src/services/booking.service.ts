@@ -33,6 +33,23 @@ export const bookingService = {
   // service), service_duration_minutes, notes, status ("pending_payment"),
   // and an optional staff_id - NOT { provider_id, service_id,
   // scheduled_at } as previously assumed.
+  async rescheduleState(bookingId: string | number): Promise<any> {
+    return apiService.get<any>(`/bookings/${bookingId}/reschedule`);
+  },
+
+  async rescheduleSlots(bookingId: string | number, date: string): Promise<string[]> {
+    const res = await apiService.get<any>(`/bookings/${bookingId}/reschedule/slots?date=${date}`);
+    return res?.slots || [];
+  },
+
+  async reschedulePropose(bookingId: string | number, data: { new_date: string; new_time: string; reason?: string }): Promise<any> {
+    return apiService.post<any>(`/bookings/${bookingId}/reschedule`, data);
+  },
+
+  async rescheduleRespond(bookingId: string | number, action: 'accept' | 'decline' | 'cancel'): Promise<any> {
+    return apiService.post<any>(`/bookings/${bookingId}/reschedule/respond`, { action });
+  },
+
   async homeQuote(providerId: number, latitude: number, longitude: number): Promise<{
     available: boolean; in_range?: boolean; distance_km?: number; radius_km?: number; travel_fee?: number; reason?: string | null;
   }> {

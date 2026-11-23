@@ -10,6 +10,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter, useLocalSearchParams, useFocusEffect } from 'expo-router';
+import { RescheduleCard } from '../../src/components/booking/RescheduleCard';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { Button } from '../../src/components/common';
 import apiService from '../../src/services/api';
@@ -102,7 +103,7 @@ const STATUS_ICON: Record<string, keyof typeof Ionicons.glyphMap> = {
 
 export default function BookingDetails() {
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, reschedule } = useLocalSearchParams<{ id: string; reschedule?: string }>();
   const { user } = useAuth();
   const { colors } = useTheme();
   const isProvider = user?.role === 'provider';
@@ -316,6 +317,10 @@ export default function BookingDetails() {
             </View>
           </View>
         </View>
+
+        {['pending', 'confirmed'].includes(booking.status) && (
+          <RescheduleCard bookingId={booking.id} autoOpen={reschedule === '1'} onChanged={fetchBooking} />
+        )}
 
         {/* Person Info Card */}
         <TouchableOpacity
