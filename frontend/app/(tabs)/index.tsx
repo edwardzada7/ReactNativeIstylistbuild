@@ -17,6 +17,7 @@ import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/th
 import { BrandColors } from '../../src/constants/brand';
 import { BrandLogo } from '../../src/components/branding';
 import { FavoriteButton, ProfileAvatar, RatingStars, VerifiedBadge, isVerifiedProfile } from '../../src/components/common';
+import { LocationChip } from '../../src/components/common/LocationChip';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { providerService } from '../../src/services/provider.service';
@@ -248,6 +249,7 @@ export default function Home() {
             <View style={{ flex: 1 }}>
               <Text style={[styles.greeting, { color: colors.text }]} numberOfLines={1}>Hi, {user?.full_name?.trim().split(/\s+/)[0] || 'there'} 👋</Text>
               <Text style={[styles.subGreeting, { color: colors.textSecondary }]}>Find your perfect style today</Text>
+              {isAuthenticated ? <LocationChip target="/(tabs)/profile" /> : null}
             </View>
           </View>
           <View style={styles.headerActions}>

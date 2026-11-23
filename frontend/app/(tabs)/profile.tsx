@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import * as ImagePicker from 'expo-image-picker';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { useAuth } from '../../src/contexts/AuthContext';
@@ -90,7 +90,11 @@ function Profile() {
   const [locationLoading, setLocationLoading] = useState(false);
   const [locationStatus, setLocationStatus] = useState<'idle' | 'detecting' | 'updated' | 'permission-required' | 'unavailable'>('idle');
   const [locationLabel, setLocationLabel] = useState('');
+  const { pickArea } = useLocalSearchParams<{ pickArea?: string }>();
   const [areaPickerOpen, setAreaPickerOpen] = useState(false);
+  useEffect(() => {
+    if (pickArea) setAreaPickerOpen(true);
+  }, [pickArea]);
 
   useEffect(() => {
     setAvatarUrl(withCacheBuster(user?.profile_image_url || user?.avatar));
