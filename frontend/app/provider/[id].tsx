@@ -18,7 +18,7 @@ import { Share } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
-import { Button, FavoriteButton, ProfileAvatar, RatingStars, VerifiedBadge, isVerifiedProfile } from '../../src/components/common';
+import { Button, FavoriteButton, ProfileAvatar, RatingStars, VerifiedBadge, ProBadge, isVerifiedProfile } from '../../src/components/common';
 import { providerService } from '../../src/services/provider.service';
 import { peopleService } from '../../src/services/people.service';
 import { screenCache } from '../../src/utils/screenCache';
@@ -30,8 +30,10 @@ import { useAuth } from '../../src/contexts/AuthContext';
 import { useBlockedUsers } from '../../src/hooks/useBlockedUsers';
 import { BlockedNotice } from '../../src/components/common/BlockedNotice';
 import { chatService } from '../../src/services/chat.service';
+import { useProIds, providerAuthIdOf } from '../../src/hooks/useProIds';
 
 export default function ProviderProfile() {
+  const proIds = useProIds();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { colors } = useTheme();
@@ -255,6 +257,7 @@ export default function ProviderProfile() {
               <View style={styles.nameRow}>
                 <Text style={[styles.name, { color: colors.text }]}>{provider.business_name}</Text>
                 <VerifiedBadge verified={isVerifiedProfile(provider)} size={18} />
+                <ProBadge pro={proIds.has(String(providerAuthIdOf(provider)))} size="md" />
                 <FavoriteButton providerAuthId={provider.user_id} size={24} style={{ marginLeft: 10 }} />
               </View>
               {!!categoryLabel && <Text style={[styles.category, { color: colors.textSecondary }]}>{categoryLabel}</Text>}

@@ -31,8 +31,11 @@ import { RebookReminder } from '../../src/components/booking/RebookReminder';
 
 import { screenCache } from '../../src/utils/screenCache';
 import { useBlockedUsers } from '../../src/hooks/useBlockedUsers';
+import { ProBadge, SponsoredStrip } from '../../src/components/common';
+import { useProIds, providerAuthIdOf } from '../../src/hooks/useProIds';
 
 export default function Home() {
+  const proIds = useProIds();
   const router = useRouter();
   const { user, isAuthenticated } = useAuth();
   const { colors } = useTheme();
@@ -201,6 +204,7 @@ export default function Home() {
         <View style={styles.providerNameRow}>
           <Text style={[styles.providerName, { color: colors.text, flexShrink: 1, marginBottom: 0 }]} numberOfLines={1}>{item.business_name}</Text>
           <VerifiedBadge verified={isVerifiedProfile(item)} />
+          <ProBadge pro={proIds.has(String(providerAuthIdOf(item)))} />
         </View>
         <Text style={[styles.providerCategory, { color: colors.textSecondary }]} numberOfLines={1}>
           {[typeof item.category === 'string' ? item.category : '', item.location && !/not set/i.test(item.location) ? item.location : ''].filter(Boolean).join(' · ') || 'Beauty professional'}
@@ -320,6 +324,8 @@ export default function Home() {
           <BrandLogo size={56} />
         </LinearGradient>
 
+        <SponsoredStrip types="profile,service" title="Sponsored" />
+
         {upcoming && (
           <TouchableOpacity
             style={[styles.lastBookedCard, { backgroundColor: colors.surface }]}
@@ -433,6 +439,7 @@ export default function Home() {
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: Spacing.sm, maxWidth: '100%' }}>
                     <Text style={[styles.recentProviderName, { color: colors.text, marginTop: 0, flexShrink: 1 }]} numberOfLines={1}>{item.business_name}</Text>
                     <VerifiedBadge verified={isVerifiedProfile(item)} size={14} />
+                    <ProBadge pro={proIds.has(String(providerAuthIdOf(item)))} />
                   </View>
                   <Text style={[styles.recentProviderLocation, { color: colors.textSecondary }]} numberOfLines={1}>{item.location}</Text>
                 </TouchableOpacity>

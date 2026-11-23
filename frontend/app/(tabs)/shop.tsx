@@ -27,6 +27,7 @@ import { formatCurrency } from '../../src/utils/currency';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { ReportModal } from '../../src/components/common';
 import { useBlockedUsers } from '../../src/hooks/useBlockedUsers';
+import { SponsoredStrip } from '../../src/components/common';
 
 interface SharedShopScreenProps {
   showManageButton?: boolean;
@@ -161,6 +162,8 @@ export function SharedShopScreen({ showManageButton = false }: SharedShopScreenP
           onChangeText={setSearch}
         />
       </View>
+
+      <SponsoredStrip types="product" title="Sponsored products" />
 
       <View style={styles.categorySection}>
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Explore by category</Text>

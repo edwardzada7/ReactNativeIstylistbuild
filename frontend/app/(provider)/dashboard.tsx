@@ -31,6 +31,7 @@ import { formatCurrency } from '../../src/utils/currency';
 import { Booking, Provider } from '../../src/types';
 import { formatRating } from '../../src/utils/display';
 import { screenCache } from '../../src/utils/screenCache';
+import { ProBadge } from '../../src/components/common';
 
 const isSameDay = (isoDate: string) => {
   if (!isoDate) return false;
@@ -215,6 +216,7 @@ export default function ProviderDashboard() {
             <BrandLogo size={36} />
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={[styles.greeting, { color: colors.text }]} numberOfLines={1}>Hi, {user?.full_name?.split(' ')[0] || 'there'} 👋</Text>
+              {promo?.plan ? <View style={{ marginTop: 2, alignSelf: 'flex-start' }}><ProBadge pro size="md" /></View> : null}
               <Text style={[styles.subGreeting, { color: colors.textSecondary }]} numberOfLines={1}>Your business today</Text>
               <LocationChip target="/(provider)/profile" />
             </View>
