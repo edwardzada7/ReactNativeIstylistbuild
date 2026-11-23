@@ -21,6 +21,7 @@ import staffService from '../../src/services/staff.service';
 import { dropPastSlots, toLocalDateString } from '../../src/utils/time';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
+import { resolveCurrentLocation } from '../../src/services/location.service';
 import { formatCurrency } from '../../src/utils/currency';
 import { Provider, Service, StaffMember } from '../../src/types';
 
@@ -65,6 +66,11 @@ export default function CreateBooking() {
   const [autoCompleting, setAutoCompleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [failedBookingId, setFailedBookingId] = useState<string | null>(null);
+  const [atHome, setAtHome] = useState(false);
+  const [homeAddress, setHomeAddress] = useState('');
+  const [pin, setPin] = useState<{ lat: number; lng: number } | null>(null);
+  const [pinLoading, setPinLoading] = useState(false);
+  const [quote, setQuote] = useState<{ available: boolean; distance_km?: number; travel_fee?: number; reason?: string | null } | null>(null);
 
   // Set right before navigating to Top Up so we know to auto-complete this
   // exact booking attempt (no re-selecting service/date/time) once the
@@ -73,7 +79,11 @@ export default function CreateBooking() {
   const awaitingTopUpRef = useRef(false);
 
   const days = useMemo(() => buildNextDays(NEXT_DAYS), []);
-  const hasSufficientBalance = selectedService ? walletBalance >= selectedService.price : true;
+  const homeOffered = Boolean(selectedService?.home_service) && Number((provider as any)?.travel_radius_km) > 0;
+  const travelFee = atHome && quote?.available ? Number(quote.travel_fee || 0) : 0;
+  const payableTotal = (selectedService?.price || 0) + travelFee;
+  const homeBlocked = atHome && (!quote?.available || !homeAddress.trim() || !pin);
+  const hasSufficientBalance = selectedService ? walletBalance >= payableTotal : true;
   const isOwnProvider = Boolean(user && provider && (user.id === provider.id || user.auth_id === provider.user_id));
 
   useEffect(() => {
@@ -162,6 +172,26 @@ export default function CreateBooking() {
     }
   }, [user?.auth_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const sharePin = async () => {
+    setPinLoading(true);
+    setQuote(null);
+    try {
+      const res = await resolveCurrentLocation();
+      if (!res.success || res.latitude == null || res.longitude == null) {
+        Alert.alert('Location needed', res.message || 'Could not get your location.');
+        return;
+      }
+      setPin({ lat: res.latitude, lng: res.longitude });
+      if (!homeAddress.trim() && res.location_address && res.location_address !== 'Shared Location') setHomeAddress(res.location_address);
+      const q = await bookingService.homeQuote(Number((provider as any).id), res.latitude, res.longitude);
+      setQuote(q);
+    } catch (err: any) {
+      Alert.alert('Could not check range', err?.friendlyMessage || err?.message || 'Please try again.');
+    } finally {
+      setPinLoading(false);
+    }
+  };
+
   const handleConfirm = async () => {
     if (!provider || !selectedService || !selectedSlot) {
       Alert.alert('Incomplete', 'Please select a service and time slot.');
@@ -182,6 +212,10 @@ export default function CreateBooking() {
       Alert.alert('Sign in required', 'Please sign in again before confirming this booking.');
       return;
     }
+    if (homeBlocked) {
+      Alert.alert('Home visit', 'Share your location pin and enter your address for a home visit, or choose "Go to provider".');
+      return;
+    }
     setSubmitting(true);
     setAutoCompleting(false);
     try {
@@ -193,10 +227,10 @@ export default function CreateBooking() {
         serviceId: serviceIdText,
         bookingDate,
         timeSlot: selectedTimeSlot,
-        amount: servicePrice,
+        amount: payableTotal,
         staffId: selectedStaff?.id || null,
         scheduledAt,
-        totalAmount: Number(selectedService.price),
+        totalAmount: payableTotal,
         notes: notes.trim() || '',
         paymentMethod: 'WALLET',
         provider_id: providerIdValue,
@@ -207,6 +241,14 @@ export default function CreateBooking() {
         service_ids: [serviceIdValue],
         service_duration_minutes: selectedService.duration || 30,
         status: 'pending_payment',
+        ...(atHome && pin
+          ? {
+              service_mode: 'home',
+              customer_address: homeAddress.trim(),
+              customer_latitude: pin.lat,
+              customer_longitude: pin.lng,
+            }
+          : { service_mode: 'in_store' }),
         ...(selectedStaffId ? { staff_id: selectedStaffId } : {}),
       };
       console.log('[booking] create payload', bookingPayload);
@@ -261,7 +303,7 @@ export default function CreateBooking() {
           awaitingTopUpRef.current &&
           !confirmed &&
           selectedService &&
-          balance >= selectedService.price
+          balance >= payableTotal
         ) {
           awaitingTopUpRef.current = false;
           setAutoCompleting(true);
@@ -273,7 +315,7 @@ export default function CreateBooking() {
         active = false;
       };
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [refreshWallet, selectedService, confirmed])
+    }, [refreshWallet, selectedService, confirmed, payableTotal])
   );
 
   const handlePrimaryPress = () => {
@@ -282,7 +324,7 @@ export default function CreateBooking() {
       Alert.alert('Incomplete', 'Please select a service and time slot.');
       return;
     }
-    if (walletBalance >= selectedService.price) {
+    if (walletBalance >= payableTotal) {
       handleConfirm();
     } else {
       awaitingTopUpRef.current = true;
@@ -560,6 +602,51 @@ export default function CreateBooking() {
           </>
         )}
 
+        {homeOffered && (
+          <>
+            <Text style={[styles.sectionTitle, { color: colors.text, marginTop: Spacing.lg }]}>Where?</Text>
+            <View style={{ flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.sm }}>
+              {[{ k: false, t: 'Go to provider' }, { k: true, t: 'Come to me' }].map((o) => (
+                <TouchableOpacity
+                  key={o.t}
+                  onPress={() => setAtHome(o.k)}
+                  accessibilityRole="button"
+                  style={[styles.slotChip, { flex: 1, alignItems: 'center', backgroundColor: colors.surface, borderColor: colors.border }, atHome === o.k && styles.slotChipActive]}
+                >
+                  <Text style={[styles.slotChipText, { color: colors.text }, atHome === o.k && styles.serviceChipTextActive]}>{o.t}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            {atHome && (
+              <View style={[styles.summaryCard, { backgroundColor: colors.surface, marginTop: 0 }]}>
+                <TextInput
+                  style={[styles.notesInput, { backgroundColor: colors.background, color: colors.text, minHeight: 56 }]}
+                  placeholder="Your address (house no., street, landmark)"
+                  placeholderTextColor={colors.textSecondary}
+                  value={homeAddress}
+                  onChangeText={setHomeAddress}
+                  multiline
+                />
+                <TouchableOpacity onPress={sharePin} disabled={pinLoading} accessibilityRole="button" style={{ marginTop: Spacing.sm }}>
+                  <Text style={{ color: Colors.primary, fontWeight: '600' }}>
+                    {pinLoading ? 'Checking...' : pin ? 'Update my location pin' : 'Use my current location'}
+                  </Text>
+                </TouchableOpacity>
+                {quote && (
+                  <Text style={{ marginTop: Spacing.sm, color: quote.available ? Colors.success : Colors.error }}>
+                    {quote.available
+                      ? `${quote.distance_km} km away. Travel fee: ${formatCurrency(quote.travel_fee || 0)}`
+                      : quote.reason || 'This provider cannot reach your location.'}
+                  </Text>
+                )}
+                <Text style={[styles.summaryLabel, { color: colors.textSecondary, marginTop: Spacing.sm }]}>
+                  Your address is only shown to the provider after they confirm the booking.
+                </Text>
+              </View>
+            )}
+          </>
+        )}
+
         {/* Notes */}
         <Text style={[styles.sectionTitle, { color: colors.text, marginTop: Spacing.lg }]}>Notes (optional)</Text>
         <TextInput
@@ -591,9 +678,15 @@ export default function CreateBooking() {
               <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Time</Text>
               <Text style={[styles.summaryValue, { color: colors.text }]}>{selectedSlot || '-'}</Text>
             </View>
+            {travelFee > 0 && (
+              <View style={styles.summaryRow}>
+                <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Travel fee</Text>
+                <Text style={[styles.summaryValue, { color: colors.text }]}>{formatCurrency(travelFee)}</Text>
+              </View>
+            )}
             <View style={[styles.summaryRow, { marginTop: Spacing.sm }]}>
               <Text style={[styles.summaryTotalLabel, { color: colors.text }]}>Price</Text>
-              <Text style={[styles.summaryTotalValue, { color: Colors.primary }]}>{formatCurrency(selectedService.price)}</Text>
+              <Text style={[styles.summaryTotalValue, { color: Colors.primary }]}>{formatCurrency(payableTotal)}</Text>
             </View>
 
             <View style={[styles.summaryDivider, { backgroundColor: colors.border }]} />
@@ -606,7 +699,7 @@ export default function CreateBooking() {
             </View>
             <View style={styles.summaryRow}>
               <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Escrow Amount</Text>
-              <Text style={[styles.summaryValue, { color: colors.text }]}>{formatCurrency(selectedService.price)}</Text>
+              <Text style={[styles.summaryValue, { color: colors.text }]}>{formatCurrency(payableTotal)}</Text>
             </View>
 
             <View style={[styles.protectionNote, { backgroundColor: `${Colors.success}15` }]}>
@@ -632,7 +725,7 @@ export default function CreateBooking() {
             title="Confirm Booking"
             onPress={handlePrimaryPress}
             loading={submitting || autoCompleting}
-            disabled={!selectedSlot}
+            disabled={!selectedSlot || homeBlocked}
             fullWidth
             size="large"
           />
@@ -648,12 +741,12 @@ export default function CreateBooking() {
             </View>
             <View style={styles.summaryRow}>
               <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Required Amount</Text>
-              <Text style={[styles.summaryValue, { color: colors.text }]}>{formatCurrency(selectedService?.price || 0)}</Text>
+              <Text style={[styles.summaryValue, { color: colors.text }]}>{formatCurrency(payableTotal)}</Text>
             </View>
             <View style={styles.summaryRow}>
               <Text style={[styles.summaryLabel, { color: colors.textSecondary }]}>Shortfall</Text>
               <Text style={[styles.summaryValue, { color: colors.text }, { color: Colors.error }]}>
-                {formatCurrency(Math.max(0, (selectedService?.price || 0) - walletBalance))}
+                {formatCurrency(Math.max(0, payableTotal - walletBalance))}
               </Text>
             </View>
             <Button

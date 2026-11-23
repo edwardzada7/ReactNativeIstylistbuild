@@ -33,6 +33,12 @@ export const bookingService = {
   // service), service_duration_minutes, notes, status ("pending_payment"),
   // and an optional staff_id - NOT { provider_id, service_id,
   // scheduled_at } as previously assumed.
+  async homeQuote(providerId: number, latitude: number, longitude: number): Promise<{
+    available: boolean; in_range?: boolean; distance_km?: number; radius_km?: number; travel_fee?: number; reason?: string | null;
+  }> {
+    return apiService.post<any>('/bookings/home-quote', { provider_id: providerId, latitude, longitude });
+  },
+
   async createBooking(data: CreateBookingRequest): Promise<Booking> {
     const scheduledDate = data.scheduledAt ? new Date(data.scheduledAt) : null;
     const providerId = data.provider_id ?? data.providerId;
