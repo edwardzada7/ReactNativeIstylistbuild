@@ -19,7 +19,7 @@ import { Button } from '../../src/components/common';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { walletService } from '../../src/services/wallet.service';
-import { formatCurrency } from '../../src/utils/currency';
+import { formatCurrency, CURRENCY } from '../../src/utils/currency';
 
 const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_BASE_URL ||
@@ -66,7 +66,7 @@ export default function WalletTopUp() {
 
   const handleContinue = async () => {
     if (!isValidAmount) {
-      Alert.alert('Invalid amount', 'Please enter an amount of at least ₦100.');
+      Alert.alert('Invalid amount', 'Please enter an amount of at least ' + formatCurrency(100) + '.');
       return;
     }
     if (!user?.email) {
@@ -167,7 +167,7 @@ export default function WalletTopUp() {
         >
           <Text style={[styles.label, { color: colors.textSecondary }]}>Enter Amount</Text>
           <View style={[styles.amountInputWrap, { backgroundColor: colors.surface }]}>
-            <Text style={[styles.currencySymbol, { color: colors.text }]}>₦</Text>
+            <Text style={[styles.currencySymbol, { color: colors.text }]}>{CURRENCY.symbol}</Text>
             <TextInput
               style={[styles.amountInput, { color: colors.text }]}
               placeholder="0"
@@ -185,7 +185,7 @@ export default function WalletTopUp() {
                 style={[styles.quickChip, { backgroundColor: colors.surface }]}
                 onPress={() => setAmount(String(qa))}
                 accessibilityRole="button"
-                accessibilityLabel={`₦${qa}`}
+                accessibilityLabel={formatCurrency(qa)}
               >
                 <Text style={[styles.quickChipText, { color: colors.text }]}>{formatCurrency(qa)}</Text>
               </TouchableOpacity>

@@ -59,7 +59,7 @@ export default function Settings() {
     if (!user?.auth_id) return;
     const fee = Number(consultationFee.replace(/[^0-9.]/g, ''));
     if (consultationEnabled && (!Number.isFinite(fee) || fee <= 0)) {
-      Alert.alert('Invalid consultation fee', 'Enter a fee greater than ₦0 to enable consultations.');
+      Alert.alert('Invalid consultation fee', 'Enter a fee greater than ' + formatCurrency(0) + ' to enable consultations.');
       return;
     }
     setConsultationSaving(true);

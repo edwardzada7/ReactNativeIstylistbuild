@@ -15,6 +15,7 @@ import { useRouter, useFocusEffect } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { BrandLogo } from '../../src/components/branding';
 import { ProfileAvatar } from '../../src/components/common';
+import { LocationChip } from '../../src/components/common/LocationChip';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { bookingService } from '../../src/services/booking.service';
@@ -215,6 +216,7 @@ export default function ProviderDashboard() {
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={[styles.greeting, { color: colors.text }]} numberOfLines={1}>Hi, {user?.full_name?.split(' ')[0] || 'there'} 👋</Text>
               <Text style={[styles.subGreeting, { color: colors.textSecondary }]} numberOfLines={1}>Your business today</Text>
+              <LocationChip target="/(provider)/profile" />
             </View>
           </View>
           <View style={styles.headerActions}>

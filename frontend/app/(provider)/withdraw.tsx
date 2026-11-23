@@ -20,7 +20,7 @@ import { Button } from '../../src/components/common';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { walletService } from '../../src/services/wallet.service';
-import { formatCurrency } from '../../src/utils/currency';
+import { formatCurrency, CURRENCY } from '../../src/utils/currency';
 import { NIGERIAN_BANKS } from '../../src/utils/walletHelpers';
 import { Wallet } from '../../src/types';
 
@@ -132,7 +132,7 @@ export default function ProviderWithdraw() {
             )}
           </View>
 
-          <Text style={[styles.label, { color: colors.text }]}>Amount (₦)</Text>
+          <Text style={[styles.label, { color: colors.text }]}>Amount ({CURRENCY.symbol})</Text>
           <TextInput
             style={[styles.input, { backgroundColor: colors.surface, color: colors.text, borderColor: colors.border }]}
             placeholder="e.g. 5000"
