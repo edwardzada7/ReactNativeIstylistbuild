@@ -9,3 +9,7 @@ export { GuestPrompt, withAuthGate } from './GuestGate';
 export { RatingStars } from './RatingStars';
 export { VerifiedBadge, isVerifiedProfile } from './VerifiedBadge';export { FavoriteButton } from './FavoriteButton';
 export { PhotoViewer } from './PhotoViewer';
+
+export { ProBadge } from './ProBadge';
+export { SponsoredStrip } from './SponsoredStrip';
+export { LocationChip } from './LocationChip';

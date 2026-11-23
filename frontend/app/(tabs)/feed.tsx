@@ -18,6 +18,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { feedService } from '../../src/services/feed.service';
+import { promoService } from '../../src/services/promo.service';
+import { ProBadge } from '../../src/components/common';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useBlockedUsers } from '../../src/hooks/useBlockedUsers';
@@ -64,16 +66,38 @@ export default function Feed() {
   const retryCount = React.useRef(0);
   const [reportTargetId, setReportTargetId] = useState<string | null>(null);
   const [commentsPostId, setCommentsPostId] = useState<string | null>(null);
+  const [sponsoredPosts, setSponsoredPosts] = useState<any[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    promoService.getSponsoredPosts(3).then((list) => !cancelled && setSponsoredPosts(list));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const { isBlocked, block } = useBlockedUsers();
 
   const postAuthorId = (post: Post): string | undefined =>
     post.provider_auth_id || post.provider?.auth_id || undefined;
 
   // Posts from people the user has blocked never appear.
-  const visiblePosts = useMemo(
+  const visiblePostsBase = useMemo(
     () => feedData.filter((post) => !isBlocked(post.provider_auth_id || post.provider?.auth_id)),
     [feedData, isBlocked]
   );
+  const visiblePosts = visiblePostsBase;
+
+  // Boosted posts: after the 2nd post, then after every 5th, labelled "Sponsored".
+  const listData = useMemo(() => {
+    const out: any[] = [];
+    visiblePostsBase.forEach((post, index) => {
+      out.push(post);
+      const slot = index === 1 ? 0 : index > 1 && (index - 1) % 5 === 0 ? (index - 1) / 5 : -1;
+      const ad = slot >= 0 ? sponsoredPosts[slot] : null;
+      if (ad && !visiblePostsBase.some((p) => String(p.id) === String(ad.id))) out.push({ ...ad, sponsored: true });
+    });
+    return out;
+  }, [visiblePostsBase, sponsoredPosts]);
+
 
   const loadFeed = useCallback(async () => {
     try {
@@ -243,6 +267,9 @@ export default function Feed() {
 
   const renderPost = ({ item }: { item: Post }) => (
     <View style={[styles.postCard, { backgroundColor: colors.surface }]}>
+      {(item as any).sponsored && (
+        <Text style={{ color: colors.textSecondary, fontSize: 10, textTransform: 'uppercase', marginBottom: 4 }}>Sponsored</Text>
+      )}
       <View style={styles.postHeader}>
         <TouchableOpacity 
           style={styles.userInfo}
@@ -261,6 +288,7 @@ export default function Feed() {
                 {item.provider?.display_name || item.provider?.business_name || item.provider?.name || item.provider?.full_name || item.user?.full_name || item.user?.name || 'Stylist'}
               </Text>
               <VerifiedBadge verified={isVerifiedProfile(item.provider)} size={14} />
+              <ProBadge pro={(item.provider as any)?.is_pro} />
             </View>
             <Text style={[styles.timestamp, { color: colors.textSecondary, paddingRight: 4 }]} textBreakStrategy="simple">{item.created_at ? new Date(item.created_at).toLocaleDateString() : ''}</Text>
           </View>
@@ -368,9 +396,9 @@ export default function Feed() {
         </View>
       ) : (
         <FlatList
-          data={visiblePosts}
+          data={listData}
           renderItem={renderPost}
-          keyExtractor={(item) => String(item.id)}
+          keyExtractor={(item: any) => `${item.sponsored ? 'ad-' : ''}${item.id}`}
           contentContainerStyle={styles.feedList}
           showsVerticalScrollIndicator={false}
           refreshControl={

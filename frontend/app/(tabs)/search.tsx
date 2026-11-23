@@ -22,10 +22,13 @@ import { useTheme } from '../../src/contexts/ThemeContext';
 import { FavoriteButton, ProfileAvatar, RatingStars, VerifiedBadge, isVerifiedProfile } from '../../src/components/common';
 import { peopleService } from '../../src/services/people.service';
 import { useBlockedUsers } from '../../src/hooks/useBlockedUsers';
+import { ProBadge, SponsoredStrip } from '../../src/components/common';
+import { useProIds, providerAuthIdOf } from '../../src/hooks/useProIds';
 
 const PAGE_SIZE = 10;
 
 export default function Search() {
+  const proIds = useProIds();
   const router = useRouter();
   const params = useLocalSearchParams<{ category?: string }>();
   const { colors } = useTheme();
@@ -182,6 +185,7 @@ export default function Search() {
         <View style={styles.resultNameRow}>
           <Text style={[styles.resultName, { color: colors.text }]} numberOfLines={1}>{item.business_name}</Text>
           <VerifiedBadge verified={isVerifiedProfile(item)} />
+          <ProBadge pro={proIds.has(String(providerAuthIdOf(item)))} />
         </View>
         <Text style={[styles.resultCategory, { color: colors.textSecondary }]} numberOfLines={1}>
           {typeof item.category === 'string' ? item.category : item.location}
@@ -276,6 +280,7 @@ export default function Search() {
       ) : (
         <FlashList
           data={visibleProviders}
+          ListHeaderComponent={<SponsoredStrip types="profile" title="Sponsored providers" />}
           renderItem={renderResultCard}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.resultsList}
