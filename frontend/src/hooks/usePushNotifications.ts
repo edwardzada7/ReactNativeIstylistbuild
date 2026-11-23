@@ -46,7 +46,7 @@ export function usePushNotifications(authId?: string | null) {
     const open = (data: any) => {
       try {
         const type = String(data?.type || '');
-        if (data?.booking_id && type.includes('booking')) router.push(`/bookings/${data.booking_id}` as any);
+        if (data?.booking_id && (type.includes('booking') || type.includes('reschedule'))) router.push((`/bookings/${data.booking_id}${data?.action === 'reschedule' ? '?reschedule=1' : ''}`) as any);
         else if (type.includes('message') || type.includes('chat')) router.push('/messages' as any);
         else router.push('/notifications' as any);
       } catch (e) {

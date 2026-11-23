@@ -130,7 +130,7 @@ function Notifications() {
         return;
       }
       if (bookingId) {
-        router.push(`/bookings/${String(bookingId)}`);
+        router.push(data.action === 'reschedule' ? { pathname: '/bookings/[id]', params: { id: String(bookingId), reschedule: '1' } } : `/bookings/${String(bookingId)}`);
         return;
       }
       if (data.provider_id) {
