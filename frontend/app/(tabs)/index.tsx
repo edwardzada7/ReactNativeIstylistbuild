@@ -31,7 +31,7 @@ import { RebookReminder } from '../../src/components/booking/RebookReminder';
 
 import { screenCache } from '../../src/utils/screenCache';
 import { useBlockedUsers } from '../../src/hooks/useBlockedUsers';
-import { ProBadge, SponsoredStrip } from '../../src/components/common';
+import { EventsStrip, ProBadge, SponsoredStrip } from '../../src/components/common';
 import { useProIds, providerAuthIdOf } from '../../src/hooks/useProIds';
 
 export default function Home() {
@@ -325,6 +325,8 @@ export default function Home() {
         </LinearGradient>
 
         <SponsoredStrip types="profile,service" title="Sponsored" />
+
+        <EventsStrip />
 
         {upcoming && (
           <TouchableOpacity
