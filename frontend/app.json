@@ -57,7 +57,8 @@
           "backgroundColor": "#FFFFFF"
         }
       ],
-      "expo-notifications"
+      "expo-notifications",
+      ["expo-camera", { "cameraPermission": "Scan event tickets at the door" }]
     ],
     "experiments": {
       "typedRoutes": true

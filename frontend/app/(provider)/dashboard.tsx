@@ -31,7 +31,7 @@ import { formatCurrency } from '../../src/utils/currency';
 import { Booking, Provider } from '../../src/types';
 import { formatRating } from '../../src/utils/display';
 import { screenCache } from '../../src/utils/screenCache';
-import { ProBadge } from '../../src/components/common';
+import { EventsStrip, ProBadge } from '../../src/components/common';
 
 const isSameDay = (isoDate: string) => {
   if (!isoDate) return false;
@@ -253,6 +253,8 @@ export default function ProviderDashboard() {
             </TouchableOpacity>
           </View>
         </View>
+
+        <EventsStrip />
 
         {error && (
           <View style={[styles.errorBanner, { backgroundColor: colors.surface }]}>

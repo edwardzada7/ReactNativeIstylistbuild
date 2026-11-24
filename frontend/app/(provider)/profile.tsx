@@ -380,6 +380,9 @@ export default function ProviderProfile() {
     { icon: 'time-outline', label: 'Availability', onPress: () => router.push('/(provider)/availability') },
     { icon: 'calendar-outline', label: 'Bookings', onPress: () => router.push('/(provider)/bookings') },
     { icon: 'star-outline', label: 'Reviews', onPress: () => router.push('/(provider)/reviews') },
+    { icon: 'ticket-outline', label: 'My Tickets', onPress: () => router.push('/events/tickets' as any) },
+    { icon: 'calendar-outline', label: 'Events', onPress: () => router.push('/events' as any) },
+    { icon: 'scan-outline', label: 'Ticket Scanner (event staff)', onPress: () => router.push('/events/scanner' as any) },
     {
       icon: 'wallet-outline',
       label: 'Wallet',

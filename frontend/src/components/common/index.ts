@@ -13,3 +13,4 @@ export { PhotoViewer } from './PhotoViewer';
 export { ProBadge } from './ProBadge';
 export { SponsoredStrip } from './SponsoredStrip';
 export { LocationChip } from './LocationChip';
+export { EventsStrip } from './EventsStrip';

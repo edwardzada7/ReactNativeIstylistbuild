@@ -38,6 +38,9 @@ const menuSections = (router: ReturnType<typeof useRouter>, isDark: boolean, tog
       { icon: 'person-outline', label: 'Edit Profile', onPress: () => router.push('/settings/edit-profile') },
       { icon: 'wallet-outline', label: 'Wallet', onPress: () => router.push('/(tabs)/wallet') },
       { icon: 'star-outline', label: 'My Reviews', onPress: () => router.push('/settings/my-reviews') },
+      { icon: 'ticket-outline', label: 'My Tickets', onPress: () => router.push('/events/tickets' as any) },
+      { icon: 'calendar-outline', label: 'Events', onPress: () => router.push('/events' as any) },
+      { icon: 'scan-outline', label: 'Ticket Scanner (event staff)', onPress: () => router.push('/events/scanner' as any) },
     ],
   },
   {
