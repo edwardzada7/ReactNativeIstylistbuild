@@ -1,3 +1,4 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import apiService from './api';
 
 export interface TicketType {
@@ -71,6 +72,33 @@ export interface ScannerSession {
   checked_in: number;
 }
 
+export interface GuestOrderRef {
+  reference: string;
+  token: string;
+  title?: string;
+}
+
+const GUEST_KEY = 'guest_ticket_orders';
+
+/** Guest ticket orders are remembered on this phone so the buyer can reopen them without an account. */
+export const guestOrders = {
+  async list(): Promise<GuestOrderRef[]> {
+    try {
+      return JSON.parse((await AsyncStorage.getItem(GUEST_KEY)) || '[]');
+    } catch {
+      return [];
+    }
+  },
+  async save(order: GuestOrderRef): Promise<void> {
+    try {
+      const rest = (await guestOrders.list()).filter((o) => o.reference !== order.reference);
+      await AsyncStorage.setItem(GUEST_KEY, JSON.stringify([order, ...rest].slice(0, 20)));
+    } catch {
+      /* storage unavailable */
+    }
+  },
+};
+
 export const eventsService = {
   async list(): Promise<EventItem[]> {
     const res = await apiService.get<any>('/events');
@@ -90,6 +118,19 @@ export const eventsService = {
   },
   async verify(reference: string): Promise<{ status: string; message?: string }> {
     return apiService.get(`/events/orders/verify?reference=${encodeURIComponent(reference)}`);
+  },
+  async guestCheckout(
+    id: number,
+    body: { ticket_type_id: number; quantity: number; name: string; email: string; phone?: string | null; redirect_url?: string },
+  ): Promise<{ status: 'free' | 'pending'; authorization_url?: string; reference: string; ticket_count?: number; emailed?: boolean; email?: string; access_token?: string }> {
+    return apiService.post(`/events/${id}/guest-checkout`, body);
+  },
+  async guestVerify(reference: string, token: string): Promise<{ status: string; message?: string; tickets?: MyTicket[] }> {
+    return apiService.get(`/events/guest/verify?reference=${encodeURIComponent(reference)}&t=${encodeURIComponent(token)}`);
+  },
+  async guestTickets(reference: string, token: string): Promise<MyTicket[]> {
+    const res = await apiService.get<any>(`/events/guest/tickets?reference=${encodeURIComponent(reference)}&t=${encodeURIComponent(token)}`);
+    return Array.isArray(res?.tickets) ? res.tickets : [];
   },
   async myTickets(): Promise<MyTicket[]> {
     const res = await apiService.get<any>('/events/my-tickets');
