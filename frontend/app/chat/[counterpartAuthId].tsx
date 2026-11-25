@@ -37,20 +37,6 @@ import { peopleService } from '../../src/services/people.service';
 import { useCartStore } from '../../src/store/cartStore';
 import { supabase } from '../../src/lib/supabase';
 
-const PHONE_REGEX = /(?:\+?234|0)[789][01]\d{8}/g;
-const EMAIL_REGEX = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
-const SOCIAL_REGEX = /(instagram|ig|whatsapp|snapchat|tiktok|twitter|telegram|call me|add me|contact me)/gi;
-const CONTACT_SHARING_WARNING = 'Security Notice: Sharing phone numbers, emails, or off-platform social handles is against policy. Please keep transactions within iStylist.';
-
-function containsBlockedContactInfo(value: string) {
-  return [PHONE_REGEX, EMAIL_REGEX, SOCIAL_REGEX].some((pattern) => {
-    pattern.lastIndex = 0;
-    const matched = pattern.test(value);
-    pattern.lastIndex = 0;
-    return matched;
-  });
-}
-
 /**
  * Chat thread using booking-based endpoints to match web implementation.
  * Chat is tied to bookings - accessed via booking_id with counterpart information.
@@ -223,10 +209,6 @@ export default function ChatThread() {
       return;
     }
     const body = text.trim();
-    if (containsBlockedContactInfo(body)) {
-      Alert.alert(CONTACT_SHARING_WARNING);
-      return;
-    }
     setText('');
     setSending(true);
     try {
@@ -236,6 +218,9 @@ export default function ChatThread() {
       setMessages((prev) => [...prev, sent]);
     } catch (err) {
       console.error('[chat] failed to send', err);
+      // The server blocks phone numbers, emails, socials and links and explains why
+      setText(body);
+      Alert.alert('Message not sent', (err as any)?.friendlyMessage || (err as any)?.message || 'Please try again.');
     } finally {
       setSending(false);
     }
