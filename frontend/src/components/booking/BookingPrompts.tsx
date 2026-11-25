@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, AppState, KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Colors, FontSizes, Spacing, BorderRadius } from '../../constants/theme';
 import { useAuth } from '../../contexts/AuthContext';
 import { bookingService } from '../../services/booking.service';
@@ -37,7 +38,13 @@ export function BookingPrompts() {
     if (!authId || busyRef.current || itemRef.current) return;
     try {
       const items = await bookingService.pendingActions(authId, role);
-      const next = items.find((i) => !dismissed.current.has(`${i.type}_${i.booking_id}`)) || null;
+      let next: Item | null = null;
+      for (const i of items) {
+        if (dismissed.current.has(`${i.type}_${i.booking_id}`)) continue;
+        if (i.type === 'review' && (await AsyncStorage.getItem(`BK_REVIEW_DONE_${i.booking_id}`))) continue;
+        next = i;
+        break;
+      }
       if (next && !itemRef.current) setItem(next);
     } catch {
       /* best-effort */
@@ -53,7 +60,12 @@ export function BookingPrompts() {
   }, [isAuthenticated, authId, load]);
 
   const close = (dismiss = true) => {
-    if (item && dismiss) dismissed.current.add(`${item.type}_${item.booking_id}`);
+    if (item && (dismiss || item.type === 'review')) dismissed.current.add(`${item.type}_${item.booking_id}`);
+    if (item && item.type === 'review') {
+      // show the review popup once per booking, even after the app restarts
+      void AsyncStorage.setItem(`BK_REVIEW_DONE_${item.booking_id}`, '1').catch(() => {});
+      void bookingService.dismissReviewPrompt(authId, item.booking_id).catch(() => {});
+    }
     setItem(null); setMode('main'); setAnswer(null); setReason(''); setComment(''); setRating(5);
     setTimeout(() => void load(), 500);
   };

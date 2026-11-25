@@ -141,6 +141,10 @@ export const bookingService = {
     return apiService.post<any>(`/bookings/${id}/customer-confirm`, { auth_id: authId, completed, reason: reason || null });
   },
 
+  async dismissReviewPrompt(authId: string, bookingId: number): Promise<void> {
+    await apiService.post<any>('/booking-actions/dismiss-review', { auth_id: authId, booking_id: bookingId });
+  },
+
   async pendingActions(authId: string, role: 'customer' | 'provider'): Promise<any[]> {
     const res = await apiService.get<any>('/booking-actions/pending', { params: { auth_id: authId, role } });
     return Array.isArray(res?.items) ? res.items : [];
