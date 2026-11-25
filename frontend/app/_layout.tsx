@@ -11,6 +11,7 @@ import { useIconFonts } from '@/src/hooks/use-icon-fonts';
 import { screenCache } from '@/src/utils/screenCache';
 import { usePushNotifications } from '@/src/hooks/usePushNotifications';
 import { UnreadMessagesProvider } from '@/src/contexts/UnreadMessagesContext';
+import { BookingPrompts } from '@/src/components/booking/BookingPrompts';
 import '@/src/utils/androidTextFix';
 
 // Disable logbox errors etc so that users can see the app
@@ -91,6 +92,7 @@ function AppShell() {
           <Stack.Screen name="(provider)" />
           <Stack.Screen name="(admin)" />
         </Stack>
+        <BookingPrompts />
       </ThemeProvider>
     </UnreadMessagesProvider>
   );
