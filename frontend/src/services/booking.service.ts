@@ -56,6 +56,11 @@ export const bookingService = {
     return apiService.post<any>('/bookings/home-quote', { provider_id: providerId, latitude, longitude });
   },
 
+  // Typed address -> coordinates, so a home visit can be booked to any address (home, office, elsewhere).
+  async geocodeAddress(address: string): Promise<{ found: boolean; latitude?: number; longitude?: number; label?: string; message?: string }> {
+    return apiService.post<any>('/geocode/address', { address });
+  },
+
   async createBooking(data: CreateBookingRequest): Promise<Booking> {
     const scheduledDate = data.scheduledAt ? new Date(data.scheduledAt) : null;
     const providerId = data.provider_id ?? data.providerId;
