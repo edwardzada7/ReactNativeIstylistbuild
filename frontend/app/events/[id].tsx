@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Modal, ScrollView, Share, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, KeyboardAvoidingView, Modal, ScrollView, Share, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
@@ -8,7 +8,7 @@ import { BorderRadius, Colors, FontSizes, Spacing } from '../../src/constants/th
 import { VerifiedBadge } from '../../src/components/common';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useAuth } from '../../src/contexts/AuthContext';
-import { EventItem, EventQuote, eventsService, formatEventDate } from '../../src/services/events.service';
+import { EventItem, EventQuote, eventsService, formatEventDate, guestOrders } from '../../src/services/events.service';
 import { formatCurrency } from '../../src/utils/currency';
 
 const API_BASE_URL =
@@ -16,6 +16,7 @@ const API_BASE_URL =
   'https://updatedistylistbeauty-marketplace-production.up.railway.app/api';
 // Paystack sends the buyer here after paying; the WebView catches it before it loads and we verify on the server.
 const REDIRECT_URL = `${API_BASE_URL.replace(/\/api\/?$/, '')}/events/purchase-complete`;
+const GUEST_REDIRECT_URL = `${API_BASE_URL.replace(/\/api\/?$/, '')}/events/guest-tickets`;
 
 export default function EventDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -30,6 +31,8 @@ export default function EventDetail() {
   const [busy, setBusy] = useState(false);
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
   const handledRef = useRef(false);
+  const [guestOpen, setGuestOpen] = useState(false);
+  const [guest, setGuest] = useState({ name: '', email: '', phone: '' });
 
   const load = useCallback(async () => {
     try {
@@ -70,11 +73,7 @@ export default function EventDetail() {
   const buy = async () => {
     if (!event || !selected) return;
     if (!isAuthenticated) {
-      Alert.alert('Join iStylist', 'Create a free account (or sign in) to get tickets.', [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Sign in', onPress: () => router.push('/(auth)/login') },
-        { text: 'Create account', onPress: () => router.push('/(auth)/signup') },
-      ]);
+      setGuestOpen(true);
       return;
     }
     const email = (user as any)?.email;
@@ -100,7 +99,50 @@ export default function EventDetail() {
     }
   };
 
+  const guestBuy = async () => {
+    if (!event || !selected) return;
+    if (guest.name.trim().length < 2) return Alert.alert('Your name', 'Please enter your name.');
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(guest.email.trim())) return Alert.alert('Email needed', 'Enter a valid email address. Your tickets are sent there.');
+    setBusy(true);
+    try {
+      const res = await eventsService.guestCheckout(event.id, {
+        ticket_type_id: selected.id,
+        quantity: qty,
+        name: guest.name.trim(),
+        email: guest.email.trim(),
+        phone: guest.phone.trim() || null,
+        redirect_url: GUEST_REDIRECT_URL,
+      });
+      setGuestOpen(false);
+      if (res.status === 'free') {
+        if (res.emailed) {
+          Alert.alert('Check your email', `We sent your ticket(s) to ${res.email}. Open the link in that email to see your QR code and PIN.`);
+        } else if (res.access_token) {
+          await guestOrders.save({ reference: res.reference, token: res.access_token, title: event.title });
+          router.replace(`/events/guest-tickets?reference=${res.reference}&t=${res.access_token}` as any);
+        }
+      } else if (res.authorization_url) {
+        handledRef.current = false;
+        setCheckoutUrl(res.authorization_url);
+      }
+    } catch (e: any) {
+      Alert.alert('Could not start checkout', e?.friendlyMessage || e?.response?.data?.detail || e?.message || 'Please try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const onRedirect = (request: { url: string }) => {
+    if (request.url.startsWith(GUEST_REDIRECT_URL) && !handledRef.current) {
+      handledRef.current = true;
+      const q = new URLSearchParams(request.url.split('?')[1] || '');
+      const ref = q.get('reference') || q.get('trxref');
+      const tok = q.get('t');
+      setCheckoutUrl(null);
+      if (ref && tok) router.replace(`/events/guest-tickets?reference=${ref}&t=${tok}` as any);
+      else Alert.alert('Payment cancelled', 'No funds were charged.');
+      return false;
+    }
     if (!request.url.startsWith(REDIRECT_URL) || handledRef.current) return true;
     handledRef.current = true;
     const params = new URLSearchParams(request.url.split('?')[1] || '');
@@ -140,7 +182,7 @@ export default function EventDetail() {
   }
 
   const canceled = event.status === 'canceled';
-  const cta = !selected ? 'Sold out' : !isAuthenticated ? 'Sign up to get tickets' : free ? "I'm attending" : `Buy ${qty > 1 ? `${qty} tickets` : 'ticket'}${quote ? ` · ${formatCurrency(quote.total)}` : ''}`;
+  const cta = !selected ? 'Sold out' : free ? "I'm attending" : `Buy ${qty > 1 ? `${qty} tickets` : 'ticket'}${quote ? ` · ${formatCurrency(quote.total)}` : ''}`;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
@@ -217,6 +259,39 @@ export default function EventDetail() {
         </View>
       )}
 
+      <Modal visible={guestOpen} animationType="slide" transparent onRequestClose={() => setGuestOpen(false)}>
+        <KeyboardAvoidingView behavior="padding" style={styles.sheetBackdrop}>
+          <View style={[styles.sheet, { backgroundColor: colors.background }]}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>{free ? 'Get your free ticket' : 'Get your tickets'}</Text>
+            <Text style={{ color: colors.textSecondary }}>No account needed. We'll email your tickets (QR code + PIN) to you.</Text>
+            {(['name', 'email', 'phone'] as const).map((field) => (
+              <TextInput
+                key={field}
+                value={guest[field]}
+                onChangeText={(v) => setGuest((g) => ({ ...g, [field]: v }))}
+                placeholder={field === 'name' ? 'Full name' : field === 'email' ? 'Email (tickets are sent here)' : 'Phone (optional)'}
+                placeholderTextColor={colors.textMuted}
+                keyboardType={field === 'email' ? 'email-address' : field === 'phone' ? 'phone-pad' : 'default'}
+                autoCapitalize={field === 'name' ? 'words' : 'none'}
+                autoCorrect={false}
+                style={[styles.input, { color: colors.text, borderColor: colors.border, backgroundColor: colors.surface }]}
+              />
+            ))}
+            {quote && !free ? <Text style={{ color: colors.text }}>Total to pay: <Text style={{ fontWeight: '800' }}>{formatCurrency(quote.total)}</Text> via Paystack</Text> : null}
+            <TouchableOpacity style={[styles.cta, { backgroundColor: Colors.primary, opacity: busy ? 0.6 : 1 }]} disabled={busy} onPress={guestBuy}>
+              {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.ctaText}>{free ? 'Get my ticket' : 'Continue to payment'}</Text>}
+            </TouchableOpacity>
+            <View style={styles.authRow}>
+              <Text style={{ color: colors.textSecondary }}>Want more? </Text>
+              <TouchableOpacity onPress={() => { setGuestOpen(false); router.push('/(auth)/signup'); }}><Text style={styles.link}>Sign up</Text></TouchableOpacity>
+              <Text style={{ color: colors.textSecondary }}> or </Text>
+              <TouchableOpacity onPress={() => { setGuestOpen(false); router.push('/(auth)/login'); }}><Text style={styles.link}>sign in</Text></TouchableOpacity>
+            </View>
+            <TouchableOpacity onPress={() => setGuestOpen(false)} style={{ alignSelf: 'center', padding: 8 }}><Text style={{ color: colors.textSecondary }}>Cancel</Text></TouchableOpacity>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
+
       <Modal visible={!!checkoutUrl} animationType="slide" onRequestClose={() => setCheckoutUrl(null)}>
         <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
           <View style={styles.headerRow}>
@@ -259,6 +334,11 @@ const styles = StyleSheet.create({
   quote: { borderTopWidth: 1, paddingTop: Spacing.sm, gap: 4 },
   qRow: { flexDirection: 'row', justifyContent: 'space-between' },
   total: { fontSize: FontSizes.md, fontWeight: '800' },
+  sheetBackdrop: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0,0,0,0.45)' },
+  sheet: { borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: Spacing.lg, gap: Spacing.sm },
+  input: { borderWidth: 1, borderRadius: BorderRadius.md, paddingHorizontal: Spacing.md, height: 48, fontSize: FontSizes.md },
+  authRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 4 },
+  link: { color: Colors.primary, fontWeight: '700' },
   footer: { padding: Spacing.md, borderTopWidth: 1 },
   cta: { height: 50, borderRadius: BorderRadius.md, alignItems: 'center', justifyContent: 'center' },
   ctaText: { color: '#fff', fontSize: FontSizes.md, fontWeight: '800' },

@@ -27,7 +27,7 @@ import { formatCurrency } from '../../src/utils/currency';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { ReportModal } from '../../src/components/common';
 import { useBlockedUsers } from '../../src/hooks/useBlockedUsers';
-import { SponsoredStrip } from '../../src/components/common';
+import { GuestPromptBar, SponsoredStrip } from '../../src/components/common';
 
 interface SharedShopScreenProps {
   showManageButton?: boolean;
@@ -163,6 +163,7 @@ export function SharedShopScreen({ showManageButton = false }: SharedShopScreenP
         />
       </View>
 
+      <GuestPromptBar />
       <SponsoredStrip types="product" title="Sponsored products" />
 
       <View style={styles.categorySection}>
