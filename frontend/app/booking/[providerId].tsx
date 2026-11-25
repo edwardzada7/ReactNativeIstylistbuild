@@ -70,6 +70,9 @@ export default function CreateBooking() {
   const [homeAddress, setHomeAddress] = useState('');
   const [pin, setPin] = useState<{ lat: number; lng: number } | null>(null);
   const [pinLoading, setPinLoading] = useState(false);
+  const [pinSource, setPinSource] = useState<'gps' | 'saved' | 'typed' | null>(null);
+  const [geoBusy, setGeoBusy] = useState(false);
+  const [geoMsg, setGeoMsg] = useState('');
   const [quote, setQuote] = useState<{ available: boolean; distance_km?: number; travel_fee?: number; reason?: string | null } | null>(null);
 
   // Set right before navigating to Top Up so we know to auto-complete this
@@ -172,9 +175,19 @@ export default function CreateBooking() {
     }
   }, [user?.auth_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const runQuote = async (lat: number, lng: number) => {
+    try {
+      const q = await bookingService.homeQuote(Number((provider as any).id), lat, lng);
+      setQuote(q);
+    } catch (err: any) {
+      Alert.alert('Could not check range', err?.friendlyMessage || err?.message || 'Please try again.');
+    }
+  };
+
   const sharePin = async () => {
     setPinLoading(true);
     setQuote(null);
+    setGeoMsg('');
     try {
       const res = await resolveCurrentLocation();
       if (!res.success || res.latitude == null || res.longitude == null) {
@@ -182,15 +195,65 @@ export default function CreateBooking() {
         return;
       }
       setPin({ lat: res.latitude, lng: res.longitude });
+      setPinSource('gps');
       if (!homeAddress.trim() && res.location_address && res.location_address !== 'Shared Location') setHomeAddress(res.location_address);
-      const q = await bookingService.homeQuote(Number((provider as any).id), res.latitude, res.longitude);
-      setQuote(q);
-    } catch (err: any) {
-      Alert.alert('Could not check range', err?.friendlyMessage || err?.message || 'Please try again.');
+      await runQuote(res.latitude, res.longitude);
     } finally {
       setPinLoading(false);
     }
   };
+
+  const savedLat = (user as any)?.latitude;
+  const savedLng = (user as any)?.longitude;
+  const hasSaved = typeof savedLat === 'number' && typeof savedLng === 'number';
+
+  const useSavedLocation = async () => {
+    if (!hasSaved) return;
+    setGeoMsg('');
+    setQuote(null);
+    setPin({ lat: savedLat, lng: savedLng });
+    setPinSource('saved');
+    const saved = (user as any)?.location_address;
+    if (saved && saved !== 'Shared Location') setHomeAddress(saved);
+    await runQuote(savedLat, savedLng);
+  };
+
+  // Typing an address makes it the source of truth: the old pin no longer applies.
+  const onAddressChange = (text: string) => {
+    setHomeAddress(text);
+    setGeoMsg('');
+    setPinSource('typed');
+    setPin(null);
+    setQuote(null);
+  };
+
+  const checkTypedAddress = useCallback(async () => {
+    const text = homeAddress.trim();
+    if (text.length < 5) { setGeoMsg('Type your full address first.'); return; }
+    setGeoBusy(true);
+    setGeoMsg('');
+    try {
+      const r = await bookingService.geocodeAddress(text);
+      if (r?.found && r.latitude != null && r.longitude != null) {
+        setPin({ lat: r.latitude, lng: r.longitude });
+        setPinSource('typed');
+        await runQuote(r.latitude, r.longitude);
+      } else {
+        setGeoMsg(r?.message || "We couldn't find that address. Add the area or city, or use your current location.");
+      }
+    } catch (err: any) {
+      setGeoMsg(err?.friendlyMessage || 'Address lookup failed. Try again or use your current location.');
+    } finally {
+      setGeoBusy(false);
+    }
+  }, [homeAddress]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Look the typed address up automatically once the customer pauses typing.
+  useEffect(() => {
+    if (!atHome || pinSource !== 'typed' || pin || homeAddress.trim().length < 8) return undefined;
+    const t = setTimeout(() => { void checkTypedAddress(); }, 1200);
+    return () => clearTimeout(t);
+  }, [homeAddress, pinSource, pin, atHome, checkTypedAddress]);
 
   const handleConfirm = async () => {
     if (!provider || !selectedService || !selectedSlot) {
@@ -619,19 +682,45 @@ export default function CreateBooking() {
             </View>
             {atHome && (
               <View style={[styles.summaryCard, { backgroundColor: colors.surface, marginTop: 0 }]}>
+                <Text style={[styles.summaryLabel, { color: colors.textSecondary, marginBottom: Spacing.sm }]}>
+                  Choose where the provider should come: your current or saved location, or type any other address (home, office, another area).
+                </Text>
+                <View style={{ flexDirection: 'row', gap: Spacing.sm, flexWrap: 'wrap', marginBottom: Spacing.sm }}>
+                  <TouchableOpacity onPress={sharePin} disabled={pinLoading} accessibilityRole="button"
+                    style={[styles.slotChip, { backgroundColor: colors.background, borderColor: colors.border }, pinSource === 'gps' && styles.slotChipActive]}>
+                    <Text style={[styles.slotChipText, { color: colors.text }, pinSource === 'gps' && styles.serviceChipTextActive]}>
+                      {pinLoading ? 'Checking...' : 'Use my current location'}
+                    </Text>
+                  </TouchableOpacity>
+                  {hasSaved && (
+                    <TouchableOpacity onPress={useSavedLocation} accessibilityRole="button"
+                      style={[styles.slotChip, { backgroundColor: colors.background, borderColor: colors.border }, pinSource === 'saved' && styles.slotChipActive]}>
+                      <Text style={[styles.slotChipText, { color: colors.text }, pinSource === 'saved' && styles.serviceChipTextActive]}>Use my saved address</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
                 <TextInput
                   style={[styles.notesInput, { backgroundColor: colors.background, color: colors.text, minHeight: 56 }]}
-                  placeholder="Your address (house no., street, landmark)"
+                  placeholder="Or type the address for this visit (house no., street, area, city)"
                   placeholderTextColor={colors.textSecondary}
                   value={homeAddress}
-                  onChangeText={setHomeAddress}
+                  onChangeText={onAddressChange}
                   multiline
                 />
-                <TouchableOpacity onPress={sharePin} disabled={pinLoading} accessibilityRole="button" style={{ marginTop: Spacing.sm }}>
-                  <Text style={{ color: Colors.primary, fontWeight: '600' }}>
-                    {pinLoading ? 'Checking...' : pin ? 'Update my location pin' : 'Use my current location'}
-                  </Text>
+                <TouchableOpacity onPress={checkTypedAddress} disabled={geoBusy} accessibilityRole="button" style={{ marginTop: Spacing.sm }}>
+                  <Text style={{ color: Colors.primary, fontWeight: '600' }}>{geoBusy ? 'Finding your address...' : 'Check this address'}</Text>
                 </TouchableOpacity>
+                {!!geoMsg && <Text style={{ marginTop: Spacing.sm, color: Colors.error }}>{geoMsg}</Text>}
+                {!pin && !geoBusy && !geoMsg && (
+                  <Text style={{ marginTop: Spacing.sm, color: Colors.warning }}>
+                    Type your full address (we check it automatically), or use a location button so we can check the distance.
+                  </Text>
+                )}
+                {!!pin && (
+                  <Text style={[styles.summaryLabel, { color: colors.textSecondary, marginTop: Spacing.sm }]}>
+                    Distance is based on: {pinSource === 'gps' ? 'your current location' : pinSource === 'saved' ? 'your saved location' : 'the address you typed'}.
+                  </Text>
+                )}
                 {quote && (
                   <Text style={{ marginTop: Spacing.sm, color: quote.available ? Colors.success : Colors.error }}>
                     {quote.available
