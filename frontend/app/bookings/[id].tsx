@@ -95,6 +95,7 @@ const STATUS_ICON: Record<string, keyof typeof Ionicons.glyphMap> = {
   completed: 'checkmark-done-circle-outline',
   canceled: 'close-circle-outline',
   declined: 'close-circle-outline',
+  no_response: 'close-circle-outline',
   no_show_pending: 'alert-circle-outline',
   user_no_show: 'alert-circle-outline',
   provider_no_show: 'alert-circle-outline',
@@ -181,6 +182,36 @@ export default function BookingDetails() {
       return;
     }
     void respondToNoShow('dispute', reason);
+  };
+
+  // Customer cancel: show the cancellation policy (free / late fee) before confirming.
+  const confirmCustomerCancel = async () => {
+    const authId = String(user?.auth_id ?? '').trim();
+    if (!booking || !authId) return;
+    try {
+      setUpdating(true);
+      const pol = await bookingService.cancelPolicy(booking.id, authId);
+      setUpdating(false);
+      if (pol?.state === 'closed') {
+        Alert.alert('Cannot cancel now', pol.message);
+        return;
+      }
+      const late = pol?.state === 'late';
+      const money = late && pol.amount > 0
+        ? `\n\nFee to provider: ${formatCurrency(pol.penalty_amount)}\nRefunded to your wallet: ${formatCurrency(pol.refund_amount)}`
+        : '';
+      Alert.alert(
+        late ? 'Late cancellation fee applies' : 'Cancel this booking?',
+        `${pol?.message || ''}${money}`,
+        [
+          { text: 'Keep booking', style: 'cancel' },
+          { text: late ? 'Cancel and pay fee' : 'Yes, cancel', style: 'destructive', onPress: () => void handleStatusUpdate('canceled') },
+        ]
+      );
+    } catch (err: any) {
+      setUpdating(false);
+      Alert.alert('Error', err?.friendlyMessage || 'Could not check the cancellation policy');
+    }
   };
 
   const handleStatusUpdate = async (newStatus: string) => {
@@ -488,7 +519,7 @@ export default function BookingDetails() {
             <Button
               title="Cancel Booking"
               variant="outline"
-              onPress={() => handleStatusUpdate('canceled')}
+              onPress={() => confirmCustomerCancel()}
               loading={updating}
               fullWidth
               style={styles.actionSpacing}

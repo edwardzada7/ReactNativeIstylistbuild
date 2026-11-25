@@ -127,6 +127,24 @@ export const bookingService = {
     return this.updateBookingStatus(id, 'canceled', role, authId);
   },
 
+  // ---- Booking lifecycle (auto-cancel, late-cancel fee, completion prompts) ----
+  async cancelPolicy(id: string | number, authId: string): Promise<any> {
+    return apiService.get<any>(`/bookings/${id}/cancel-policy`, { params: { auth_id: authId } });
+  },
+
+  async customerConfirm(id: string | number, authId: string, completed: boolean, reason?: string): Promise<any> {
+    return apiService.post<any>(`/bookings/${id}/customer-confirm`, { auth_id: authId, completed, reason: reason || null });
+  },
+
+  async pendingActions(authId: string, role: 'customer' | 'provider'): Promise<any[]> {
+    const res = await apiService.get<any>('/booking-actions/pending', { params: { auth_id: authId, role } });
+    return Array.isArray(res?.items) ? res.items : [];
+  },
+
+  async reportNoShow(id: string | number, authId: string, reason?: string): Promise<any> {
+    return apiService.post<any>(`/bookings/${id}/no-show/report`, { auth_id: authId, ...(reason ? { reason } : {}) });
+  },
+
   // Provider accepts a pending booking.
   async acceptBooking(id: string, authId: string): Promise<Booking> {
     return this.updateBookingStatus(id, 'confirmed', 'provider', authId);
