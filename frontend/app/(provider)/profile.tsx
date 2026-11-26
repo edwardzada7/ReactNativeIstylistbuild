@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { SeasonPicker } from '../../src/components/season/SeasonPicker';
 import { useFocusEffect } from 'expo-router';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, FlatList, Image as RNImage, ActivityIndicator, Switch, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -642,6 +643,8 @@ export default function ProviderProfile() {
             </TouchableOpacity>
           ))}
         </View>
+
+        <SeasonPicker />
 
         <TouchableOpacity
           style={[styles.logoutButton, { backgroundColor: colors.surface, borderColor: colors.border }]}

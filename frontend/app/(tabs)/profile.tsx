@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { SeasonPicker } from '../../src/components/season/SeasonPicker';
 import { useFocusEffect } from 'expo-router';
 import {
   View,
@@ -425,6 +426,8 @@ function Profile() {
             </View>
           </View>
         ))}
+
+        <SeasonPicker />
 
         {/* Logout Button */}
         <TouchableOpacity
