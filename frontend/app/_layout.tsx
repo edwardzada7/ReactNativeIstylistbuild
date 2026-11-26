@@ -7,6 +7,8 @@ import * as Sentry from '@sentry/react-native';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from '@/src/contexts/AuthContext';
 import { ThemeProvider } from '@/src/contexts/ThemeContext';
+import { SeasonThemeProvider } from '@/src/contexts/SeasonThemeContext';
+import { SeasonEffects } from '@/src/components/season/SeasonEffects';
 import { useIconFonts } from '@/src/hooks/use-icon-fonts';
 import { screenCache } from '@/src/utils/screenCache';
 import { usePushNotifications } from '@/src/hooks/usePushNotifications';
@@ -84,6 +86,7 @@ function AppShell() {
   return (
     <UnreadMessagesProvider>
       <ThemeProvider>
+        <SeasonThemeProvider>
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="index" />
           <Stack.Screen name="(onboarding)" />
@@ -93,6 +96,8 @@ function AppShell() {
           <Stack.Screen name="(admin)" />
         </Stack>
         <BookingPrompts />
+        <SeasonEffects />
+        </SeasonThemeProvider>
       </ThemeProvider>
     </UnreadMessagesProvider>
   );

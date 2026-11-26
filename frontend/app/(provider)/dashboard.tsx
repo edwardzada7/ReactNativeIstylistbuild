@@ -32,6 +32,7 @@ import { Booking, Provider } from '../../src/types';
 import { formatRating } from '../../src/utils/display';
 import { screenCache } from '../../src/utils/screenCache';
 import { EventsStrip, ProBadge } from '../../src/components/common';
+import { SeasonBanner } from '../../src/components/season/SeasonBanner';
 
 const isSameDay = (isoDate: string) => {
   if (!isoDate) return false;
@@ -255,6 +256,7 @@ export default function ProviderDashboard() {
           </View>
         </View>
 
+        <SeasonBanner />
         <EventsStrip />
 
         {error && (

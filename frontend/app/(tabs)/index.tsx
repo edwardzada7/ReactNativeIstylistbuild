@@ -32,6 +32,7 @@ import { RebookReminder } from '../../src/components/booking/RebookReminder';
 import { screenCache } from '../../src/utils/screenCache';
 import { useBlockedUsers } from '../../src/hooks/useBlockedUsers';
 import { EventsStrip, GuestPromptBar, ProBadge, SponsoredStrip } from '../../src/components/common';
+import { SeasonBanner } from '../../src/components/season/SeasonBanner';
 import { useProIds, providerAuthIdOf } from '../../src/hooks/useProIds';
 
 export default function Home() {
@@ -328,6 +329,7 @@ export default function Home() {
 
         <SponsoredStrip types="profile,service" title="Sponsored" />
 
+        <SeasonBanner />
         <EventsStrip />
 
         {upcoming && (
