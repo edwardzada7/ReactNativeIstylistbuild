@@ -1,7 +1,8 @@
 import { Colors } from '../constants/theme';
 
 export const NO_SHOW_STATUSES = ['no_show_pending', 'user_no_show', 'provider_no_show', 'disputed'];
-export const CANCELLED_STATUSES = ['canceled', 'cancelled', 'declined', 'rejected'];
+export const CANCELLED_STATUSES = ['canceled', 'cancelled', 'declined', 'rejected', 'no_response'];
+export const isNoResponseStatus = (status?: string | null) => String(status || '').toLowerCase() === 'no_response';
 
 export const isNoShowStatus = (status?: string | null) => NO_SHOW_STATUSES.includes(String(status || '').toLowerCase());
 

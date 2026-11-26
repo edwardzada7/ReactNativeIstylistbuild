@@ -128,7 +128,7 @@ export default function ProviderDashboard() {
   };
 
   // Statuses that mean the booking did not go ahead (used to hide them from today's schedule).
-  const cancelledStatuses = ['canceled', 'cancelled', 'declined', 'rejected', 'no_show_pending', 'user_no_show', 'provider_no_show', 'disputed'];
+  const cancelledStatuses = ['canceled', 'cancelled', 'declined', 'rejected', 'no_show_pending', 'user_no_show', 'provider_no_show', 'disputed', 'no_response'];
   // Truly cancelled/declined bookings only - no-shows and disputes are counted separately.
   const cancelledOnly = ['canceled', 'cancelled', 'declined', 'rejected'];
   const { todays, pending, upcoming, completed, cancelled, totalEarnings, pendingPayout } = useMemo(() => {
@@ -151,9 +151,10 @@ export default function ProviderDashboard() {
     const unpaidCount = bookings.filter((b) => (b.status || '').toLowerCase() === 'pending_payment').length;
     const completedCount = bookings.filter((b) => (b.status || '').toLowerCase() === 'completed').length;
     const cancelledCount = bookings.filter((b) => cancelledOnly.includes((b.status || '').toLowerCase())).length;
-    const noShowCount = bookings.filter((b) => ['no_show_pending', 'user_no_show', 'provider_no_show'].includes((b.status || '').toLowerCase())).length;
+    const noShowCount = bookings.filter((b) => ['no_show_pending', 'user_no_show', 'provider_no_show', 'disputed'].includes((b.status || '').toLowerCase())).length;
+    const noResponseCount = bookings.filter((b) => (b.status || '').toLowerCase() === 'no_response').length;
     const cancelRate = total ? Math.round((cancelledCount / total) * 100) : 0;
-    return { total, pendingCount, unpaidCount, completedCount, cancelledCount, noShowCount, cancelRate };
+    return { total, pendingCount, unpaidCount, completedCount, cancelledCount, noShowCount, noResponseCount, cancelRate };
   }, [bookings]);
 
   const servicePreview = useMemo(() => (profile?.services || []).slice(0, 3), [profile?.services]);
@@ -410,6 +411,10 @@ export default function ProviderDashboard() {
             <View style={styles.analyticsMetric}>
               <Text style={[styles.analyticsValue, { color: colors.text }]}>{analytics.noShowCount}</Text>
               <Text style={[styles.analyticsLabel, { color: colors.textSecondary }]}>No-Show</Text>
+            </View>
+            <View style={styles.analyticsMetric}>
+              <Text style={[styles.analyticsValue, { color: colors.text }]}>{analytics.noResponseCount}</Text>
+              <Text style={[styles.analyticsLabel, { color: colors.textSecondary }]}>No Response</Text>
             </View>
             {analytics.unpaidCount > 0 && (
               <View style={styles.analyticsMetric}>
