@@ -33,6 +33,7 @@ const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_BASE_URL ||
   "https://updatedistylistbeauty-marketplace-production.up.railway.app/api";
 const REDIRECT_URL = `${API_BASE_URL.replace(/\/api\/?$/, "")}/shop/cart`;
+const GUEST_REDIRECT_URL = `${API_BASE_URL.replace(/\/api\/?$/, "")}/shop/guest-order`;
 type CheckoutStep = "cart" | "checkout" | "success" | "failed" | "cancelled";
 type DeliveryAddress = {
   street: string;
@@ -44,7 +45,8 @@ type DeliveryAddress = {
 export default function Cart() {
   const router = useRouter();
   const { invoiceId } = useLocalSearchParams<{ invoiceId?: string }>();
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth();
+  const [guestInfo, setGuestInfo] = useState({ name: "", email: "" });
   const { colors } = useTheme();
   const { lines, setQuantity, removeItem, clear, total } = useCartStore();
   const hasOwnProduct = Boolean(
@@ -95,6 +97,42 @@ export default function Cart() {
   ) => {
     if (lines.length === 0) {
       Alert.alert("Cart Empty", "Add items before checking out.");
+      return;
+    }
+    if (!isAuthenticated) {
+      const gname = guestInfo.name.trim();
+      const gemail = guestInfo.email.trim();
+      if (gname.length < 2 || !/^[^@\s]+@[^@\s]+\.[^@\s]{2,}$/.test(gemail)) {
+        Alert.alert("Your details", "Enter your name and a valid email. Your order link is sent there.");
+        return;
+      }
+      setCheckingOut(true);
+      setError(null);
+      try {
+        const gitems = lines.map((l) => ({
+          product_id: Number(l.productId),
+          quantity: Number(l.quantity),
+          ...(l.sellerListingId ? { listing_id: Number(l.sellerListingId) } : {}),
+        }));
+        const r = await shopService.createGuestOrder({
+          guest_name: gname,
+          guest_email: gemail,
+          guest_phone: address.phone.trim(),
+          shipping_address: `${address.street}, ${address.city}, ${address.state}`,
+          items: gitems,
+          callback_url: GUEST_REDIRECT_URL,
+        });
+        if (!r?.authorization_url) throw new Error("Could not start checkout. Please try again.");
+        handledRef.current = false;
+        setPendingOrderId(Number(r.order_id));
+        setCheckoutUrl(r.authorization_url);
+        setStep("checkout");
+      } catch (err: any) {
+        setError(err?.friendlyMessage || err?.response?.data?.detail || err?.message || "Could not start checkout. Please try again.");
+        setStep("failed");
+      } finally {
+        setCheckingOut(false);
+      }
       return;
     }
     if (!user?.email) {
@@ -240,7 +278,7 @@ export default function Cart() {
   const handleShouldStartLoad = useCallback(
     (request: { url: string }) => {
       const url = request.url;
-      if (!url.startsWith(REDIRECT_URL)) return true;
+      if (!url.startsWith(REDIRECT_URL) && !url.startsWith(GUEST_REDIRECT_URL)) return true;
       if (handledRef.current) return false;
       handledRef.current = true;
 
@@ -384,11 +422,13 @@ export default function Cart() {
           <Text
             style={[styles.resultSubtitle, { color: colors.textSecondary }]}
           >
-            Your shop order has been placed and your cart is clear.
+            {isAuthenticated
+              ? "Your shop order has been placed and your cart is clear."
+              : "Your order has been placed. We emailed you a private link to track it."}
           </Text>
           <Button
-            title="View Orders"
-            onPress={() => router.replace("/shop/orders")}
+            title={isAuthenticated ? "View Orders" : "Keep Shopping"}
+            onPress={() => router.replace(isAuthenticated ? "/shop/orders" : "/(tabs)/shop")}
             fullWidth
             size="large"
           />
@@ -627,6 +667,29 @@ export default function Cart() {
             <Text style={[styles.modalTitle, { color: colors.text }]}>
               Delivery Address
             </Text>
+            {!isAuthenticated ? (
+              <>
+                <Text style={{ color: colors.textSecondary, fontSize: FontSizes.xs }}>
+                  Checking out as a guest. Sign up later to track orders in your account.
+                </Text>
+                <TextInput
+                  style={[styles.addressInput, { color: colors.text, borderColor: colors.border }]}
+                  placeholder="Full name"
+                  placeholderTextColor={colors.textMuted}
+                  value={guestInfo.name}
+                  onChangeText={(v) => setGuestInfo((g) => ({ ...g, name: v }))}
+                />
+                <TextInput
+                  style={[styles.addressInput, { color: colors.text, borderColor: colors.border }]}
+                  placeholder="Email (your order link is sent here)"
+                  placeholderTextColor={colors.textMuted}
+                  value={guestInfo.email}
+                  onChangeText={(v) => setGuestInfo((g) => ({ ...g, email: v }))}
+                  keyboardType="email-address"
+                  autoCapitalize="none"
+                />
+              </>
+            ) : null}
             {(
               [
                 ["street", "Street Address"],

@@ -28,6 +28,7 @@ import { useTheme } from '../../src/contexts/ThemeContext';
 import { ReportModal } from '../../src/components/common';
 import { useBlockedUsers } from '../../src/hooks/useBlockedUsers';
 import { GuestPromptBar, SponsoredStrip } from '../../src/components/common';
+import { ShopGuestChoice } from '../../src/components/shop/ShopGuestChoice';
 
 interface SharedShopScreenProps {
   showManageButton?: boolean;
@@ -164,6 +165,7 @@ export function SharedShopScreen({ showManageButton = false }: SharedShopScreenP
       </View>
 
       <GuestPromptBar />
+      <ShopGuestChoice />
       <SponsoredStrip types="product" title="Sponsored products" />
 
       <View style={styles.categorySection}>

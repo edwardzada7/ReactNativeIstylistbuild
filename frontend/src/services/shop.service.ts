@@ -592,6 +592,17 @@ export const shopService = {
     });
   },
 
+  async createGuestOrder(input: {
+    guest_name: string;
+    guest_email: string;
+    guest_phone: string;
+    shipping_address: string;
+    items: { product_id: number; quantity: number; listing_id?: number }[];
+    callback_url: string;
+  }): Promise<{ order_id: number; access_token: string; total_amount: number; authorization_url: string; reference: string }> {
+    return apiService.post("/shop/guest-orders", input);
+  },
+
   async initializePaystackCheckout(input: {
     amount: number;
     email: string;

@@ -74,9 +74,16 @@ export default function ProductDetail() {
     }
   };
 
+  const promptAccount = (what: string) =>
+    Alert.alert('Account needed', `Please sign up or sign in to ${what}. You can keep shopping as a guest.`, [
+      { text: 'Not now', style: 'cancel' },
+      { text: 'Sign in', onPress: () => router.push('/(auth)/login') },
+      { text: 'Sign up', onPress: () => router.push('/(auth)/signup') },
+    ]);
+
   const handleAskAboutProduct = async () => {
     if (!isAuthenticated) {
-      router.push('/(auth)/login');
+      promptAccount('ask the seller a question');
       return;
     }
     if (!product?.stylist_auth_id || contacting) return;
@@ -93,7 +100,7 @@ export default function ProductDetail() {
 
   const handleProductConsultation = async () => {
     if (!isAuthenticated) {
-      router.push('/(auth)/login');
+      promptAccount('book a consultation');
       return;
     }
     if (!product?.stylist_auth_id || !consultation || contacting) return;
@@ -144,7 +151,7 @@ export default function ProductDetail() {
 
   const openComposer = (review?: ProductReview | null) => {
     if (!isAuthenticated) {
-      Alert.alert('Sign in required', 'Please sign in to leave a review.');
+      promptAccount('leave a review');
       return;
     }
     if (review) {
@@ -317,8 +324,8 @@ export default function ProductDetail() {
 
         {!isProvider && !isOwnProduct && product.stylist_auth_id && (
           <View style={styles.productContactActions}>
-            <Button title={contacting ? 'Opening...' : 'Ask About Product'} onPress={handleAskAboutProduct} variant="outline" disabled={contacting || !isAuthenticated} loading={contacting} fullWidth />
-            {consultation && <Button title={`Consult a Professional — ${formatCurrency(Number(consultation.consultation_fee))}`} onPress={handleProductConsultation} disabled={contacting || !isAuthenticated} fullWidth />}
+            <Button title={contacting ? 'Opening...' : 'Ask About Product'} onPress={handleAskAboutProduct} variant="outline" disabled={contacting} loading={contacting} fullWidth />
+            {consultation && <Button title={`Consult a Professional — ${formatCurrency(Number(consultation.consultation_fee))}`} onPress={handleProductConsultation} disabled={contacting} fullWidth />}
           </View>
         )}
 
