@@ -90,6 +90,7 @@ export default function EventsList() {
               {e.banner_url ? <Image source={{ uri: e.banner_url }} style={styles.banner} /> : <View style={[styles.banner, { backgroundColor: Colors.primary }]} />}
               <View style={styles.body}>
                 <View style={styles.metaRow}>
+                  {e.is_promoted && <Text style={styles.featured}>Promoted</Text>}
                   {e.is_featured && <Text style={styles.featured}>Featured</Text>}
                   {e.is_official && (
                     <View style={styles.orgRow}>

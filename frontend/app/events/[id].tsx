@@ -5,7 +5,7 @@ import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { BorderRadius, Colors, FontSizes, Spacing } from '../../src/constants/theme';
-import { VerifiedBadge } from '../../src/components/common';
+import { ReportModal, VerifiedBadge } from '../../src/components/common';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { EventItem, EventQuote, eventsService, formatEventDate, guestOrders } from '../../src/services/events.service';
@@ -32,6 +32,7 @@ export default function EventDetail() {
   const [checkoutUrl, setCheckoutUrl] = useState<string | null>(null);
   const handledRef = useRef(false);
   const [guestOpen, setGuestOpen] = useState(false);
+  const [reportOpen, setReportOpen] = useState(false);
   const [guest, setGuest] = useState({ name: '', email: '', phone: '' });
 
   const load = useCallback(async () => {
@@ -200,6 +201,9 @@ export default function EventDetail() {
         <View style={styles.body}>
           <View style={styles.orgRow}>
             {event.is_official && <><Text style={[styles.org, { color: colors.textSecondary }]}>{event.organizer_name}</Text><VerifiedBadge verified size={15} /></>}
+            {!event.is_official && <Text style={[styles.org, { color: colors.textSecondary }]}>By {event.organizer_name}</Text>}
+            {event.is_promoted && <Text style={styles.have}>Promoted</Text>}
+            {!event.is_official && event.organizer_auth_id ? <Text style={[styles.org, { color: colors.textSecondary, textDecorationLine: 'underline' }]} onPress={() => setReportOpen(true)}>Report event</Text> : null}
             {canceled && <Text style={styles.canceled}>Canceled</Text>}
             {(event.my_ticket_count || 0) > 0 && <Text style={styles.have}>You have {event.my_ticket_count} ticket{event.my_ticket_count === 1 ? '' : 's'}</Text>}
           </View>
@@ -259,6 +263,7 @@ export default function EventDetail() {
         </View>
       )}
 
+      <ReportModal visible={reportOpen} targetId={event.organizer_auth_id || null} targetType="USER" onClose={() => setReportOpen(false)} />
       <Modal visible={guestOpen} animationType="slide" transparent onRequestClose={() => setGuestOpen(false)}>
         <KeyboardAvoidingView behavior="padding" style={styles.sheetBackdrop}>
           <View style={[styles.sheet, { backgroundColor: colors.background }]}>
