@@ -17,10 +17,10 @@ const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://updatedist
 const PROMO_REDIRECT = `${API_BASE_URL.replace(/\/api\/?$/, '')}/provider/events`;
 
 type TypeForm = { id: number | null; name: string; price: string; capacity: string };
-type Form = { title: string; description: string; banner_url: string; venue: string; address: string; date: string; time: string; endTime: string; types: TypeForm[] };
+type Form = { title: string; description: string; banner_url: string; venue: string; address: string; date: string; time: string; endTime: string; isFree: boolean; types: TypeForm[] };
 
 const pad = (n: number) => String(n).padStart(2, '0');
-const blank = (): Form => ({ title: '', description: '', banner_url: '', venue: '', address: '', date: '', time: '', endTime: '', types: [{ id: null, name: 'General', price: '0', capacity: '' }] });
+const blank = (): Form => ({ title: '', description: '', banner_url: '', venue: '', address: '', date: '', time: '', endTime: '', isFree: false, types: [{ id: null, name: 'General', price: '0', capacity: '' }] });
 const fromEvent = (e: EventItem): Form => {
   const d = new Date(e.starts_at);
   const end = e.ends_at ? new Date(e.ends_at) : null;
@@ -28,6 +28,7 @@ const fromEvent = (e: EventItem): Form => {
     title: e.title, description: e.description || '', banner_url: e.banner_url || '', venue: e.venue || '', address: e.address || '',
     date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`, time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
     endTime: end ? `${pad(end.getHours())}:${pad(end.getMinutes())}` : '',
+    isFree: !!e.is_free,
     types: e.ticket_types.map((t: any) => ({ id: t.id, name: t.name, price: String(t.price), capacity: t.capacity == null ? '' : String(t.capacity) })),
   };
 };
@@ -94,8 +95,8 @@ export default function ManageEvents() {
     const body = {
       title: f.title.trim(), description: f.description.trim() || null, banner_url: f.banner_url || null,
       venue: f.venue.trim() || null, address: f.address.trim() || null, starts_at: starts, ends_at: ends,
-      status: submit ? 'published' : 'draft', fee_mode: 'add_on',
-      ticket_types: f.types.map((t) => ({ id: t.id, name: t.name.trim() || 'Ticket', price: Number(t.price) || 0, capacity: t.capacity.trim() ? Number(t.capacity) : null, max_per_order: 10, is_active: true })),
+      status: submit ? 'published' : 'draft', fee_mode: 'add_on', is_free: f.isFree,
+      ticket_types: f.types.map((t) => ({ id: t.id, name: t.name.trim() || 'Ticket', price: f.isFree ? 0 : Number(t.price) || 0, capacity: t.capacity.trim() ? Number(t.capacity) : null, max_per_order: 10, is_active: true })),
     };
     setBusy(true);
     try {
@@ -175,6 +176,7 @@ export default function ManageEvents() {
                   </View>
                   <View style={{ alignItems: 'flex-end', gap: 4 }}>
                     {e.is_promoted ? <Text style={[styles.pill, { backgroundColor: '#ede9fe', color: '#5b21b6' }]}>Promoted</Text> : null}
+                    <Text style={[styles.pill, e.is_free ? { backgroundColor: '#dcfce7', color: '#166534' } : { backgroundColor: '#dbeafe', color: '#1e40af' }]}>{e.is_free ? 'Free' : 'Paid'}</Text>
                     <Text style={[styles.pill, { backgroundColor: colors.background, color: colors.text }]}>{STATUS[e.status] || e.status}</Text>
                   </View>
                 </View>
@@ -224,11 +226,15 @@ export default function ManageEvents() {
               <TextInput style={input} placeholder="Venue" placeholderTextColor={colors.textMuted} value={editing.form.venue} onChangeText={(v) => setForm({ venue: v })} />
               <TextInput style={input} placeholder="Address" placeholderTextColor={colors.textMuted} value={editing.form.address} onChangeText={(v) => setForm({ address: v })} />
               <Text style={[styles.cardTitle, { color: colors.text, marginTop: Spacing.sm }]}>Tickets</Text>
+              <View style={styles.rowBetween}>
+                <Text style={{ color: colors.text, fontWeight: '600' }}>This is a free event</Text>
+                <Switch value={editing.form.isFree} onValueChange={(v) => setForm({ isFree: v, types: v ? editing.form.types.map((x) => ({ ...x, price: '0' })) : editing.form.types })} />
+              </View>
               <Text style={{ color: colors.textSecondary, fontSize: FontSizes.xs }}>Price 0 = free "I'm attending". Leave capacity empty for unlimited. iStylist keeps a commission on paid tickets; your earnings are paid 24 hours after the event ends.</Text>
               {editing.form.types.map((t, i) => (
                 <View key={t.id ?? `n${i}`} style={{ flexDirection: 'row', gap: 6, alignItems: 'center' }}>
                   <TextInput style={[...input, { flex: 2 }]} placeholder="Name" placeholderTextColor={colors.textMuted} value={t.name} onChangeText={(v) => setForm({ types: editing.form.types.map((x, k) => (k === i ? { ...x, name: v } : x)) })} />
-                  <TextInput style={[...input, { flex: 1 }]} placeholder="₦" placeholderTextColor={colors.textMuted} keyboardType="numeric" value={t.price} onChangeText={(v) => setForm({ types: editing.form.types.map((x, k) => (k === i ? { ...x, price: v } : x)) })} />
+                  {editing.form.isFree ? <Text style={{ flex: 1, color: '#166534', fontWeight: '700' }}>Free</Text> : <TextInput style={[...input, { flex: 1 }]} placeholder="₦" placeholderTextColor={colors.textMuted} keyboardType="numeric" value={t.price} onChangeText={(v) => setForm({ types: editing.form.types.map((x, k) => (k === i ? { ...x, price: v } : x)) })} />}
                   <TextInput style={[...input, { flex: 1 }]} placeholder="Cap." placeholderTextColor={colors.textMuted} keyboardType="numeric" value={t.capacity} onChangeText={(v) => setForm({ types: editing.form.types.map((x, k) => (k === i ? { ...x, capacity: v } : x)) })} />
                   <TouchableOpacity onPress={() => setForm({ types: editing.form.types.filter((_, k) => k !== i) })}><Ionicons name="trash-outline" size={18} color={colors.error} /></TouchableOpacity>
                 </View>
