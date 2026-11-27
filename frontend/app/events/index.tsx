@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Image, RefreshControl, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, FlatList, Image, RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -18,6 +18,34 @@ export default function EventsList() {
   const [events, setEvents] = useState<EventItem[] | null>(null);
   const [failed, setFailed] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [filter, setFilter] = useState<string>('all');
+
+  type Row = { kind: 'title'; key: string; title: string } | { kind: 'event'; key: string; e: EventItem };
+  const categories = useMemo(() => {
+    const seen = new Map<string, string>();
+    (events || []).forEach((e) => { if (e.category && !seen.has(e.category)) seen.set(e.category, e.category_label || e.category); });
+    return [...seen.entries()].map(([key, label]) => ({ key, label }));
+  }, [events]);
+  const rows = useMemo<Row[]>(() => {
+    const list = events || [];
+    const ev = (e: EventItem, p: string): Row => ({ kind: 'event', key: `${p}${e.id}`, e });
+    if (filter !== 'all') {
+      return list.filter((e) => (filter === 'free' ? e.is_free : e.category === filter)).map((e) => ev(e, 'f'));
+    }
+    const weekEnd = Date.now() + 7 * 24 * 3600 * 1000;
+    const promoted = list.filter((e) => e.is_promoted);
+    const thisWeek = list.filter((e) => !e.is_promoted && new Date(e.starts_at).getTime() <= weekEnd);
+    const free = list.filter((e) => e.is_free && !e.is_promoted && !thisWeek.includes(e));
+    const shown = new Set([...promoted, ...thisWeek, ...free]);
+    const more = list.filter((e) => !shown.has(e));
+    const out: Row[] = [];
+    const add = (title: string, items: EventItem[], p: string) => { if (items.length) { out.push({ kind: 'title', key: `t${p}`, title }); items.forEach((e) => out.push(ev(e, p))); } };
+    add('Promoted', promoted, 'p');
+    add('Happening this week', thisWeek, 'w');
+    add('Free events', free, 'r');
+    add(promoted.length || thisWeek.length || free.length ? 'More upcoming events' : 'Upcoming events', more, 'm');
+    return out;
+  }, [events, filter]);
 
   const load = useCallback(async () => {
     try {
@@ -50,6 +78,15 @@ export default function EventsList() {
           </TouchableOpacity>
         </View>
       )}
+      {(events || []).length > 0 && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingVertical: 4 }} testID="event-category-chips">
+          {[{ key: 'all', label: 'All' }, { key: 'free', label: 'Free' }, ...categories].map((c) => (
+            <TouchableOpacity key={c.key} onPress={() => setFilter(c.key)} style={[styles.chip, { borderColor: colors.border, backgroundColor: filter === c.key ? Colors.primary : colors.surface }]}>
+              <Text style={{ color: filter === c.key ? '#fff' : colors.text, fontWeight: '600' }}>{c.label}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
       {failed && <Text style={[styles.err, { color: Colors.error }]}>Could not load events. Pull down to retry.</Text>}
     </View>
   );
@@ -69,8 +106,8 @@ export default function EventsList() {
         <View style={styles.center}><ActivityIndicator color={Colors.primary} /></View>
       ) : (
         <FlatList
-          data={events}
-          keyExtractor={(e) => String(e.id)}
+          data={rows}
+          keyExtractor={(r) => r.key}
           ListHeaderComponent={header}
           contentContainerStyle={{ padding: Spacing.md, gap: Spacing.md }}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
@@ -80,7 +117,17 @@ export default function EventsList() {
               <Text style={[styles.empty, { color: colors.textSecondary }]}>No upcoming events yet. Check back soon.</Text>
             </View>
           }
-          renderItem={({ item: e }) => (
+          renderItem={({ item: row }) => row.kind === 'title' ? (
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>{row.title}</Text>
+          ) : (
+            <EventRow e={row.e} />
+          )}
+        />
+      )}
+    </SafeAreaView>
+  );
+  function EventRow({ e }: { e: EventItem }) {
+    return (
             <TouchableOpacity
               activeOpacity={0.9}
               onPress={() => router.push(`/events/${e.id}` as any)}
@@ -91,6 +138,7 @@ export default function EventsList() {
               <View style={styles.body}>
                 <View style={styles.metaRow}>
                   {e.is_promoted && <Text style={styles.featured}>Promoted</Text>}
+                  {e.category && e.category !== 'other' ? <Text style={styles.paid}>{e.category_label}</Text> : null}
                   <Text style={e.is_free ? styles.have : styles.paid}>{e.is_free ? 'Free' : 'Paid'}</Text>
                   {e.is_featured && <Text style={styles.featured}>Featured</Text>}
                   {e.is_official && (
@@ -110,15 +158,14 @@ export default function EventsList() {
                 </Text>
               </View>
             </TouchableOpacity>
-          )}
-        />
-      )}
-    </SafeAreaView>
-  );
+    );
+  }
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  chip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
+  sectionTitle: { fontSize: FontSizes.lg, fontWeight: '700', marginTop: Spacing.sm },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
   title: { fontSize: FontSizes.xl, fontWeight: '700' },
   center: { alignItems: 'center', justifyContent: 'center', paddingVertical: 60, gap: Spacing.sm },

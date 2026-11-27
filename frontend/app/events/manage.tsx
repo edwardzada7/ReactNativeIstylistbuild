@@ -9,7 +9,7 @@ import { FontSizes, Spacing, BorderRadius } from '../../src/constants/theme';
 import { useTheme } from '../../src/contexts/ThemeContext';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { Button } from '../../src/components/common';
-import { EventItem, PromoTier, formatEventDate, providerEvents } from '../../src/services/events.service';
+import { EVENT_CATEGORIES, EventItem, PromoTier, formatEventDate, providerEvents } from '../../src/services/events.service';
 import { mediaService } from '../../src/services/media.service';
 import { formatCurrency } from '../../src/utils/currency';
 
@@ -17,10 +17,10 @@ const API_BASE_URL = process.env.EXPO_PUBLIC_API_BASE_URL || 'https://updatedist
 const PROMO_REDIRECT = `${API_BASE_URL.replace(/\/api\/?$/, '')}/provider/events`;
 
 type TypeForm = { id: number | null; name: string; price: string; capacity: string };
-type Form = { title: string; description: string; banner_url: string; venue: string; address: string; date: string; time: string; endTime: string; isFree: boolean; types: TypeForm[] };
+type Form = { title: string; description: string; banner_url: string; venue: string; address: string; date: string; time: string; endTime: string; isFree: boolean; category: string; types: TypeForm[] };
 
 const pad = (n: number) => String(n).padStart(2, '0');
-const blank = (): Form => ({ title: '', description: '', banner_url: '', venue: '', address: '', date: '', time: '', endTime: '', isFree: false, types: [{ id: null, name: 'General', price: '0', capacity: '' }] });
+const blank = (): Form => ({ title: '', description: '', banner_url: '', venue: '', address: '', date: '', time: '', endTime: '', isFree: false, category: 'other', types: [{ id: null, name: 'General', price: '0', capacity: '' }] });
 const fromEvent = (e: EventItem): Form => {
   const d = new Date(e.starts_at);
   const end = e.ends_at ? new Date(e.ends_at) : null;
@@ -29,6 +29,7 @@ const fromEvent = (e: EventItem): Form => {
     date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`, time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
     endTime: end ? `${pad(end.getHours())}:${pad(end.getMinutes())}` : '',
     isFree: !!e.is_free,
+    category: e.category || 'other',
     types: e.ticket_types.map((t: any) => ({ id: t.id, name: t.name, price: String(t.price), capacity: t.capacity == null ? '' : String(t.capacity) })),
   };
 };
@@ -95,7 +96,7 @@ export default function ManageEvents() {
     const body = {
       title: f.title.trim(), description: f.description.trim() || null, banner_url: f.banner_url || null,
       venue: f.venue.trim() || null, address: f.address.trim() || null, starts_at: starts, ends_at: ends,
-      status: submit ? 'published' : 'draft', fee_mode: 'add_on', is_free: f.isFree,
+      status: submit ? 'published' : 'draft', fee_mode: 'add_on', is_free: f.isFree, category: f.category,
       ticket_types: f.types.map((t) => ({ id: t.id, name: t.name.trim() || 'Ticket', price: f.isFree ? 0 : Number(t.price) || 0, capacity: t.capacity.trim() ? Number(t.capacity) : null, max_per_order: 10, is_active: true })),
     };
     setBusy(true);
@@ -226,6 +227,14 @@ export default function ManageEvents() {
               <TextInput style={input} placeholder="Venue" placeholderTextColor={colors.textMuted} value={editing.form.venue} onChangeText={(v) => setForm({ venue: v })} />
               <TextInput style={input} placeholder="Address" placeholderTextColor={colors.textMuted} value={editing.form.address} onChangeText={(v) => setForm({ address: v })} />
               <Text style={[styles.cardTitle, { color: colors.text, marginTop: Spacing.sm }]}>Tickets</Text>
+              <Text style={{ color: colors.text, fontWeight: '600' }}>Category</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                {EVENT_CATEGORIES.map((c) => (
+                  <TouchableOpacity key={c.key} onPress={() => setForm({ category: c.key })} style={{ paddingHorizontal: 12, paddingVertical: 7, borderRadius: 18, borderWidth: 1, borderColor: colors.border, backgroundColor: editing.form.category === c.key ? colors.primary : colors.surface }}>
+                    <Text style={{ color: editing.form.category === c.key ? '#fff' : colors.text, fontWeight: '600' }}>{c.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
               <View style={styles.rowBetween}>
                 <Text style={{ color: colors.text, fontWeight: '600' }}>This is a free event</Text>
                 <Switch value={editing.form.isFree} onValueChange={(v) => setForm({ isFree: v, types: v ? editing.form.types.map((x) => ({ ...x, price: '0' })) : editing.form.types })} />

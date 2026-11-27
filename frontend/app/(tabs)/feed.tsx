@@ -322,6 +322,16 @@ export default function Feed() {
         <Text style={[styles.postContent, { color: colors.text }]}>{item.caption}</Text>
       )}
 
+      {item.event_id ? (
+        <TouchableOpacity
+          style={{ marginHorizontal: 12, marginBottom: 8, paddingVertical: 10, borderRadius: 10, alignItems: 'center', backgroundColor: colors.primary }}
+          onPress={() => router.push(`/events/${item.event_id}` as any)}
+          testID={`feed-event-link-${item.id}`}
+        >
+          <Text style={{ color: '#fff', fontWeight: '700' }}>View event & get tickets</Text>
+        </TouchableOpacity>
+      ) : null}
+
       <View style={[styles.postActions, { borderTopColor: colors.border }]}>
         <TouchableOpacity
           style={styles.actionButton}

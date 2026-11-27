@@ -335,6 +335,7 @@ export interface Post {
   video_duration_seconds?: number;
   likes_count: number;
   comments_count: number;
+  event_id?: number | null;
   is_liked?: boolean;
   liked_by_me?: boolean;
   is_active?: boolean;
