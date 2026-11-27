@@ -91,6 +91,7 @@ export default function EventsList() {
               <View style={styles.body}>
                 <View style={styles.metaRow}>
                   {e.is_promoted && <Text style={styles.featured}>Promoted</Text>}
+                  <Text style={e.is_free ? styles.have : styles.paid}>{e.is_free ? 'Free' : 'Paid'}</Text>
                   {e.is_featured && <Text style={styles.featured}>Featured</Text>}
                   {e.is_official && (
                     <View style={styles.orgRow}>
@@ -133,6 +134,7 @@ const styles = StyleSheet.create({
   body: { padding: Spacing.md, gap: 4 },
   metaRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8 },
   featured: { backgroundColor: '#FEF3C7', color: '#92400E', fontSize: 11, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, overflow: 'hidden' },
+  paid: { backgroundColor: '#DBEAFE', color: '#1E40AF', fontSize: 11, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, overflow: 'hidden' },
   have: { backgroundColor: '#DCFCE7', color: '#166534', fontSize: 11, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, overflow: 'hidden' },
   orgRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   org: { fontSize: FontSizes.xs },

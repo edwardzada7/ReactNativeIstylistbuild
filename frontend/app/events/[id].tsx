@@ -183,7 +183,7 @@ export default function EventDetail() {
   }
 
   const canceled = event.status === 'canceled';
-  const cta = !selected ? 'Sold out' : free ? "I'm attending" : `Buy ${qty > 1 ? `${qty} tickets` : 'ticket'}${quote ? ` · ${formatCurrency(quote.total)}` : ''}`;
+  const cta = !selected ? (event.ticket_types.some((t) => t.sold_out) ? 'Sold out' : 'Tickets not available yet') : free ? "I'm attending" : `Buy ${qty > 1 ? `${qty} tickets` : 'ticket'}${quote ? ` · ${formatCurrency(quote.total)}` : ''}`;
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top', 'bottom']}>
@@ -203,6 +203,7 @@ export default function EventDetail() {
             {event.is_official && <><Text style={[styles.org, { color: colors.textSecondary }]}>{event.organizer_name}</Text><VerifiedBadge verified size={15} /></>}
             {!event.is_official && <Text style={[styles.org, { color: colors.textSecondary }]}>By {event.organizer_name}</Text>}
             {event.is_promoted && <Text style={styles.have}>Promoted</Text>}
+            <Text style={event.is_free ? styles.have : styles.paid}>{event.is_free ? 'Free' : 'Paid'}</Text>
             {!event.is_official && event.organizer_auth_id ? <Text style={[styles.org, { color: colors.textSecondary, textDecorationLine: 'underline' }]} onPress={() => setReportOpen(true)}>Report event</Text> : null}
             {canceled && <Text style={styles.canceled}>Canceled</Text>}
             {(event.my_ticket_count || 0) > 0 && <Text style={styles.have}>You have {event.my_ticket_count} ticket{event.my_ticket_count === 1 ? '' : 's'}</Text>}
@@ -321,6 +322,7 @@ const styles = StyleSheet.create({
   orgRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   org: { fontSize: FontSizes.sm },
   canceled: { backgroundColor: '#FEE2E2', color: '#B91C1C', fontSize: 11, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, overflow: 'hidden' },
+  paid: { backgroundColor: '#DBEAFE', color: '#1E40AF', fontSize: 11, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, overflow: 'hidden' },
   have: { backgroundColor: '#DCFCE7', color: '#166534', fontSize: 11, fontWeight: '700', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10, overflow: 'hidden' },
   title: { fontSize: FontSizes.xl, fontWeight: '800' },
   line: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
