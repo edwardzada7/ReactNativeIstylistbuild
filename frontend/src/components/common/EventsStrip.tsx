@@ -50,6 +50,7 @@ export function EventsStrip() {
                 <View style={[styles.banner, { backgroundColor: Colors.primary }]} />
               )}
               <View style={styles.cardBody}>
+                {e.is_promoted ? <Text style={{ color: '#5b21b6', fontSize: 10, fontWeight: '800' }}>PROMOTED</Text> : null}
                 <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={2}>{e.title}</Text>
                 <Text style={[styles.cardDate, { color: Colors.primary }]}>{formatEventDate(e.starts_at)}</Text>
                 <Text style={[styles.cardPrice, { color: colors.text }]}>{e.is_free ? 'Free' : `From ${formatCurrency(e.min_price)}`}</Text>

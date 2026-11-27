@@ -30,6 +30,12 @@ export interface EventItem {
   min_price: number;
   is_free: boolean;
   my_ticket_count?: number;
+  is_promoted?: boolean;
+  organizer_auth_id?: string | null;
+  rejection_reason?: string | null;
+  payout_due_at?: string | null;
+  payout_status?: string;
+  stats?: { tickets_issued: number; checked_in: number; revenue: number; organizer_payout_due?: number };
 }
 
 export interface EventQuote {
@@ -96,6 +102,43 @@ export const guestOrders = {
     } catch {
       /* storage unavailable */
     }
+  },
+};
+
+export interface PromoTier { days: number; price: number }
+
+export const providerEvents = {
+  async mine(): Promise<{ events: EventItem[]; trusted: boolean; promo_tiers: PromoTier[] }> {
+    return apiService.get('/provider/events');
+  },
+  async create(body: any): Promise<EventItem> {
+    return apiService.post('/provider/events', body);
+  },
+  async update(id: number, body: any): Promise<EventItem> {
+    return apiService.put(`/provider/events/${id}`, body);
+  },
+  async cancel(id: number): Promise<{ refunded: number; refund_pending: number }> {
+    return apiService.post(`/provider/events/${id}/cancel`, {});
+  },
+  async attendees(id: number): Promise<any[]> {
+    const res = await apiService.get<any>(`/provider/events/${id}/attendees`);
+    return Array.isArray(res?.attendees) ? res.attendees : [];
+  },
+  async scanners(id: number): Promise<any[]> {
+    const res = await apiService.get<any>(`/provider/events/${id}/scanners`);
+    return Array.isArray(res?.scanners) ? res.scanners : [];
+  },
+  async addScanner(id: number, label: string | null): Promise<any> {
+    return apiService.post(`/provider/events/${id}/scanners`, { label });
+  },
+  async deleteScanner(id: number, scannerId: number): Promise<any> {
+    return apiService.delete(`/provider/events/${id}/scanners/${scannerId}`);
+  },
+  async promote(id: number, body: { days: number; email: string; redirect_url: string; announce_in_feed: boolean }): Promise<{ authorization_url: string; reference: string }> {
+    return apiService.post(`/provider/events/${id}/promote`, body);
+  },
+  async verifyPromo(reference: string): Promise<{ status: string; message?: string }> {
+    return apiService.get(`/provider/events/promote/verify?reference=${encodeURIComponent(reference)}`);
   },
 };
 
